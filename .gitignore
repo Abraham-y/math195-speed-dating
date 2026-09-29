@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+data/clean.csv
+results/*.png
+results/*.csv
+!results/.gitkeep
+.DS_Store
