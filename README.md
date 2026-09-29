@@ -25,6 +25,7 @@ full plan, `PREREG.md` for the hypotheses, and `CLAUDE.md` for working conventio
 
     clean.py               cleaning and consistency checks (run first)
     pairs.py               one row per dyad for match prediction, and the feature sets (run second)
+    eda.py                 exploratory tables and figures for the data section (results/eda_*)
     layerA_real_data.py    first error-bar comparison on the real data
     sim_cv_cluster.py      simulation of cross-validation intervals under clustering
 
