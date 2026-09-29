@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 data/clean.csv
+data/pairs.csv
 results/*.png
 results/*.csv
 !results/.gitkeep

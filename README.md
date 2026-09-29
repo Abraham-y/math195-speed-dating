@@ -24,8 +24,11 @@ full plan, `PREREG.md` for the hypotheses, and `CLAUDE.md` for working conventio
 ## Scripts
 
     clean.py               cleaning and consistency checks (run first)
+    pairs.py               one row per dyad for match prediction, and the feature sets (run second)
     layerA_real_data.py    first error-bar comparison on the real data
     sim_cv_cluster.py      simulation of cross-validation intervals under clustering
+
+Tests with known answers live in `tests/`; run them with `python tests/test_pairs.py` before using the outputs.
 
 ## Data provenance
 

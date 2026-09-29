@@ -1,16 +1,15 @@
-import numpy as np, pandas as pd, sys, os, io, contextlib
-_buf = io.StringIO()
+import numpy as np, pandas as pd, sys, os
 sys.path.insert(0, "scripts")
 from sim_cv_cluster import fit_logit, loss01, cv_point, cr_var_of_mean, grouped_folds, random_folds
-rng = np.random.default_rng(7)
+SEED = 7
+rng = np.random.default_rng(SEED)
 df = pd.read_csv('data/speed_dating.csv', encoding='latin-1')
 feats = ['attr','sinc','intel','fun','amb','shar','order']
 d = df.dropna(subset=feats+['dec','pid']).copy()
 X = ((d[feats]-d[feats].mean())/d[feats].std()).values; y = d.dec.values.astype(float)
 rater = d.iid.values; ratee = d.pid.values.astype(int); wave = d.wave.values
 n = len(y); K = 5; z = 1.645
-_tee = contextlib.redirect_stdout(_buf); _tee.__enter__()
-print(f"rows {n}, raters {len(np.unique(rater))}, waves {len(np.unique(wave))}, yes-rate {y.mean():.3f}")
+print(f"seed {SEED}; rows {n}, raters {len(np.unique(rater))}, waves {len(np.unique(wave))}, yes-rate {y.mean():.3f}")
 
 def relabel(a): 
     u, inv = np.unique(a, return_inverse=True); return inv
@@ -44,10 +43,14 @@ res['grouped by rater'] = (eg.mean(), se_n, dict(rater_CR=se_r, twoway_CR=se_2, 
 # grouped by wave
 fw = grouped_folds(w_id, K, rng); ew = cv_point(X, y, fw, K)
 res['grouped by wave'] = (ew.mean(), np.sqrt(ew.var(ddof=1)/n), dict(wave_CR=np.sqrt(cr_var_of_mean(ew, w_id)), twoway_CR=np.sqrt(max(twoway_var(ew, r_id, c_id),0))))
+table = []
 for k,(m,sn,extra) in res.items():
     print(f"\n{k:18s} CV error {m:.4f}   naive SE {sn:.4f} (half-width {z*sn:.4f})")
+    table.append(dict(fold_scheme=k, se_type='naive', cv_error=m, se=sn, ratio_to_naive=1.0, half_width_90=z*sn))
     if extra:
-        for nm,v in extra.items(): print(f"{'':18s}   {nm:15s} SE {v:.4f}  ratio to naive {v/sn:.2f}  half-width {z*v:.4f}")
+        for nm,v in extra.items():
+            print(f"{'':18s}   {nm:15s} SE {v:.4f}  ratio to naive {v/sn:.2f}  half-width {z*v:.4f}")
+            table.append(dict(fold_scheme=k, se_type=nm, cv_error=m, se=v, ratio_to_naive=v/sn, half_width_90=z*v))
 # within-rater and within-ratee correlation of per-point errors (design effect inputs)
 def icc(e, g):
     m = pd.Series(e).groupby(g).transform('mean').values; sizes = pd.Series(e).groupby(g).transform('size').values
@@ -57,7 +60,7 @@ def icc(e, g):
         ee = e[g==gg]-e.mean(); s = ee.sum(); q = (ee**2).sum(); tot += s*s-q; cnt += len(ee)*(len(ee)-1)
     return tot/cnt/e.var()
 print(f"\nwithin-rater error correlation {icc(eg, r_id):.3f}, within-ratee {icc(eg, c_id):.3f}, median dates per rater {np.median(np.bincount(r_id)):.0f}")
-# stated vs revealed weights (Part 1 quick look): revealed = standardized logistic coefficients
+# stated vs revealed weights (Part 1 quick look, pooled over gender; the P5 test is by gender in part1_models.py)
 w = fit_logit(X, y)
 stated = d.groupby('iid')[['attr1_1','sinc1_1','intel1_1','fun1_1','amb1_1','shar1_1']].first()
 st = stated.div(stated.sum(axis=1), axis=0).mean()*100
@@ -65,5 +68,6 @@ print("\nstated weights (mean %, harmonized):", st.round(1).to_dict())
 rev = pd.Series(w[1:7], index=['attr','sinc','intel','fun','amb','shar']); rev = (rev.clip(lower=0)/rev.clip(lower=0).sum()*100)
 print("revealed weights (% of positive std. logit coefs):", rev.round(1).to_dict())
 
-_tee.__exit__(None, None, None); os.makedirs('results', exist_ok=True)
-open('results/layerA_real_data.txt','w').write(_buf.getvalue()); print(_buf.getvalue()); print('wrote results/layerA_real_data.txt')
+os.makedirs('results', exist_ok=True)
+out = pd.DataFrame(table).assign(seed=SEED, K=K, n=n)
+out.to_csv('results/layerA_real_data.csv', index=False); print('\nwrote results/layerA_real_data.csv')

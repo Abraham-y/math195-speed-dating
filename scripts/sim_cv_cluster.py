@@ -1,5 +1,4 @@
 import numpy as np, time
-rng = np.random.default_rng(20260924)
 
 def sigmoid(t): return 1/(1+np.exp(-t))
 
@@ -90,13 +89,19 @@ def run(G=40, m=20, p=10, tau_a=1.0, tau_x=1.0, K=5, reps=300, seed=1):
     return np.array(rows)
 
 if __name__=='__main__':
-    import sys
-    R = run(reps=int(sys.argv[1]) if len(sys.argv)>1 else 300)
-    import os; os.makedirs('results', exist_ok=True); np.save('results/sim_cv_cluster_rows.npy', R)
+    import sys, os, pandas as pd
+    SEED = 1
+    R = run(reps=int(sys.argv[1]) if len(sys.argv)>1 else 300, seed=SEED)
+    cols = ['err_new', 'cv_grouped', 'se_naive_grouped', 'se_cr_grouped', 'se_nested_iid_grouped', 'se_cluster_nested_grouped',
+            'cv_random', 'se_naive_random', 'se_nested_random', 'mse_cluster_nested_raw', 'mse_nested_iid_raw']
+    os.makedirs('results', exist_ok=True)
+    pd.DataFrame(R, columns=cols).assign(seed=SEED).to_csv('results/sim_cv_cluster_rows.csv', index_label='rep')
     err, Eg, sn, scr, sni, scn, Er, srn, srni, raw_cn, raw_ni = R.T
+    se_floor = np.maximum(scr, scn)                              # floor of cluster-robust and cluster-nested
+    se_oracle = np.full_like(Eg, np.sqrt(np.mean((Eg-err)**2)))  # constant SE equal to the true root MSE
     z=1.645
     def cov(E, se, target): return np.mean(np.abs(E-target) <= z*se)
-    print("n=800 (G=40 clusters x m=20), p=10, K=5, reps=", len(R))
+    print(f"seed {SEED}; n=800 (G=40 clusters x m=20), p=10, K=5, reps= {len(R)}")
     print(f"true Err_new (mean over reps)      : {err.mean():.4f}  sd across training sets {err.std():.4f}")
     print(f"grouped CV estimate: mean {Eg.mean():.4f}, sd {Eg.std():.4f}  (bias vs Err_new {Eg.mean()-err.mean():+.4f})")
     print(f"random  CV estimate: mean {Er.mean():.4f}, sd {Er.std():.4f}  (bias vs Err_new {Er.mean()-err.mean():+.4f})")
@@ -108,13 +113,21 @@ if __name__=='__main__':
     print(f"mean cluster-nested MSE, grouped  : {np.mean(scn**2):.3e}")
     print(f"empirical MSE of grouped CV vs Err_new: {np.mean((Eg-err)**2):.3e}")
     print(f"cluster-nested raw MSE: mean {raw_cn.mean():.3e}, sd {raw_cn.std():.3e}, frac<=0 {np.mean(raw_cn<=0):.2f}; nested iid-b raw: mean {raw_ni.mean():.3e}, sd {raw_ni.std():.3e}")
+    cov_rows = []
     print("--- 90% interval coverage of Err_new (the new-cluster error of the full-data model) ---")
     for name,E,se in [("grouped CV, naive SE",Eg,sn),("grouped CV, cluster-robust SE",Eg,scr),
                       ("grouped CV, nested (iid b_k)",Eg,sni),("grouped CV, cluster-nested",Eg,scn),
+                      ("grouped CV, floor of CR and cluster-nested",Eg,se_floor),
+                      ("oracle: constant SE = true root MSE",Eg,se_oracle),
                       ("random CV, naive SE",Er,srn),("random CV, BHT nested",Er,srni)]:
-        print(f"{name:34s}: coverage {cov(E,se,err):.3f}   mean half-width {z*se.mean():.4f}")
+        print(f"{name:43s}: coverage {cov(E,se,err):.3f}   mean half-width {z*se.mean():.4f}")
+        cov_rows.append(dict(target='Err_new', procedure=name, coverage=cov(E,se,err), mean_half_width=z*se.mean()))
     print("--- coverage of E[Err_new] (average over training sets) ---")
     mu = err.mean()
     for name,E,se in [("grouped CV, naive SE",Eg,sn),("grouped CV, cluster-robust SE",Eg,scr),
-                      ("grouped CV, nested (iid b_k)",Eg,sni),("grouped CV, cluster-nested",Eg,scn)]:
-        print(f"{name:34s}: coverage {cov(E,se,mu):.3f}")
+                      ("grouped CV, nested (iid b_k)",Eg,sni),("grouped CV, cluster-nested",Eg,scn),
+                      ("grouped CV, floor of CR and cluster-nested",Eg,se_floor)]:
+        print(f"{name:43s}: coverage {cov(E,se,mu):.3f}")
+        cov_rows.append(dict(target='E[Err_new]', procedure=name, coverage=cov(E,se,mu), mean_half_width=z*se.mean()))
+    pd.DataFrame(cov_rows).assign(seed=SEED, reps=len(R)).to_csv('results/sim_cv_cluster_coverage.csv', index=False)
+    print("wrote results/sim_cv_cluster_rows.csv, results/sim_cv_cluster_coverage.csv")
