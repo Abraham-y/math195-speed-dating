@@ -227,6 +227,11 @@ def main():
         print(f"complete dyads, `{s}`: {int(cc.sum())} of {len(pairs)}, match rate among them {pairs.match[cc].mean():.3f}")
     both = complete["pre+date"]
     print(f"match rate among dyads complete on `pre` but not `pre+date`: {pairs.match[complete['pre'] & ~both].mean():.3f}")
+    groups = {"all dyads": pd.Series(True, index=pairs.index), "complete on pre": complete["pre"],
+              "complete on pre+date": both, "complete on pre, missing an in-date feature": complete["pre"] & ~both,
+              "missing a pre feature": ~complete["pre"]}
+    pd.DataFrame([dict(sample=k, dyads=int(m.sum()), matches=int(pairs.match[m].sum()), match_rate=pairs.match[m].mean())
+                  for k, m in groups.items()]).to_csv(RES / "eda_complete_cases.csv", index=False)
 
     summ = pair_features_by_match(pairs, sets)
     print("\npair features by match status (mean; match / no match):")
