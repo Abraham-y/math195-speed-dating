@@ -9,6 +9,10 @@ No random operations, so no seed.
 3. Dates per person, by gender.
 4. Missingness of every feature in the `pre` and `pre+date` sets.
 5. Interest similarity and age difference by match status, with a summary of all six pair features.
+6. Values outside the codebook's 1 to 10 scales, and the evidence on whether they are typos.
+7. Stated preferences by survey format (waves 6 to 9 rated 1 to 10; the other waves split 100 points).
+8. The preference-fit feature split into the partner's average self-rating and the compatibility term.
+Sections 6 to 8 are the evidence for the decisions in PREREG.md; section 8 uses no match outcomes.
 Run from the repository root after clean.py and pairs.py: python scripts/eda.py
 """
 import json, pathlib
@@ -20,6 +24,10 @@ import matplotlib.pyplot as plt
 RES = pathlib.Path("results")
 ATTRS = ["attr", "sinc", "intel", "fun", "amb", "shar"]
 ATTR_NAMES = dict(attr="Attractive", sinc="Sincere", intel="Intelligent", fun="Fun", amb="Ambitious", shar="Shared interests")
+SELF_ATTRS = ATTRS[:5]   # no self-rating of shared interests
+INTERESTS = ["sports", "tvsports", "exercise", "dining", "museums", "art", "hiking", "gaming", "clubbing",
+             "reading", "tv", "theater", "movies", "concerts", "music", "shopping", "yoga"]
+FORMATS = {"1-10": "1-10 (waves 6-9)", "100pt": "100 points (other waves)"}
 
 # Chart style. Gender is categorical slots 1 and 2 of the reference palette; match status is an emphasis pair
 # (violet against the de-emphasis gray). Both pairs checked with the dataviz skill's palette validator on white.
@@ -194,6 +202,74 @@ def pair_features_by_match(pairs, sets):
     return summ
 
 
+def out_of_range(clean, pairs):
+    """Section 6: in-date ratings of 0 and interest ratings outside 1 to 10. A '10' typed as '0' would sit on
+    a card the rater liked, so the liking and yes rate on cards with a 0 are the test."""
+    R = ATTRS + ["like", "prob"]
+    any_zero = clean[R].eq(0).any(axis=1)
+    givers = clean.rater.isin(clean.rater[any_zero].unique())
+    zeros = pd.DataFrame([dict(rating=a, zero_cards=int((clean[a] == 0).sum()), raters=clean.rater[clean[a] == 0].nunique(),
+                               like_on_zero_cards=clean.like[clean[a] == 0].mean(), like_all_cards=clean.like.mean(),
+                               yes_rate_on_zero_cards=clean.dec[clean[a] == 0].mean(), yes_rate_all_cards=clean.dec.mean(),
+                               zero_cards_with_like_8_plus=int(((clean[a] == 0) & (clean.like >= 8)).sum())) for a in R])
+    zeros.to_csv(RES / "eda_zero_ratings.csv", index=False)
+    people = clean.drop_duplicates("rater").set_index("rater")
+    off = people[INTERESTS].lt(1) | people[INTERESTS].gt(10)
+    inter = pd.DataFrame([dict(interest=c, value=v, people=int((people[c] == v).sum()), events=people.event[people[c] == v].nunique())
+                          for c in INTERESTS for v in sorted(people.loc[off[c], c].unique())])
+    inter.to_csv(RES / "eda_interest_out_of_range.csv", index=False)
+    recorded_error = (pairs.f_gaming == 14) | (pairs.m_gaming == 14) | (pairs.f_reading == 13) | (pairs.m_reading == 13)
+    summary = {"scorecards with a rating of 0": int(any_zero.sum()), "people giving a 0": int(clean.rater[any_zero].nunique()),
+               "events with a 0": int(clean.event[any_zero].nunique()),
+               "N/A rate in ratings, people giving a 0": clean.loc[givers, R].isna().mean().mean(),
+               "N/A rate in ratings, everyone else": clean.loc[~givers, R].isna().mean().mean(),
+               "people with an interest rating of 0": int(people[INTERESTS].eq(0).any(axis=1).sum()),
+               "most interest zeros from one person": int(people[INTERESTS].eq(0).sum(axis=1).max()),
+               "dyads involving a gaming-14 or reading-13 person": int(recorded_error.sum())}
+    pd.Series(summary, name="value").rename_axis("metric").to_csv(RES / "eda_out_of_range_summary.csv")
+    return zeros, inter, summary
+
+
+def pref_format(clean, pairs):
+    """Section 7: stated-preference shares (block 1_1) by survey format."""
+    people = clean.drop_duplicates("rater")
+    S = people[[f"{a}1_1_share" for a in ATTRS]].set_axis(ATTRS, axis=1)
+    rows = []
+    for code, name in FORMATS.items():
+        g = S[people.pref_scale == code]
+        rows.append(dict(format=name, people=len(g), dyads=int((pairs.pref_scale == code).sum()),
+                         **{f"mean_share_{a}": g[a].mean() for a in ATTRS}, **{f"sd_share_{a}": g[a].std() for a in ATTRS},
+                         mean_within_person_sd=g.std(axis=1).mean(), mean_largest_share=g.max(axis=1).mean(),
+                         share_all_six_equal=g.dropna().nunique(axis=1).eq(1).mean()))
+    tab = pd.DataFrame(rows); tab.to_csv(RES / "eda_pref_format.csv", index=False)
+    return tab
+
+
+def pref_fit_split(pairs):
+    """Section 8: fit = partner's average self-rating + compatibility term, checked as an identity, then the
+    share of fit's variation the average explains, overall and within each survey format. No match outcomes."""
+    rows = []
+    for me, other in (("f", "m"), ("m", "f")):
+        W = pairs[[f"{me}_pref_{a}" for a in SELF_ATTRS]].to_numpy(float); W = W / W.sum(axis=1, keepdims=True)
+        S = pairs[[f"{other}_self_{a}" for a in SELF_ATTRS]].to_numpy(float)
+        level = S.mean(axis=1); compat = ((W - 0.2) * (S - level[:, None])).sum(axis=1)
+        fit = pairs[f"fit_to_{me}_prefs"].to_numpy(); ok = ~np.isnan(fit)
+        assert np.allclose(fit[ok], level[ok] + compat[ok]), "fit is not level + compatibility"
+        for name, m in [("all", ok)] + [(FORMATS[c], ok & (pairs.pref_scale == c).to_numpy()) for c in FORMATS]:
+            r = np.corrcoef(fit[m], level[m])[0, 1]
+            rows.append(dict(preferences_of=me, format=name, dyads=int(m.sum()), corr_fit_with_partner_mean_self=r,
+                             r_squared=r * r, sd_level=level[m].std(ddof=1), sd_compatibility=compat[m].std(ddof=1)))
+    tab = pd.DataFrame(rows); tab.to_csv(RES / "eda_pref_fit.csv", index=False)
+    people = pd.concat([pairs[[f"{p}_iid"] + [f"{p}_self_{a}" for a in SELF_ATTRS] + [f"{p}_pref_{a}" for a in SELF_ATTRS]]
+                        .set_axis(["iid"] + [f"self_{a}" for a in SELF_ATTRS] + [f"pref_{a}" for a in SELF_ATTRS], axis=1)
+                        for p in "fm"]).drop_duplicates("iid").dropna()
+    flat = {"people with complete answers": len(people),
+            "all five self-ratings equal": int(people[[f"self_{a}" for a in SELF_ATTRS]].nunique(axis=1).eq(1).sum()),
+            "all five weights equal": int(people[[f"pref_{a}" for a in SELF_ATTRS]].nunique(axis=1).eq(1).sum())}
+    pd.Series(flat, name="value").rename_axis("metric").to_csv(RES / "eda_pref_fit_flat_answers.csv")
+    return tab, flat
+
+
 def main():
     RES.mkdir(exist_ok=True)
     clean = pd.read_csv("data/clean.csv", low_memory=False)
@@ -238,6 +314,30 @@ def main():
     for f in sets["pre_pair"] + ["age_diff"]:
         s = summ[summ.feature == f].set_index("match")["mean"]
         print(f"  {f:15s} {s[1]:.3f} / {s[0]:.3f}")
+
+    zeros, inter, oor = out_of_range(clean, pairs)
+    z = zeros[zeros.rating != "like"]
+    print(f"\nout-of-range: {oor['scorecards with a rating of 0']} scorecards with a 0 from {oor['people giving a 0']} people in "
+          f"{oor['events with a 0']} events; N/A rate {oor['N/A rate in ratings, people giving a 0']:.3f} (people giving a 0) "
+          f"vs {oor['N/A rate in ratings, everyone else']:.3f}; liking on cards with a 0 averages "
+          f"{z.like_on_zero_cards.min():.1f} to {z.like_on_zero_cards.max():.1f} by attribute, against {clean.like.mean():.1f} on all cards")
+    print("interest values outside 1 to 10: " + "; ".join(f"{r.interest} = {r.value:g}: {r.people} people in {r.events} events" for r in inter.itertuples()))
+    print(f"people with an interest of 0: {oor['people with an interest rating of 0']} (one gave {oor['most interest zeros from one person']}); "
+          f"dyads involving a gaming-14 or reading-13 person: {oor['dyads involving a gaming-14 or reading-13 person']}")
+
+    fmt = pref_format(clean, pairs).set_index("format")
+    print("\nstated preferences by survey format (" + " / ".join(fmt.index) + "):")
+    for col, label in [("people", "people"), ("dyads", "dyads"), ("mean_share_attr", "mean share, attractive"),
+                       ("mean_share_amb", "mean share, ambitious"), ("mean_within_person_sd", "SD of a person's six shares"),
+                       ("mean_largest_share", "largest share, average")]:
+        print(f"  {label:28s} " + " / ".join(f"{v:.1f}" if isinstance(v, float) else f"{v}" for v in fmt[col]))
+
+    fit, flat = pref_fit_split(pairs)
+    print("\npreference fit = partner's average self-rating + compatibility term (identity checked):")
+    for r in fit.itertuples():
+        print(f"  {r.preferences_of}'s preferences, {r.format:24s}: average explains {r.r_squared:.0%}; SD average {r.sd_level:.2f}, compatibility {r.sd_compatibility:.3f}")
+    print(f"  of {flat['people with complete answers']} people: all five self-ratings equal {flat['all five self-ratings equal']}, "
+          f"all five weights equal {flat['all five weights equal']}")
     print("\nwrote " + ", ".join(sorted(p.name for p in RES.glob("eda_*"))))
 
 

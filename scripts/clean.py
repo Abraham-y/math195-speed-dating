@@ -6,9 +6,13 @@ Output: data/clean.csv, data/clean_summary.md
 What it does
 1. Drops rows with no decision recorded or no partner id.
 2. Adds identifiers: rater (iid), ratee (pid), event (wave), dyad (unordered pair), date_id (ordered pair).
-3. Harmonizes the stated-preference blocks. Waves 6 to 9 rated each attribute on a 1 to 10 scale;
-   all other waves allocated 100 points across the six attributes (codebook, "Preference Scale").
-   Each block is converted to shares summing to 100, with the original scale kept in `pref_scale`.
+3. Harmonizes the stated-preference blocks. The codebook says waves 6 to 9 rated each attribute on a
+   1 to 10 scale and the other waves split 100 points ("Preference Scale"). In the release, blocks 1_1 and
+   2_1 for waves 6 to 9 are already rescaled to shares of 100, while block 4_1 still holds the 1 to 10
+   answers, and 100-point answers do not always sum to exactly 100. Every block is converted to shares
+   summing to 100 (a no-op where it already does); the survey format is kept in `pref_scale`. A check
+   confirms which blocks arrived already converted. Shares from the two formats are on the same units but
+   not equally spread; see PREREG.md on standardizing within format.
 4. Flags missing attribute ratings and marks complete-case rows.
 5. Flags the event-level variations listed in the codebook (undergraduate wave, yes-budget wave,
    different MC, brought a book or magazine) and keeps `condtn` (limited vs extensive choice).
@@ -27,6 +31,8 @@ ATTRS = ["attr", "sinc", "intel", "fun", "amb", "shar"]
 PREF_BLOCKS = {"1_1": "own preferences, pre-event", "2_1": "what the opposite sex wants, pre-event",
                "4_1": "what same-sex peers want, pre-event"}
 SCALE_1_TO_10_WAVES = {6, 7, 8, 9}
+# whether the release already holds waves 6 to 9 as shares of 100, per block (checked below)
+PRECONVERTED_IN_RELEASE = {"1_1": True, "2_1": True, "4_1": False}
 WAVE_FLAGS = {"wave_undergrad": {5}, "wave_yes_budget": {12}, "wave_diff_mc": {13, 14},
               "wave_brought_item": {18, 19, 20, 21}}
 
@@ -62,8 +68,14 @@ def main():
         shares = block.div(total, axis=0) * 100
         for a, c in zip(ATTRS, cols):
             df[f"{a}{blk}_share"] = shares[c]
-        off = int(((df.pref_scale == "100pt") & total.notna() & (total.sub(100).abs() > 2)).sum())
-        notes.append(f"Block {blk} ({desc}): converted to shares of 100; {off} 100-point rows summed more than 2 away from 100 before rescaling")
+        w = (df.pref_scale == "1-10") & block.notna().all(axis=1)
+        preconverted = bool((total[w].sub(100).abs() <= 0.1).all())
+        assert preconverted == PRECONVERTED_IN_RELEASE[blk], f"block {blk}: waves 6-9 conversion state differs from the release this script was written for"
+        off = (df.pref_scale == "100pt") & total.notna() & (total.sub(100).abs() > 2)
+        state = ("already shares of 100 in the release (every complete row within 0.1 of 100)" if preconverted
+                 else f"raw 1-10 answers in the release (row sums {total[w].min():.0f} to {total[w].max():.0f})")
+        notes.append(f"Block {blk} ({desc}): converted to shares of 100. Waves 6-9: {state}. 100-point waves: "
+                     f"{df.loc[off, 'rater'].nunique()} people ({int(off.sum())} rows) summed more than 2 away from 100 before rescaling")
 
     # 4. missing ratings
     for a in ATTRS:
