@@ -133,6 +133,16 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   in P1 and P2 is the model with the highest headline event-held-out AUC among those listed here (and the random
   forest, once it exists); P3 compares the full logistic regression with and without the six pair features; in
   P4, "logistic regression" means the full logistic model.
+- Clarification of the preparation rule above (2026-10-06, before any model has used match outcomes). The
+  skewness rule applies only to numeric predictors with more than two distinct values; binary indicators
+  (`same_field`, `same_goal`, the missing-data flags) are never transformed. A predictor with skewness above 1
+  becomes log1p(x - min); one with skewness below -1 becomes -log1p(max - x), so the transformation reduces the
+  skew in both directions and higher values still mean more; min and max come from the training folds, and
+  held-out values beyond them are clipped to that range. Inside each training fold the steps run in this order:
+  survey-format standardization (from all participants), the out-of-range rule, the skewness rule, median
+  filling and flags, merging of rare codes, splines, standardization of numeric predictors. Reason: as first
+  written, the rule would have increased the skew of the three left-skewed predictors (`f_self_sinc`,
+  `f_movies`, `m_movies`) and transformed a binary indicator (`same_field`).
 
 ## Change log
 
@@ -140,3 +150,5 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
 - 2026-10-06 (no hypothesis changed) Added the decisions on missing values, preference alignment, out-of-range
   values, survey format, the robustness grid and model building, and defined "best model" for P1 to P4, before
   any model has used match outcomes.
+- 2026-10-06 (no hypothesis changed) Clarified the skewness rule (direction, binary indicators, order of
+  preparation steps), found by checking predictor distributions only, before any model has used match outcomes.
