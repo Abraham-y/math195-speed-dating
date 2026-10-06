@@ -12,6 +12,8 @@ No random operations, so no seed.
 6. Values outside the codebook's 1 to 10 scales, and the evidence on whether they are typos.
 7. Stated preferences by survey format (waves 6 to 9 rated 1 to 10; the other waves split 100 points).
 8. The preference-fit feature split into the partner's average self-rating and the compatibility term.
+9. Yes and match rates by semester, season and academic year, for all events and for events without a design
+   change (event dates from the codebook's wave table).
 Sections 6 to 8 are the evidence for the decisions in PREREG.md; section 8 uses no match outcomes.
 Run from the repository root after clean.py and pairs.py: python scripts/eda.py
 """
@@ -28,6 +30,13 @@ SELF_ATTRS = ATTRS[:5]   # no self-rating of shared interests
 INTERESTS = ["sports", "tvsports", "exercise", "dining", "museums", "art", "hiking", "gaming", "clubbing",
              "reading", "tv", "theater", "movies", "concerts", "music", "shopping", "yoga"]
 FORMATS = {"1-10": "1-10 (waves 6-9)", "100pt": "100 points (other waves)"}
+# event dates, transcribed from the codebook's wave table (data/speed_dating_key.doc)
+EVENT_DATES = {1: "2002-10-16", 2: "2002-10-23", 3: "2002-11-12", 4: "2002-11-12", 5: "2002-11-20", 6: "2003-03-26",
+               7: "2003-03-26", 8: "2003-04-02", 9: "2003-04-02", 10: "2003-09-24", 11: "2003-09-24", 12: "2003-10-07",
+               13: "2003-10-08", 14: "2003-10-08", 15: "2004-02-24", 16: "2004-02-25", 17: "2004-02-25", 18: "2004-04-06",
+               19: "2004-04-06", 20: "2004-04-07", 21: "2004-04-07"}
+# events whose procedure differed (codebook "Variations"): undergraduates, yes budget, different host, book or magazine
+DESIGN_FLAGS = ["wave_undergrad", "wave_yes_budget", "wave_diff_mc", "wave_brought_item"]
 
 # Chart style. Gender is categorical slots 1 and 2 of the reference palette; match status is an emphasis pair
 # (violet against the de-emphasis gray). Both pairs checked with the dataviz skill's palette validator on white.
@@ -68,10 +77,15 @@ def rates(clean, pairs):
     """Section 1: yes rate by gender and match rate, overall and by event."""
     yes = clean.groupby(["event", "gender"]).dec.mean().unstack()
     people = clean.drop_duplicates("rater").groupby(["event", "gender"]).size().unstack()
-    flags = clean.groupby("event")[["wave_undergrad", "wave_yes_budget", "wave_diff_mc", "wave_brought_item"]].first()
+    flags = clean.groupby("event")[DESIGN_FLAGS].first()
     by_event = pd.DataFrame({"women": people[0], "men": people[1], "dyads": pairs.groupby("event").size(),
                              "yes_rate_women": yes[0], "yes_rate_men": yes[1],
                              "match_rate": pairs.groupby("event").match.mean()}).join(flags)
+    assert set(EVENT_DATES) == set(by_event.index), "an event has no date in EVENT_DATES"
+    dates = pd.to_datetime(pd.Series(EVENT_DATES)).reindex(by_event.index)
+    by_event["date"] = dates.dt.strftime("%Y-%m-%d")
+    by_event["term"] = dates.map(lambda d: f"{'Autumn' if d.month >= 8 else 'Spring'} {d.year}")
+    by_event["design_change"] = by_event[DESIGN_FLAGS].any(axis=1).astype(int)
     by_event.to_csv(RES / "eda_rates_by_event.csv")
     overall = {"people": clean.rater.nunique(), "women": int((clean.drop_duplicates("rater").gender == 0).sum()),
                "men": int((clean.drop_duplicates("rater").gender == 1).sum()), "events": clean.event.nunique(),
@@ -166,7 +180,7 @@ def missingness(pairs, sets):
 
 def pair_features_by_match(pairs, sets):
     """Section 5: pair features by match status; figure for interest similarity and age difference."""
-    feats = sets["pre_pair"] + ["age_diff", "int_corr17"]
+    feats = sets["pre_pair"] + ["int_corr_released", "fit_raw_to_f_prefs", "fit_raw_to_m_prefs", "age_diff", "int_corr17"]
     summ = pairs.groupby("match")[feats].agg(["count", "mean", "std", "median"]).stack(0, future_stack=True)
     summ = summ.rename_axis(["match", "feature"]).reset_index()
     summ.to_csv(RES / "eda_pair_features_by_match.csv", index=False)
@@ -175,7 +189,7 @@ def pair_features_by_match(pairs, sets):
     rows = []
     for m, (name, _) in MATCH.items():
         sub = pairs[pairs.match == m]
-        ic = pd.cut(sub.int_corr.dropna(), int_bins, include_lowest=True).value_counts(normalize=True, sort=False)
+        ic = pd.cut(sub.int_corr_released.dropna(), int_bins, include_lowest=True).value_counts(normalize=True, sort=False)
         rows += [dict(feature="int_corr", match=name, bin_mid=iv.mid, share=s) for iv, s in ic.items()]
         ad = sub.age_diff.dropna().value_counts(normalize=True).sort_index()
         rows += [dict(feature="age_diff", match=name, bin_mid=k, share=s) for k, s in ad.items()]
@@ -188,8 +202,8 @@ def pair_features_by_match(pairs, sets):
         line(a1, d.bin_mid, d.share, color, name)
         d = bins[(bins.feature == "age_diff") & (bins.match == name) & (bins.bin_mid.abs() <= lim)]
         line(a2, d.bin_mid, d.share, color, name)
-    means = pairs.groupby("match")[["int_corr", "age_diff"]].mean()
-    a1.set_title("Interest similarity (int_corr)"); a1.set_xlabel("Correlation of the two people's interest ratings")
+    means = pairs.groupby("match")[["int_corr_released", "age_diff"]].mean().rename(columns={"int_corr_released": "int_corr"})
+    a1.set_title("Interest similarity (int_corr, as released)"); a1.set_xlabel("Correlation of the two people's interest ratings")
     a1.set_ylabel("Share of dyads"); pct_axis(a1)
     a1.text(0.02, 0.62, f"mean\nmatch {means.int_corr[1]:.2f}\nno match {means.int_corr[0]:.2f}",
             transform=a1.transAxes, va="top", fontsize=7.5, color=INK2)
@@ -200,6 +214,27 @@ def pair_features_by_match(pairs, sets):
     fig.legend(*a1.get_legend_handles_labels(), loc="outside upper right", ncol=2)
     title(fig, "Pair features by match status"); save(fig, "pair_features_by_match")
     return summ
+
+
+def rates_by_period(by_event):
+    """Section 9: yes and match rates by semester, season and academic year, weighted by dyads (each dyad holds one
+    decision from each side), for all events and for events without a design change."""
+    ev = by_event.copy()
+    d = pd.to_datetime(ev.date)
+    ev["season"] = np.where(d.dt.month >= 8, "autumn", "late winter/spring")
+    ev["academic_year"] = [f"{y}-{(y + 1) % 100:02d}" if m >= 8 else f"{y - 1}-{y % 100:02d}" for y, m in zip(d.dt.year, d.dt.month)]
+    w = lambda x, c: (x[c] * x.dyads).sum() / x.dyads.sum()
+    rows = []
+    for period in ("term", "season", "academic_year"):
+        for events, sub in (("all", ev), ("no design change", ev[ev.design_change == 0])):
+            for key, x in sub.groupby(period, sort=False):
+                rows.append(dict(period=period, value=key, events=events, n_events=len(x), dyads=int(x.dyads.sum()),
+                                 first_date=x.date.min(), last_date=x.date.max(), yes_rate_women=w(x, "yes_rate_women"),
+                                 yes_rate_men=w(x, "yes_rate_men"), match_rate=w(x, "match_rate")))
+    tab = pd.DataFrame(rows)
+    tab["yes_gap_men_minus_women"] = tab.yes_rate_men - tab.yes_rate_women
+    tab.to_csv(RES / "eda_rates_by_period.csv", index=False)
+    return tab
 
 
 def out_of_range(clean, pairs):
@@ -214,11 +249,13 @@ def out_of_range(clean, pairs):
                                zero_cards_with_like_8_plus=int(((clean[a] == 0) & (clean.like >= 8)).sum())) for a in R])
     zeros.to_csv(RES / "eda_zero_ratings.csv", index=False)
     people = clean.drop_duplicates("rater").set_index("rater")
+    people = people.assign(**{c: people[f"{c}_recorded"] for c in ("gaming", "reading")})   # the values as recorded
     off = people[INTERESTS].lt(1) | people[INTERESTS].gt(10)
     inter = pd.DataFrame([dict(interest=c, value=v, people=int((people[c] == v).sum()), events=people.event[people[c] == v].nunique())
                           for c in INTERESTS for v in sorted(people.loc[off[c], c].unique())])
     inter.to_csv(RES / "eda_interest_out_of_range.csv", index=False)
-    recorded_error = (pairs.f_gaming == 14) | (pairs.m_gaming == 14) | (pairs.f_reading == 13) | (pairs.m_reading == 13)
+    recorded_error = ((pairs.f_gaming_recorded == 14) | (pairs.m_gaming_recorded == 14)
+                      | (pairs.f_reading_recorded == 13) | (pairs.m_reading_recorded == 13))
     summary = {"scorecards with a rating of 0": int(any_zero.sum()), "people giving a 0": int(clean.rater[any_zero].nunique()),
                "events with a 0": int(clean.event[any_zero].nunique()),
                "N/A rate in ratings, people giving a 0": clean.loc[givers, R].isna().mean().mean(),
@@ -253,8 +290,9 @@ def pref_fit_split(pairs):
         W = pairs[[f"{me}_pref_{a}" for a in SELF_ATTRS]].to_numpy(float); W = W / W.sum(axis=1, keepdims=True)
         S = pairs[[f"{other}_self_{a}" for a in SELF_ATTRS]].to_numpy(float)
         level = S.mean(axis=1); compat = ((W - 0.2) * (S - level[:, None])).sum(axis=1)
-        fit = pairs[f"fit_to_{me}_prefs"].to_numpy(); ok = ~np.isnan(fit)
+        fit = pairs[f"fit_raw_to_{me}_prefs"].to_numpy(); ok = ~np.isnan(fit)
         assert np.allclose(fit[ok], level[ok] + compat[ok]), "fit is not level + compatibility"
+        assert np.allclose(compat[ok], pairs[f"fit_to_{me}_prefs"].to_numpy()[ok]), "pairs.py compatibility term differs"
         for name, m in [("all", ok)] + [(FORMATS[c], ok & (pairs.pref_scale == c).to_numpy()) for c in FORMATS]:
             r = np.corrcoef(fit[m], level[m])[0, 1]
             rows.append(dict(preferences_of=me, format=name, dyads=int(m.sum()), corr_fit_with_partner_mean_self=r,
@@ -303,15 +341,21 @@ def main():
         print(f"complete dyads, `{s}`: {int(cc.sum())} of {len(pairs)}, match rate among them {pairs.match[cc].mean():.3f}")
     both = complete["pre+date"]
     print(f"match rate among dyads complete on `pre` but not `pre+date`: {pairs.match[complete['pre'] & ~both].mean():.3f}")
-    groups = {"all dyads": pd.Series(True, index=pairs.index), "complete on pre": complete["pre"],
-              "complete on pre+date": both, "complete on pre, missing an in-date feature": complete["pre"] & ~both,
-              "missing a pre feature": ~complete["pre"]}
-    pd.DataFrame([dict(sample=k, dyads=int(m.sum()), matches=int(pairs.match[m].sum()), match_rate=pairs.match[m].mean())
-                  for k, m in groups.items()]).to_csv(RES / "eda_complete_cases.csv", index=False)
+    recorded = pairs.assign(**{f"{p}_{c}": pairs[f"{p}_{c}_recorded"] for p in "fm" for c in ("gaming", "reading")})
+    rows = []
+    for basis, frame in (("as recorded", recorded), ("after the recording-error fix", pairs)):
+        pre_ok, both_ok = frame[sets["pre"]].notna().all(axis=1), frame[sets["pre+date"]].notna().all(axis=1)
+        groups = {"all dyads": pd.Series(True, index=pairs.index), "complete on pre": pre_ok, "complete on pre+date": both_ok,
+                  "complete on pre, missing an in-date feature": pre_ok & ~both_ok, "missing a pre feature": ~pre_ok}
+        rows += [dict(interest_values=basis, sample=k, dyads=int(m.sum()), matches=int(pairs.match[m].sum()),
+                      match_rate=pairs.match[m].mean()) for k, m in groups.items()]
+    cc_tab = pd.DataFrame(rows); cc_tab.to_csv(RES / "eda_complete_cases.csv", index=False)
+    print("complete cases (as recorded / after the fix): " + "; ".join(
+        f"{s} {a} / {b}" for s, a, b in zip(cc_tab["sample"][:5], cc_tab.dyads[:5], cc_tab.dyads[5:])))
 
     summ = pair_features_by_match(pairs, sets)
     print("\npair features by match status (mean; match / no match):")
-    for f in sets["pre_pair"] + ["age_diff"]:
+    for f in ["abs_age_diff", "int_corr_released", "int_corr", "same_field", "same_goal", "fit_raw_to_f_prefs", "fit_raw_to_m_prefs", "age_diff"]:
         s = summ[summ.feature == f].set_index("match")["mean"]
         print(f"  {f:15s} {s[1]:.3f} / {s[0]:.3f}")
 
@@ -338,6 +382,11 @@ def main():
         print(f"  {r.preferences_of}'s preferences, {r.format:24s}: average explains {r.r_squared:.0%}; SD average {r.sd_level:.2f}, compatibility {r.sd_compatibility:.3f}")
     print(f"  of {flat['people with complete answers']} people: all five self-ratings equal {flat['all five self-ratings equal']}, "
           f"all five weights equal {flat['all five weights equal']}")
+    per = rates_by_period(pd.read_csv(RES / "eda_rates_by_event.csv", index_col="event"))
+    print("\nby period (weighted by dyads): yes women / yes men / gap / match")
+    for r in per.itertuples():
+        print(f"  {r.period:13s} {r.value:19s} {r.events:16s} {r.n_events:2d} events: {r.yes_rate_women:.3f} / {r.yes_rate_men:.3f} / "
+              f"{r.yes_gap_men_minus_women:+.3f} / {r.match_rate:.3f}")
     print("\nwrote " + ", ".join(sorted(p.name for p in RES.glob("eda_*"))))
 
 

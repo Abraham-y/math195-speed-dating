@@ -277,6 +277,63 @@
     "m_career_c",
     "m_goal"
   ],
+  "flags_pre": [
+    "f_pre_missing",
+    "m_pre_missing"
+  ],
+  "flags_date": [
+    "f_date_missing",
+    "m_date_missing"
+  ],
+  "binary": [
+    "same_field",
+    "same_goal",
+    "f_pre_missing",
+    "m_pre_missing",
+    "f_date_missing",
+    "m_date_missing"
+  ],
+  "pref_reference": [
+    "f_pref_shar",
+    "m_pref_shar"
+  ],
+  "format_standardized": [
+    "f_pref_attr",
+    "f_pref_sinc",
+    "f_pref_intel",
+    "f_pref_fun",
+    "f_pref_amb",
+    "f_pref_shar",
+    "m_pref_attr",
+    "m_pref_sinc",
+    "m_pref_intel",
+    "m_pref_fun",
+    "m_pref_amb",
+    "m_pref_shar",
+    "fit_to_f_prefs",
+    "fit_to_m_prefs"
+  ],
+  "spline_candidates": [
+    "f_age",
+    "m_age",
+    "abs_age_diff",
+    "int_corr",
+    "fit_to_f_prefs",
+    "fit_to_m_prefs"
+  ],
+  "alternatives": {
+    "out_of_range_as_recorded": {
+      "f_gaming": "f_gaming_recorded",
+      "f_reading": "f_reading_recorded",
+      "m_gaming": "m_gaming_recorded",
+      "m_reading": "m_reading_recorded",
+      "int_corr": "int_corr_released"
+    },
+    "preference_fit_A": {
+      "fit_to_f_prefs": "fit_raw_to_f_prefs",
+      "fit_to_m_prefs": "fit_raw_to_m_prefs"
+    }
+  },
   "response": "match",
   "ids": [
     "dyad",
@@ -286,7 +343,7 @@
   ],
   "notes": {
     "f_/m_": "the woman's / the man's own answer; for rating_* and prob, her / his view of the partner",
-    "categorical": "integer codes; one-hot encode before fitting",
+    "categorical": "integer codes; rare codes merged and one-hot encoded inside each training fold",
     "excluded": "race variables (PREREG decision), f_dec/m_dec (define the response), age_diff (collinear with f_age and m_age), int_corr17 (near-duplicate of int_corr)"
   }
 }

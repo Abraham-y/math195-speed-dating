@@ -143,6 +143,10 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   filling and flags, merging of rare codes, splines, standardization of numeric predictors. Reason: as first
   written, the rule would have increased the skew of the three left-skewed predictors (`f_self_sinc`,
   `f_movies`, `m_movies`) and transformed a binary indicator (`same_field`).
+- Clarification of the complete-case version (2026-10-06, before any model has used match outcomes):
+  "complete" means complete on both feature sets as built under each specification. Under the headline
+  out-of-range rule that is 2,662 dyads (476 matches); with interest values as recorded it is the 2,766 quoted
+  above, which was counted before the recording-error fix (`results/eda_complete_cases.csv` gives both).
 
 ## Change log
 
@@ -152,3 +156,5 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   any model has used match outcomes.
 - 2026-10-06 (no hypothesis changed) Clarified the skewness rule (direction, binary indicators, order of
   preparation steps), found by checking predictor distributions only, before any model has used match outcomes.
+- 2026-10-06 (no hypothesis changed) Stated the complete-case count under the out-of-range rule (2,662 dyads),
+  which the recording-error fix lowered from 2,766.

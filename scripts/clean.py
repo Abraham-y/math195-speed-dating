@@ -16,8 +16,10 @@ What it does
 4. Flags missing attribute ratings and marks complete-case rows.
 5. Flags the event-level variations listed in the codebook (undergraduate wave, yes-budget wave,
    different MC, brought a book or magazine) and keeps `condtn` (limited vs extensive choice).
-6. Adds a few derived predictors (age difference, same field of study).
-7. Runs consistency checks and writes a summary of everything dropped or flagged.
+6. Sets the interest values PREREG.md treats as recording errors (gaming 14, reading 13) to missing, keeping the
+   recorded values in `gaming_recorded` and `reading_recorded` for the robustness grid.
+7. Adds a few derived predictors (age difference, same field of study).
+8. Runs consistency checks and writes a summary of everything dropped or flagged.
 Run from the repository root: python scripts/clean.py
 """
 import pandas as pd, numpy as np, pathlib
@@ -33,8 +35,22 @@ PREF_BLOCKS = {"1_1": "own preferences, pre-event", "2_1": "what the opposite se
 SCALE_1_TO_10_WAVES = {6, 7, 8, 9}
 # whether the release already holds waves 6 to 9 as shares of 100, per block (checked below)
 PRECONVERTED_IN_RELEASE = {"1_1": True, "2_1": True, "4_1": False}
+# interest values that recur in the same question across several events (PREREG.md, out-of-range values)
+RECORDING_ERRORS = {"gaming": 14, "reading": 13}
 WAVE_FLAGS = {"wave_undergrad": {5}, "wave_yes_budget": {12}, "wave_diff_mc": {13, 14},
               "wave_brought_item": {18, 19, 20, 21}}
+
+def apply_recording_errors(df):
+    """Set each known recording error to missing, keeping the recorded column as <name>_recorded.
+    Returns the frame and the number of people affected per column."""
+    people = {}
+    for col, bad in RECORDING_ERRORS.items():
+        df[f"{col}_recorded"] = df[col]
+        hit = df[col] == bad
+        people[col] = int(df.loc[hit, "rater"].nunique())
+        df.loc[hit, col] = np.nan
+    return df, people
+
 
 def main():
     raw = pd.read_csv(RAW, encoding="latin-1")
@@ -89,14 +105,19 @@ def main():
         df[flag] = df.event.isin(waves).astype(int)
     notes.append("Event flags added: " + ", ".join(f"{k} (waves {sorted(v)})" for k, v in WAVE_FLAGS.items()) + "; condtn kept (1 = limited choice, 2 = extensive)")
 
-    # 6. derived predictors
+    # 6. recording errors in the interest ratings
+    df, people = apply_recording_errors(df)
+    notes.append("Set to missing as recording errors (PREREG.md): " + ", ".join(f"{c} = {RECORDING_ERRORS[c]} for {n} people" for c, n in people.items())
+                 + "; recorded values kept in " + ", ".join(f"{c}_recorded" for c in RECORDING_ERRORS))
+
+    # 7. derived predictors
     df["age_diff"] = df.age - df.age_o
     partner_field = df.drop_duplicates("rater").set_index("rater")["field_cd"]
     pf = df.ratee.map(partner_field)
     df["same_field"] = (df.field_cd == pf).astype(float)
     df.loc[df.field_cd.isna() | pf.isna(), "same_field"] = np.nan
 
-    # 7. consistency checks
+    # 8. consistency checks
     assert df.duplicated(subset=["rater", "ratee"]).sum() == 0
     assert set(df.dec.unique()) <= {0, 1}
     partner_wave = df.drop_duplicates("rater").set_index("rater")["event"]
