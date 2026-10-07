@@ -147,6 +147,14 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   "complete" means complete on both feature sets as built under each specification. Under the headline
   out-of-range rule that is 2,662 dyads (476 matches); with interest values as recorded it is the 2,766 quoted
   above, which was counted before the recording-error fix (`results/eda_complete_cases.csv` gives both).
+- Random forest (2026-10-06, before it has been run): scikit-learn `RandomForestClassifier` with 500 trees,
+  the square root of the number of predictors tried at each split (ISL 8.2.2), and the minimum leaf size chosen
+  from 1, 5, 20 and 50 by event-grouped 4-fold cross-validation (pooled AUC) inside each training fold, on the
+  same prepared design as LDA and QDA; `random_state` 20261106 plus the fold number. It runs on the whole
+  robustness grid, is a candidate for the "best model" in P1 and P2, and is the random forest of P4. Reason:
+  the model-building entry named the random forest for P1, P2 and P4 without fixing its settings. The other
+  models had already been run when this was written; the settings are the textbook defaults plus a small
+  tuning grid, chosen without looking at any random-forest result.
 
 ## Change log
 
@@ -158,3 +166,5 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   preparation steps), found by checking predictor distributions only, before any model has used match outcomes.
 - 2026-10-06 (no hypothesis changed) Stated the complete-case count under the out-of-range rule (2,662 dyads),
   which the recording-error fix lowered from 2,766.
+- 2026-10-06 (no hypothesis changed) Fixed the random forest's settings before running it; logistic, stepwise,
+  LDA and QDA had already run (results/part1_models_metrics.csv as of commit 44f8508).
