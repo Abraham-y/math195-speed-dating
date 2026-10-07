@@ -3,7 +3,7 @@
 Input : data/pairs.csv, data/feature_sets.json, data/clean.csv (for the yes model, P5)
 Output: results/part1_models_*.csv and results/part1_models_*.png (see the end of main for the list)
 Seeds : event folds 20261006 (modeling.FOLD_SEED); inner tuning folds 20261006 + 1 + fold; random forest
-        random_state 20261106 + fold.
+        random_state 20261106 + fold; lasso random_state 20261206 + fold.
 
 For each specification (the headline, then the rest of the robustness grid) and each feature set (`pre`,
 `pre+date`, and `pre_individual` for P3), 5-fold cross-validation holding out whole events (`event` scheme):
@@ -11,7 +11,9 @@ For each specification (the headline, then the rest of the robustness grid) and 
   lowers BIC on the training fold;
 - stepwise logistic regression, forward / backward / both ways by BIC (headline and complete-case only);
 - LDA, QDA with reg_param tuned by event-grouped 4-fold CV inside the training fold, and a random forest
-  (500 trees, sqrt(p) predictors per split, minimum leaf size tuned the same way; PREREG.md entry of 2026-10-06).
+  (500 trees, sqrt(p) predictors per split, minimum leaf size tuned the same way; PREREG.md entry of 2026-10-06);
+- the lasso: L1 logistic regression with its penalty tuned the same way (PREREG.md entry of 2026-10-06). It is
+  reported but kept out of the "best model" of P1 and P2, which were tested before it was added.
 Everything is refitted inside each training fold. Thresholds: the training fold's match rate. Error bars: the
 cluster-robust estimator with events as clusters; AUC by Obuchowski (1997), which the simulation in
 scripts/sim_auc_cluster.py found about 9% too narrow at 21 events (90% intervals covered 83%).
@@ -24,6 +26,7 @@ import numpy as np, pandas as pd
 from joblib import Parallel, delayed
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -34,6 +37,7 @@ RES = pathlib.Path("results")
 QDA_REGS = [0.1, 0.3, 0.5, 0.7, 0.9]
 RF_LEAVES = [1, 5, 20, 50]
 RF_SEED, RF_TREES, RF_JOBS = 20261106, 500, 2
+LASSO_SEED, LASSO_STEPS = 20261206, 30
 DIRECTIONS = ("forward", "backward", "both")
 ATTRS = ["attr", "sinc", "intel", "fun", "amb", "shar"]
 SIM_COVERAGE = "clustered AUC SE checked in scripts/sim_auc_cluster.py: about 9% too narrow, 90% intervals covered 83%"
@@ -83,6 +87,18 @@ def make_qda(r):
     return QuadraticDiscriminantAnalysis(reg_param=r)
 
 
+def lasso_grid(D, y, steps=LASSO_STEPS):
+    """Inverse penalties C for liblinear's L1 logistic regression, strongest penalty first: from the smallest
+    penalty that zeroes every coefficient (C = 1 / max |D'(y - mean y)|) to one thousandth of it."""
+    cmin = 1 / np.max(np.abs(D.T @ (y - y.mean())))
+    return list(cmin * np.logspace(0, 3, steps))
+
+
+def make_lasso(k):
+    return lambda C: LogisticRegression(l1_ratio=1, solver="liblinear", C=C, intercept_scaling=100, tol=1e-4,
+                                        random_state=LASSO_SEED + k)
+
+
 def make_rf(k):
     return lambda leaf: RandomForestClassifier(n_estimators=RF_TREES, max_features="sqrt", min_samples_leaf=leaf,
                                                random_state=RF_SEED + k, n_jobs=RF_JOBS)
@@ -109,7 +125,7 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
             wd, _ = M.fit_logit(Dtr[:, cols], ytr)
             out[f"stepwise_{d}"] = M.predict_logit(wd, Dte[:, cols])
             sel[d] = chosen
-    if "lda_qda" in models or "rf" in models:
+    if "lda_qda" in models or "rf" in models or "lasso" in models:
         pl = make_prep(sets, Xtr).fit(Xtr, idtr)
         Ltr, Lte = pl.transform(Xtr).to_numpy(), pl.transform(Xte).to_numpy()
     if "lda_qda" in models:
@@ -121,6 +137,13 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
         leaf = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_rf(k), RF_LEAVES)
         out["rf"] = make_rf(k)(leaf).fit(Ltr, ytr).predict_proba(Lte)[:, 1]
         info["rf_min_samples_leaf"] = leaf
+    if "lasso" in models:
+        C = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_lasso(k), lasso_grid(Ltr, ytr))
+        las = make_lasso(k)(C).fit(Ltr, ytr)
+        out["lasso"] = las.predict_proba(Lte)[:, 1]
+        nz = np.abs(las.coef_[0]) > 1e-8
+        sel["lasso"] = [b for b, cols in pl.blocks().items() if nz[cols].any()]
+        info["lasso_C"] = C; info["lasso_nonzero_columns"] = int(nz.sum())
     return dict(test_idx=np.where(test)[0], prob=out, info=info, selected=sel)
 
 
@@ -296,7 +319,7 @@ def main():
     for i, spec in enumerate(specs):
         stepwise = spec in (M.HEADLINE, M.COMPLETE_CASE)
         for fs in ("pre", "pre+date", "pre_individual"):
-            models = ("logistic",) if fs == "pre_individual" else (("stepwise", "lda_qda", "rf") if stepwise else ("lda_qda", "rf"))
+            models = ("logistic",) if fs == "pre_individual" else (("stepwise", "lda_qda", "rf", "lasso") if stepwise else ("lda_qda", "rf", "lasso"))
             t0 = time.time()
             rows, fi, se, kept = cross_validate(pairs, sets, spec, fs, models, args.jobs)
             met += rows; finfo += fi; sel += se
@@ -310,6 +333,10 @@ def main():
 
     selection = pd.DataFrame(sel)
     if len(selection):
+        las = selection[selection.direction == "lasso"]
+        lf = las.groupby(["spec", "feature_set", "block"]).size().rename("folds_nonzero").reset_index()
+        lf.sort_values(["spec", "feature_set", "folds_nonzero"], ascending=[True, True, False]).to_csv(RES / "part1_models_lasso_selection.csv", index=False)
+        selection = selection[selection.direction != "lasso"]
         freq = selection.groupby(["spec", "feature_set", "direction", "block"]).size().rename("folds_selected").reset_index()
         freq["share_of_folds"] = freq.folds_selected / 5
         freq.sort_values(["spec", "feature_set", "direction", "folds_selected"], ascending=[True, True, True, False]).to_csv(RES / "part1_models_stepwise_selection.csv", index=False)
@@ -366,6 +393,14 @@ def main():
         print("\nstepwise blocks selected in at least 3 of 5 folds (headline):")
         for (fs, d), g in f[f.folds_selected >= 3].groupby(["feature_set", "direction"]):
             print(f"  {fs:9s} {d:8s}: " + ", ".join(f"{b} ({n})" for b, n in zip(g.block, g.folds_selected)))
+    lf = pd.read_csv(RES / "part1_models_lasso_selection.csv")
+    lf = lf[lf.spec == M.HEADLINE.label]
+    folds = pd.read_csv(RES / "part1_models_folds.csv")
+    folds = folds[(folds.spec == M.HEADLINE.label) & folds.feature_set.isin(["pre", "pre+date"])]
+    print("\nlasso (headline; exploratory, not in the best-model pool of P1 and P2):")
+    for fs, g in lf.groupby("feature_set"):
+        nzc = folds[folds.feature_set == fs].lasso_nonzero_columns.tolist()
+        print(f"  {fs:9s} nonzero columns per fold {nzc}; kept in all 5 folds: " + ", ".join(g[g.folds_nonzero == 5].block))
     log("wrote " + ", ".join(sorted(p.name for p in RES.glob("part1_models_*"))))
 
 

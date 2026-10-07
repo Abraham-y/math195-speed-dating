@@ -64,6 +64,29 @@ def test_tune_inner_picks_the_better_setting():
     assert P1.tune_inner(X, y, ev, ids, sets, 0, make, ["lda", "constant"]) == "lda"
 
 
+def test_lasso_grid_starts_where_every_coefficient_is_zero():
+    rng = np.random.default_rng(9)
+    D = rng.normal(size=(1000, 10)); y = (rng.random(1000) < 1 / (1 + np.exp(-(D[:, 0] - 1.5)))).astype(float)
+    grid = P1.lasso_grid(D, y)
+    assert len(grid) == 30 and np.all(np.diff(grid) > 0) and np.isclose(grid[-1] / grid[0], 1000)
+    first = P1.make_lasso(0)(grid[0]).fit(D, y); second = P1.make_lasso(0)(grid[1]).fit(D, y)
+    assert np.all(np.abs(first.coef_) < 1e-8) and np.any(np.abs(second.coef_) > 1e-8)
+
+
+def test_lasso_tuning_keeps_the_signal():
+    rng = np.random.default_rng(10)
+    n = 2000; ev = np.repeat(np.arange(10), 200)
+    X = pd.DataFrame(rng.normal(size=(n, 12)), columns=[f"x{j}" for j in range(12)])
+    y = (rng.random(n) < 1 / (1 + np.exp(-(1.5 * X.x0 - 1.2 * X.x3 + 0.8 * X.x7 - 1.5)))).astype(float)
+    ids = pd.DataFrame({"f_iid": np.arange(n), "m_iid": np.arange(n) + n})
+    sets = {"pre_individual": [], "categorical": [], "binary": []}
+    p = P1.make_prep(sets, X).fit(X, ids); D = p.transform(X).to_numpy()
+    C = P1.tune_inner(X, y, ev, ids, sets, 0, P1.make_lasso(0), P1.lasso_grid(D, y))
+    coef = P1.make_lasso(0)(C).fit(D, y).coef_[0]
+    kept = {c for c, b in zip(p.columns, coef) if abs(b) > 1e-8}
+    assert {"x0", "x3", "x7"} <= kept and len(kept) <= 9
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
