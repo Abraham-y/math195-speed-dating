@@ -155,6 +155,17 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   the model-building entry named the random forest for P1, P2 and P4 without fixing its settings. The other
   models had already been run when this was written; the settings are the textbook defaults plus a small
   tuning grid, chosen without looking at any random-forest result.
+- Lasso (2026-10-06, before it has been run): L1-penalized logistic regression (ISL 6.2.2) on the same prepared
+  design as LDA and QDA (standardized; each dummy of a categorical code penalized on its own), fitted with
+  scikit-learn's `liblinear` solver with `intercept_scaling` 100 so that the intercept is effectively
+  unpenalized; `random_state` 20261206 plus the fold number. The penalty is chosen from 30 values spaced evenly
+  on a log scale, from the smallest that sets every coefficient to zero down to one thousandth of it, by
+  event-grouped 4-fold cross-validation (pooled AUC) inside each training fold, ties going to the stronger
+  penalty. It runs on the whole robustness grid and is reported by its held-out metrics and by how often each
+  predictor keeps a nonzero coefficient across the five folds. P1 to P4 had already been tested when this was
+  written, so the lasso is not added to the "best model" of P1 and P2; any comparison that includes it is
+  exploratory. The solver was chosen by speed and convergence on one training fold (`saga` took 20 times
+  longer), without looking at any lasso result.
 
 ## Change log
 
@@ -168,3 +179,5 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   which the recording-error fix lowered from 2,766.
 - 2026-10-06 (no hypothesis changed) Fixed the random forest's settings before running it; logistic, stepwise,
   LDA and QDA had already run (results/part1_models_metrics.csv as of commit 44f8508).
+- 2026-10-06 (no hypothesis changed) Fixed the lasso's settings before running it, and kept it out of the "best
+  model" of P1 and P2, which had already been tested (commit 3e44b7b).
