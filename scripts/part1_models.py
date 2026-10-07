@@ -2,14 +2,16 @@
 
 Input : data/pairs.csv, data/feature_sets.json, data/clean.csv (for the yes model, P5)
 Output: results/part1_models_*.csv and results/part1_models_*.png (see the end of main for the list)
-Seeds : event folds 20261006 (modeling.FOLD_SEED); inner QDA folds 20261006 + 1 + fold.
+Seeds : event folds 20261006 (modeling.FOLD_SEED); inner tuning folds 20261006 + 1 + fold; random forest
+        random_state 20261106 + fold.
 
 For each specification (the headline, then the rest of the robustness grid) and each feature set (`pre`,
 `pre+date`, and `pre_individual` for P3), 5-fold cross-validation holding out whole events (`event` scheme):
 - logistic regression on the full feature set, with a natural spline replacing a candidate's linear term when it
   lowers BIC on the training fold;
 - stepwise logistic regression, forward / backward / both ways by BIC (headline and complete-case only);
-- LDA, and QDA with reg_param tuned by event-grouped 4-fold CV inside the training fold.
+- LDA, QDA with reg_param tuned by event-grouped 4-fold CV inside the training fold, and a random forest
+  (500 trees, sqrt(p) predictors per split, minimum leaf size tuned the same way; PREREG.md entry of 2026-10-06).
 Everything is refitted inside each training fold. Thresholds: the training fold's match rate. Error bars: the
 cluster-robust estimator with events as clusters; AUC by Obuchowski (1997), which the simulation in
 scripts/sim_auc_cluster.py found about 9% too narrow at 21 events (90% intervals covered 83%).
@@ -21,6 +23,7 @@ import sys, json, pathlib, time, argparse
 import numpy as np, pandas as pd
 from joblib import Parallel, delayed
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.ensemble import RandomForestClassifier
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -29,6 +32,8 @@ import modeling as M
 
 RES = pathlib.Path("results")
 QDA_REGS = [0.1, 0.3, 0.5, 0.7, 0.9]
+RF_LEAVES = [1, 5, 20, 50]
+RF_SEED, RF_TREES, RF_JOBS = 20261106, 500, 2
 DIRECTIONS = ("forward", "backward", "both")
 ATTRS = ["attr", "sinc", "intel", "fun", "amb", "shar"]
 SIM_COVERAGE = "clustered AUC SE checked in scripts/sim_auc_cluster.py: about 9% too narrow, 90% intervals covered 83%"
@@ -59,18 +64,28 @@ def choose_splines(Xtr, ytr, idtr, sets):
     return tuple(chosen)
 
 
-def tune_qda(Xtr, ytr, evtr, idtr, sets, k):
-    """reg_param with the best pooled inner AUC over event-grouped 4-fold CV on the training fold."""
+def tune_inner(Xtr, ytr, evtr, idtr, sets, k, make_model, grid):
+    """The grid value with the best pooled inner AUC over event-grouped 4-fold CV on the training fold
+    (preparation refitted on each inner training part; ties go to the earlier grid value)."""
     inner = M.event_folds(evtr, k=4, seed=M.FOLD_SEED + 1 + k)
     f = np.array([inner[e] for e in evtr])
-    probs = {r: np.empty(len(ytr)) for r in QDA_REGS}
+    probs = {r: np.empty(len(ytr)) for r in grid}
     for j in range(4):
         a, b = f != j, f == j
         p = make_prep(sets, Xtr[a]).fit(Xtr[a].reset_index(drop=True), idtr[a].reset_index(drop=True))
         Da, Db = p.transform(Xtr[a].reset_index(drop=True)).to_numpy(), p.transform(Xtr[b].reset_index(drop=True)).to_numpy()
-        for r in QDA_REGS:
-            probs[r][b] = QuadraticDiscriminantAnalysis(reg_param=r).fit(Da, ytr[a]).predict_proba(Db)[:, 1]
-    return max(QDA_REGS, key=lambda r: M.auc(probs[r], ytr))
+        for r in grid:
+            probs[r][b] = make_model(r).fit(Da, ytr[a]).predict_proba(Db)[:, 1]
+    return max(grid, key=lambda r: M.auc(probs[r], ytr))
+
+
+def make_qda(r):
+    return QuadraticDiscriminantAnalysis(reg_param=r)
+
+
+def make_rf(k):
+    return lambda leaf: RandomForestClassifier(n_estimators=RF_TREES, max_features="sqrt", min_samples_leaf=leaf,
+                                               random_state=RF_SEED + k, n_jobs=RF_JOBS)
 
 
 def run_fold(k, X, y, ev, ids, sets, folds, models):
@@ -94,13 +109,18 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
             wd, _ = M.fit_logit(Dtr[:, cols], ytr)
             out[f"stepwise_{d}"] = M.predict_logit(wd, Dte[:, cols])
             sel[d] = chosen
-    if "lda_qda" in models:
+    if "lda_qda" in models or "rf" in models:
         pl = make_prep(sets, Xtr).fit(Xtr, idtr)
         Ltr, Lte = pl.transform(Xtr).to_numpy(), pl.transform(Xte).to_numpy()
+    if "lda_qda" in models:
         out["lda"] = LinearDiscriminantAnalysis().fit(Ltr, ytr).predict_proba(Lte)[:, 1]
-        reg = tune_qda(Xtr, ytr, ev[train], idtr, sets, k)
-        out["qda"] = QuadraticDiscriminantAnalysis(reg_param=reg).fit(Ltr, ytr).predict_proba(Lte)[:, 1]
+        reg = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_qda, QDA_REGS)
+        out["qda"] = make_qda(reg).fit(Ltr, ytr).predict_proba(Lte)[:, 1]
         info["qda_reg_param"] = reg
+    if "rf" in models:
+        leaf = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_rf(k), RF_LEAVES)
+        out["rf"] = make_rf(k)(leaf).fit(Ltr, ytr).predict_proba(Lte)[:, 1]
+        info["rf_min_samples_leaf"] = leaf
     return dict(test_idx=np.where(test)[0], prob=out, info=info, selected=sel)
 
 
@@ -233,7 +253,7 @@ def yes_model():
 
 def hypotheses(met, sr):
     h = met[met.headline]
-    cand = ["logistic", "stepwise_forward", "stepwise_backward", "stepwise_both", "lda", "qda"]
+    cand = ["logistic", "stepwise_forward", "stepwise_backward", "stepwise_both", "lda", "qda", "rf"]
     def best(df, fs):
         d = df[(df.feature_set == fs) & df.model.isin(cand)]
         return d.loc[d.auc.idxmax()]
@@ -243,16 +263,20 @@ def hypotheses(met, sr):
             continue
         bp, bd = best(df, "pre"), best(df, "pre+date")
         rows.append(dict(hypothesis="P1", version=label, statistic=f"best `pre` AUC {bp.auc:.3f} ({bp.model}, SE {bp.auc_se:.3f})",
-                         supported=bool(0.58 <= bp.auc < 0.70), note="random forest not yet run; the best model may change"))
+                         supported=bool(0.58 <= bp.auc < 0.70), note=""))
         gap = bd.auc - bp.auc
         rows.append(dict(hypothesis="P2", version=label, statistic=f"best `pre+date` AUC {bd.auc:.3f} ({bd.model}) minus best `pre` {bp.auc:.3f} = {gap:.3f}",
-                         supported=bool(gap >= 0.10), note="random forest not yet run"))
+                         supported=bool(gap >= 0.10), note=""))
         lp = df[(df.feature_set == "pre") & (df.model == "logistic")]; li = df[(df.feature_set == "pre_individual") & (df.model == "logistic")]
         if len(lp) and len(li):
             d3 = lp.auc.iloc[0] - li.auc.iloc[0]
             rows.append(dict(hypothesis="P3", version=label, statistic=f"full logistic `pre` AUC {lp.auc.iloc[0]:.3f} minus without pair features {li.auc.iloc[0]:.3f} = {d3:.3f}",
                              supported=bool(d3 < 0.02), note=""))
-    rows.append(dict(hypothesis="P4", version="headline", statistic="needs the random forest", supported=None, note="pending"))
+        rf = df[(df.feature_set == "pre") & (df.model == "rf")]
+        if len(lp) and len(rf):
+            d4 = rf.auc.iloc[0] - lp.auc.iloc[0]
+            rows.append(dict(hypothesis="P4", version=label, statistic=f"random forest `pre` AUC {rf.auc.iloc[0]:.3f} minus full logistic {lp.auc.iloc[0]:.3f} = {d4:.3f}",
+                             supported=bool(d4 < 0.03), note=""))
     for g in ("women", "men"):
         s = sr[sr.rater_gender == g].set_index("attribute")
         top_coef, top_gap = s.std_coef.idxmax(), s.gap_revealed_minus_stated.idxmax()
@@ -272,7 +296,7 @@ def main():
     for i, spec in enumerate(specs):
         stepwise = spec in (M.HEADLINE, M.COMPLETE_CASE)
         for fs in ("pre", "pre+date", "pre_individual"):
-            models = ("logistic",) if fs == "pre_individual" else (("stepwise", "lda_qda") if stepwise else ("lda_qda",))
+            models = ("logistic",) if fs == "pre_individual" else (("stepwise", "lda_qda", "rf") if stepwise else ("lda_qda", "rf"))
             t0 = time.time()
             rows, fi, se, kept = cross_validate(pairs, sets, spec, fs, models, args.jobs)
             met += rows; finfo += fi; sel += se
