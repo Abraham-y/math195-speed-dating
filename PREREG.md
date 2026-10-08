@@ -236,6 +236,58 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   - Two pre-registered results that had not been produced are now run: the wave 12 sensitivity check (P1 to P4
     without wave 12, every model except stepwise) and P5's stated shares for waves 6 to 9, reported separately.
 
+- Second set of fixes, after a second independent check of the code (2026-10-08, after the rerun at ecfc18e and
+  before any rerun under these rules; each changed result is reported next to the earlier one, and no hypothesis
+  changes):
+  - Identical columns: the reduction to one column in the entry above is withdrawn. When columns are identical in
+    a training fold, the data cannot divide their combined effect; keeping the first column put all of it on
+    whichever column came first, and that decided the predictions for test dyads where the columns differ. All
+    columns are kept, and the ridge of 1e-6 that IRLS has used since the first run to keep separated fits finite
+    divides the effect equally among them, as in the original run. The coefficient table reports identical
+    columns as one combined term; the variance inflation table reports them as infinite.
+  - Separation spread over several columns: the coefficient table marks as not estimable every coefficient that
+    moves by more than 0.01 when the ridge goes from 1e-4 to 1e-8 (one man with 19 dates and no matches separates
+    the man's missing-goal and missing-field dummies together, which the one-column check missed), and reports
+    the sum of those coefficients where the sum does not move.
+  - Missing-data flags and the participant catalog count the preference items set to 0 by the blank-allocation
+    rule as blank, since they were left blank on the form (the missing-values entry: flags count answers left
+    blank on the forms).
+  - Error bars checked by simulation before they are reported: the like model's R-squared SE now uses the
+    linearized ratio form (the squared error and the variance of `like` both vary), checked with the RMSE's SE in
+    a simulation of the like-model design; the coefficient table and the yes model use the cluster sandwich with
+    G/(G-1) only (the yes model also carried statsmodels' (N-1)/(N-K) factor), checked by a parametric bootstrap
+    on the real designs with an event effect of SD 0.4 on the logit. The AUC simulation's two designs get separate
+    seeds, and its stored range adds sensitivity and specificity. Every results table carries the range from the
+    check that applies to its error bars (`se_check`).
+  - P5: the test is the signed gap (revealed minus stated, largest value), as coded since P5 first ran (44f8508);
+    the reading by absolute size and the margins are exploratory. The waves 6 to 9 version is reported without a
+    verdict, as the survey-format entry says "reported separately". Added: P5 without wave 12, since the wave 12
+    entry promised a sensitivity check of the results without restricting it to P1 to P4.
+  - Wave 12 and waves 6 to 9 checks: the primary version assigns the remaining events to 5 folds by seed 20261006,
+    as the waves 6 to 9 entry says; each is also reported with the headline folds minus the excluded waves, and in
+    its complete-case version, which the missing-values entry requires in every results table. The coefficient
+    table also gets its complete-case version.
+  - Reporting: hypothesis statistics print AUCs to 4 decimals; every results table names its fold scheme and
+    seeds, and the folds table records the forest, lasso and inner-tuning seeds. The like model adds an
+    intercept-only baseline row. Exploratory, not a test: the headline full logistic AUC under 10 further fold
+    seeds (20261007 to 20261016) and the headline random forest under 5 further forest seeds (random_state offsets
+    20261107 to 20261111), to show how the P1 and P4 margins compare with fold and seed noise
+    (scripts/fold_seed_noise.py).
+  - Earlier results: before this rerun every result table is copied to results/earlier_ecfc18e/; the first
+    round's diagnostics that were overwritten (calibration, binned residuals, influential dyads, selection, folds,
+    the one-seed simulation summary) are regenerated from commit 4948d9f under the headline specification; and
+    scripts/compare_runs.py compares every table and writes a committed summary with the checksums of the files
+    compared.
+  - Changes in the previous round that its entry did not announce: random forest predictions run on one thread
+    (summing trees across threads changed the last digits and could break a tuning tie); the coefficient table's
+    ridge of 1e-6; the like model uses linear terms only, a deviation from "same preparation as the match models",
+    whose spline step it never ran.
+  - Corrections to the entry above: the overstated SEs were up to 2.1 times on the headline rows (3.1 across the
+    grid), not 1.7; the first simulation design's spread of event match rates is 0.080, not 0.079; the
+    complete-case ladder had run on 2,679 dyads with P3c's shared-interests terms filled, and 2,662 is what the
+    corrected rule would have given before the blank-allocation fix, never run; 2,784 dyads (490 matches) as
+    recorded became 2,790 (491) after that fix.
+
 ## Change log
 
 - (date) (hypothesis) (what changed and why)
@@ -262,3 +314,8 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   columns the models use to 2,685 dyads (477 matches), the same on every step of the complete-case ladder (2,679 and
   2,662 before the fix), and 2,790 (491) with interest values as recorded (2,784 before). Earlier and new results
   are side by side in results/compare_runs_*.csv (scripts/compare_runs.py); no verdict changed.
+- 2026-10-08 (no hypothesis changed) Second set of fixes after a second independent check (identical columns kept
+  and split equally; separation across columns; flags count filled blanks; simulation checks for the like-model,
+  coefficient and yes-model error bars; P5's signed gap stated, its waves 6 to 9 version without a verdict, and P5
+  without wave 12 added; fold and complete-case versions of the wave checks; reporting; earlier results kept;
+  unannounced changes logged; corrections), before the rerun.
