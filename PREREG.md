@@ -26,6 +26,40 @@ unless stated.
   allocation) and revealed importance (share of the positive standardized coefficients) is largest for
   attractiveness (the Fisman et al. 2006 result).
 
+## Additions after the Part 1 run (committed 2026-10-07, before any of them ran)
+
+Proposed by a teammate after P1 to P5 had been tested (results/part1_models_hypotheses.csv as of commit
+cea590b). Each is written before any model using it has run, and is reported whichever way it falls.
+
+- P3b. Within the `pre` set, adding five more compatibility features to the full logistic regression that
+  already has the six pair features raises event-held-out AUC by less than 0.02. The five: same career code
+  (`same_career`), the absolute differences in dating frequency (`abs_date_diff`) and in going-out frequency
+  (`abs_go_out_diff`), the mean absolute difference across the 17 interest ratings (`int_mad`), and the cosine
+  similarity of the two 17-interest vectors (`int_cosine`), the last two over the interests both people answered.
+  The signed age gap (man's age minus woman's) is not added: it is the difference of the two ages already in
+  the model.
+- P3c. Adding three declared nonlinear and interaction terms to the model of P3b raises event-held-out AUC by
+  less than 0.02: the square of the signed age gap (so the best gap need not be zero), and `int_corr` times each
+  person's stated weight on shared interests (shared hobbies should matter more to people who say they value
+  them; the weight is the format-standardized share, used here although it is the reference share left out as
+  a main effect).
+- The ladder for P3, P3b and P3c is reported for the full logistic regression under the headline specification
+  and its complete-case version: individual features; plus the six pair features; plus the five extended
+  features; plus the three terms. The new columns follow the preparation rules of the model-building entry.
+- Waves 6 to 9 check: P1 to P4 recomputed under the headline specification on the 17 waves that split 100
+  points (3,403 dyads), every model except stepwise, with events assigned to 5 folds by seed 20261006; reported
+  next to the headline as a check on the survey-format decision.
+- Like model. Linear regression (ISL chapter 3) of each date's overall liking rating (`like`, 0 to 10 as
+  recorded) on pre-date information, one row per date from one side, dates with `like` recorded. Predictors:
+  the rater's and the partner's own pre-event answers (the `pre_individual` columns, labelled rater and partner
+  instead of woman and man), the rater's gender, and the pair features of P3b. Same preparation, missing-data
+  handling and event folds (seed 20261006) as the match models. Reported: held-out R-squared (1 minus the
+  pooled squared error over the variance of `like`) and RMSE, with cluster-robust standard errors by event, for
+  a ladder of rater only; plus partner; plus pair features.
+- L1. The full like model's event-held-out R-squared is below 0.10.
+- L2. The pair features add less than 0.01 to the like model's event-held-out R-squared over the rater's and
+  partner's own answers.
+
 ## Second half: the error-bar question (committed week 2)
 
 - A1. Random-row cross-validation reports a higher AUC than event-held-out cross-validation for every model,
@@ -181,3 +215,6 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   LDA and QDA had already run (results/part1_models_metrics.csv as of commit 44f8508).
 - 2026-10-06 (no hypothesis changed) Fixed the lasso's settings before running it, and kept it out of the "best
   model" of P1 and P2, which had already been tested (commit 3e44b7b).
+- 2026-10-07 (new hypotheses P3b, P3c, L1, L2) Added a teammate's extended compatibility features, three declared
+  interaction terms, the waves 6 to 9 check and the like model, after P1 to P5 had been tested and before any of
+  these ran.
