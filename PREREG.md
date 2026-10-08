@@ -73,6 +73,98 @@ cea590b). Each is written before any model using it has run, and is reported whi
 Option 1, desirability ranking: hypotheses B1 and B2 from proposals/05, copied here verbatim when chosen.
 Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here verbatim when chosen.
 
+## Part 2 (committed 2026-10-08, after the Part 1 model table and before any of this ran)
+
+The team chose both further questions (desirability ranking and forecast accuracy) and the extensions below.
+As the placeholder above says, B1, B2, C1 and C2 are copied verbatim from proposals/05:
+
+- B1. In a wave of 10, the median rank range spans at least four positions.
+- B2. Pickiness varies across raters by more than desirability varies across ratees, in logit units.
+- C1. Forecasts are informative (AUC above 0.6) but the calibration slope is below 0.8.
+- C2. Predicted match counts exceed realized counts on average.
+
+New hypotheses:
+
+- T1. No tree model (a single pruned classification tree, bagging, boosting) beats the random forest's
+  event-held-out AUC by 0.02 or more, on `pre` or on `pre+date`, under the headline specification.
+- T2. On `pre`, the single classification tree has the lowest event-held-out AUC of the four tree models.
+- D1. Predicting each side's yes separately and multiplying the two predicted probabilities raises the
+  event-held-out AUC for a match on `pre` by less than 0.02 over the best pre-registered single-stage `pre`
+  model on the same folds: the pre-date ceiling is in the information, not the model.
+- D2. Pre-date information predicts each side's yes (hers and his) with event-held-out AUC of at least 0.60.
+- E1. Neither ensemble (the mean of the base models' predicted probabilities; a stacked logistic regression)
+  beats the best single pre-registered model's event-held-out AUC by 0.01 or more on `pre`.
+- E2. The same on `pre+date`.
+- W1. Knowing who rates and who is rated, from their other dates at the same event, predicts a held-out yes
+  with AUC at least 0.10 higher than pre-date information predicts a yes for people at new events.
+- S1. Holding the six attribute ratings and overall liking fixed, a rater's guess that the partner will say
+  yes has a positive coefficient in the yes model, with a 90% interval above zero, for both genders.
+
+Exploratory, no hypothesis: a nonlinearity check of the yes model (natural splines on the six ratings), variance
+components and halo in the ratings, a dates-needed table for the rankings.
+
+Settings, fixed now:
+
+- Tree models (`scripts/part2_models.py`), on the Part 1 preparation without splines, each tuned by the
+  inner event folds by pooled AUC: a classification tree (scikit-learn, Gini) with cost-complexity pruning,
+  ccp_alpha in {0.0005, 0.001, 0.002, 0.003, 0.005, 0.0075, 0.01, 0.02}, random_state 20261606 + fold;
+  bagging as a random forest that considers every column at each split (500 trees), minimum leaf size in
+  {1, 5, 20, 50}, random_state 20261706 + fold; boosting (HistGradientBoostingClassifier, learning rate 0.05,
+  no early stopping), maximum depth in {1, 2, 3} by number of trees in {100, 300, 600}, random_state 20261806
+  + fold. Run under the headline and complete-case specifications, `pre` and `pre+date`, event folds.
+- A1 (the leakage comparison): every model (full and stepwise logistic, LDA, QDA, random forest, lasso, the
+  three tree models above) is also run with random-row 5-fold CV under the headline specification: each dyad
+  is its own unit, dealt into folds by seed 20261006, inner tuning folds also random rows (seed 20261006 + 1 +
+  fold). A1 is supported if the random-row AUC exceeds the event AUC for every model in both feature sets, and
+  each of the four tree models' gap exceeds the full logistic model's gap in both feature sets.
+- A2 (`scripts/sim_cv_matched.py`, seed 20261906, 500 replicates): the real dyads, people and events; truth =
+  a logistic model for the match with the four pre-date predictors chosen most often in Part 1 (age gap, the
+  man's dating frequency, his self-rated fun, same field), plus a woman effect, a man effect and an event
+  effect whose SDs and coefficients come from a crossed random-effects logistic regression fitted to the real
+  matches (statsmodels BinomialBayesMixedGLM, variational Bayes). The procedure: logistic regression on the
+  four predictors; error = misclassification at the training match rate. Conventional interval: random-row
+  CV error plus or minus 1.645 naive SEs; event interval: event CV error plus or minus 1.645 cluster-robust
+  SEs. Target: the full-data model's error on 300 new events (real events' covariates resampled with fresh
+  effects). Also reported: coverage of the average error, and of the nested-CV intervals of sim_cv_cluster.py.
+- D1 and D2: for each side, a full logistic regression and a random forest (Part 1 settings) on the same
+  `pre` columns and preparation, fitted in each training fold to that side's yes; P(match) = P(her yes) x
+  P(his yes). D1 uses the better of the two products (logistic x logistic, forest x forest) against the best
+  pre-registered single-stage `pre` model on the same folds; D2 uses the better learner for each side.
+  Headline specification; the complete-case version is reported.
+- E1 and E2: base models = full logistic (with BIC splines), LDA, QDA, random forest, lasso and boosting.
+  The mean ensemble averages their predicted probabilities. The stacked ensemble is a logistic regression of
+  the match on the base models' logit probabilities (clipped to [0.0001, 0.9999]), fitted to inner event-CV
+  predictions within the training fold (4 inner folds, seed 20261006 + 1 + fold, base settings as tuned for
+  that outer fold) and applied to the outer test predictions. The comparison is the best of the P1 pool.
+- W1 (`scripts/yes_extensions.py`): one row per date from one side; dates are dealt into 5 folds at random
+  within each rater (seed 20262006), so every rater and ratee has training dates; a logistic regression with a
+  rater indicator and a ratee indicator (ridge penalty 1 on the indicators) predicts the held-out yes. The
+  comparison is the AUC of D2's pre-date yes predictions on new events, both sides pooled. W1 is supported if
+  the difference is at least 0.10.
+- S1: by gender, dates with all six attribute ratings, liking and the guess; ratings standardized within
+  gender; logistic regression of the yes on the eight; the guess's coefficient with a 90% cluster-sandwich
+  interval (events, G/(G-1)), checked by a parametric bootstrap on the real design (seed 20262406).
+- Rankings (`scripts/ranking.py`): within each wave and rater gender, a Rasch model P(yes) = logistic(desirability
+  of the ratee - pickiness of the rater), fitted by penalized likelihood (ridge 0.5 on all effects, so estimates
+  stay finite when someone said yes to everyone or no one; desirability centred at 0); 1,000 bootstrap
+  resamples of the block's dates (seed 20262106); simultaneous 90% rank ranges by the max-t method of Mogstad,
+  Romano, Shaikh and Wilhelm (2024) over pairwise differences in desirability. B1 is tested on the nine
+  wave-and-gender blocks with exactly 10 ratees: the median span (upper minus lower rank, plus 1) over their 90
+  ratees is at least 4. The ranges' coverage is checked by simulating from each block's fitted model (seed
+  20262206). B2: a crossed random-effects logistic regression (BinomialBayesMixedGLM, variational Bayes) for
+  each rater gender, with wave fixed effects and rater and ratee random effects; B2 is supported if the
+  rater SD exceeds the ratee SD for both rater genders.
+- Forecasts (`scripts/forecasts.py`): dates with the guess (prob, on 96% of rows) and the partner's decision;
+  forecast p = prob / 10 clipped to [0.025, 0.975]; AUC with the clustered SE; calibration slope = the
+  coefficient of logit(p) in a logistic regression of the partner's decision, with a cluster-sandwich SE
+  checked by a parametric bootstrap (seed 20262306); the Brier score with its reliability, resolution and
+  uncertainty parts over the distinct forecast values; reported by gender. C1 uses the pooled AUC and slope.
+  C2: for each participant with a predicted count (match_es, 479 people), predicted minus realized matches;
+  supported if the mean is above 0, reported with a cluster-robust SE by event.
+- Every metric is computed on event-held-out (or, where stated, within-event) predictions pooled over folds;
+  every error bar is cluster-robust by event. Results go to `results/` under each script's name, earlier
+  results stay in place, and each new table names its fold scheme and seeds.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -319,3 +411,6 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   coefficient and yes-model error bars; P5's signed gap stated, its waves 6 to 9 version without a verdict, and P5
   without wave 12 added; fold and complete-case versions of the wave checks; reporting; earlier results kept;
   unannounced changes logged; corrections), before the rerun.
+- 2026-10-08 (new hypotheses B1, B2, C1, C2 copied from proposals/05; T1, T2, D1, D2, E1, E2, W1, S1 added) Part 2:
+  both further questions, tree models, the leakage comparison and matched simulation for A1 and A2, the
+  two-decision model, ensembles, within-event prediction and strategic yes-saying, committed before any ran.
