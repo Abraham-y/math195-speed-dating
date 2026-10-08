@@ -34,11 +34,15 @@ def main():
     people = build(clean)
     assert len(people) == people.iid.nunique() == 551
     people.to_csv("data/participants.csv", index=False)
-    miss = people[[c for c in ANSWERS if c not in ("field", "career")]].isna().sum()
+    numeric = [c for c in ANSWERS if c not in ("field", "career")]
+    blank = people.assign(gaming=people.gaming_recorded, reading=people.reading_recorded)[numeric].isna().sum()
+    fixed = {c: int((people[c].isna() & people[f"{c}_recorded"].notna()).sum()) for c in ("gaming", "reading")}
     pathlib.Path("data/participants_summary.md").write_text(
         f"# Participant catalog\n\n- {len(people)} participants ({int((people.gender == 0).sum())} women, {int((people.gender == 1).sum())} men) in "
-        f"{people.wave.nunique()} waves\n- With every pre-event answer: {int((people.any_pre_missing == 0).sum())} ({(people.any_pre_missing == 0).mean():.1%})\n"
-        f"- Missing answers by column, where any: " + ", ".join(f"{c} {v}" for c, v in miss[miss > 0].sort_values(ascending=False).items()) + "\n")
+        f"{people.wave.nunique()} waves\n- With no blank pre-event answer (values set to missing as recording errors were answered, so they "
+        f"do not count): {int((people.any_pre_missing == 0).sum())} ({(people.any_pre_missing == 0).mean():.1%})\n"
+        f"- Blank answers by column, where any: " + ", ".join(f"{c} {v}" for c, v in blank[blank > 0].sort_values(ascending=False).items()) + "\n"
+        f"- Set to missing as recording errors (not blank): " + ", ".join(f"{c} {v} people" for c, v in fixed.items()) + "\n")
     print(pathlib.Path("data/participants_summary.md").read_text()); print("wrote data/participants.csv, data/participants_summary.md")
 
 

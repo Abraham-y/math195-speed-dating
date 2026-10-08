@@ -30,6 +30,21 @@ def test_dates_table_maps_rater_and_partner():
     assert np.isclose(w.abs_age_diff, m.abs_age_diff) and "fit_to_rater_prefs" in pair and "r_male" in rater
 
 
+def test_column_types_same_goal_is_binary():
+    sets = P.feature_sets()
+    cols = ["r_goal", "p_goal", "r_field_cd", "p_career_c", "same_goal", "same_field", "r_age", "r_male", "r_pre_missing"]
+    cat, binary = L.column_types(cols, sets)
+    assert cat == ["r_goal", "p_goal", "r_field_cd", "p_career_c"]
+    assert set(binary) == {"same_goal", "same_field", "r_male", "r_pre_missing"}
+
+
+def test_complete_dates_drop_incomplete_rows_and_flags():
+    D = pd.DataFrame({"r_age": [25, np.nan, 30], "r_pre_missing": [0, 1, 0], "p_age": [30, 25, 22], "p_pre_missing": [0, 0, 0],
+                      "fit_to_rater_prefs": [0.1, 0.2, np.nan], "like": [5, 6, 7]})
+    d, r, p, q = L.complete_dates(D, ["r_age", "r_pre_missing"], ["p_age", "p_pre_missing"], ["fit_to_rater_prefs"])
+    assert len(d) == 1 and d.like.iloc[0] == 5 and r == ["r_age"] and p == ["p_age"] and q == ["fit_to_rater_prefs"]
+
+
 def test_r_squared_known_answer():
     y = np.array([1.0, 2, 3, 4]); assert np.isclose(L.r_squared(y, y), 1) and np.isclose(L.r_squared(y, np.full(4, 2.5)), 0)
 

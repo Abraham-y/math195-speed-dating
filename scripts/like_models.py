@@ -10,7 +10,9 @@ own pre-event answers (the `pre_individual` columns relabelled r_ and p_), the r
 features of P3b, prepared exactly as the headline match models (survey-format standardization, recording-error fix,
 skewness rule, training-fold medians with missing-data flags, rare codes, standardizing). Event 5-fold CV; held-out
 R-squared = 1 - (pooled squared error) / (variance of `like`), and RMSE, with cluster-robust standard errors by event.
-Ladder: rater only; plus partner; plus pair features.
+Ladder: rater only; plus partner; plus pair features. Linear terms only (the spline step belongs to the logistic
+models). Complete-case version (fixes of 2026-10-08): the dates complete on every predictor of the full model, no
+filling and no missing-data flags, the same ladder on those dates.
 Run from the repository root: python scripts/like_models.py [--jobs 5]
 """
 import sys, json, pathlib, argparse
@@ -50,13 +52,28 @@ def r_squared(y, pred):
     return 1 - np.sum((y - pred) ** 2) / np.sum((y - y.mean()) ** 2)
 
 
+def column_types(cols, sets):
+    """Categorical codes are the rater's and partner's field, career and goal (r_/p_ plus a categorical stem);
+    pair features such as same_goal are binary, not codes."""
+    stems = {c.split("_", 1)[1] for c in sets["categorical"]}
+    cat = [c for c in cols if c[:2] in ("r_", "p_") and c[2:] in stems]
+    binary = [c for c in cols if c in sets["binary"] or c == "r_male" or c.endswith("_pre_missing")]
+    return cat, binary
+
+
+def complete_dates(D, rater, partner, pair):
+    """Complete-case version: dates with every predictor of the full model recorded; the flags drop out."""
+    flags = [c for c in rater + partner if c.endswith("_pre_missing")]
+    keep = lambda cols: [c for c in cols if c not in flags]
+    full = keep(rater + partner) + pair
+    return D[D[full].notna().all(axis=1)].reset_index(drop=True), keep(rater), keep(partner), pair
+
+
 def fit_fold(k, D, cols, folds, sets):
     test = D.event.map(folds).to_numpy() == k; train = ~test
     Xtr, Xte = D.loc[train, cols].reset_index(drop=True), D.loc[test, cols].reset_index(drop=True)
     ids = D.loc[train, ["r_iid", "p_iid"]].reset_index(drop=True)
-    stems = {c.split("_", 1)[1] for c in sets["categorical"]}
-    cat = [c for c in cols if c.split("_", 1)[-1] in stems]
-    binary = [c for c in cols if c in sets["binary"] or c == "r_male" or c.endswith("_pre_missing")]
+    cat, binary = column_types(cols, sets)
     person = [c for c in cols if c.startswith(("r_", "p_")) and c not in cat + binary]
     p = M.Prep(categorical=cat, binary=binary, person_cols=person, sides=("r", "p")).fit(Xtr, ids)
     A, B = p.transform(Xtr).to_numpy(), p.transform(Xte).to_numpy()
@@ -83,15 +100,19 @@ def main():
     pairs = pd.read_csv("data/pairs.csv"); sets = json.loads(pathlib.Path("data/feature_sets.json").read_text())
     clean = pd.read_csv("data/clean.csv", low_memory=False)
     D, rater, partner, pair = dates_table(pairs, sets, clean)
-    ladder = (("rater only", rater), ("rater + partner", rater + partner), ("rater + partner + pair", rater + partner + pair))
-    rows = [dict(model=name, **cross_validate(D, cols, sets, args.jobs)) for name, cols in ladder]
+    rows = []
+    for version, (d, r, p, q) in (("headline", (D, rater, partner, pair)), ("complete-case", complete_dates(D, rater, partner, pair))):
+        ladder = (("rater only", r), ("rater + partner", r + p), ("rater + partner + pair", r + p + q))
+        rows += [dict(version=version, model=name, **cross_validate(d, cols, sets, args.jobs)) for name, cols in ladder]
     met = pd.DataFrame(rows); met.to_csv(RES / "like_models_metrics.csv", index=False)
-    full, rp = met.set_index("model").loc["rater + partner + pair"], met.set_index("model").loc["rater + partner"]
-    hyp = pd.DataFrame([
-        dict(hypothesis="L1", statistic=f"held-out R-squared of the full model {full.r_squared:.3f} (SE {full.r_squared_se:.3f})", supported=bool(full.r_squared < 0.10)),
-        dict(hypothesis="L2", statistic=f"pair features add {full.r_squared - rp.r_squared:.4f} ({full.r_squared:.3f} minus {rp.r_squared:.3f})",
-             supported=bool(full.r_squared - rp.r_squared < 0.01))])
-    hyp.to_csv(RES / "like_models_hypotheses.csv", index=False)
+    hyp = []
+    for version, m in met.groupby("version", sort=False):
+        full, rp = m.set_index("model").loc["rater + partner + pair"], m.set_index("model").loc["rater + partner"]
+        hyp += [dict(hypothesis="L1", version=version, statistic=f"held-out R-squared of the full model {full.r_squared:.3f} (SE {full.r_squared_se:.3f})",
+                     supported=bool(full.r_squared < 0.10)),
+                dict(hypothesis="L2", version=version, statistic=f"pair features add {full.r_squared - rp.r_squared:.4f} ({full.r_squared:.3f} minus {rp.r_squared:.3f})",
+                     supported=bool(full.r_squared - rp.r_squared < 0.01))]
+    hyp = pd.DataFrame(hyp); hyp.to_csv(RES / "like_models_hypotheses.csv", index=False)
     print(f"{len(D)} dates with `like` recorded; mean {D.like.mean():.2f}, SD {D.like.std():.2f}; event 5-fold CV, seed {M.FOLD_SEED}")
     print(met.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     print(hyp.to_string(index=False))

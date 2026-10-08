@@ -15,10 +15,12 @@ For each specification (the headline, then the rest of the robustness grid) and 
 - the lasso: L1 logistic regression with its penalty tuned the same way (PREREG.md entry of 2026-10-06). It is
   reported but kept out of the "best model" of P1 and P2, which were tested before it was added.
 Everything is refitted inside each training fold. Thresholds: the training fold's match rate. Error bars: the
-cluster-robust estimator with events as clusters; AUC by Obuchowski (1997), which the simulation in
-scripts/sim_auc_cluster.py found about 9% too narrow at 21 events (90% intervals covered 83%).
-Also: the coefficient table (full model, all dyads, cluster-robust by event), diagnostics, the yes model and the
-stated-versus-revealed table (P5), and the hypothesis table.
+cluster-robust estimator with events as clusters (sensitivity, specificity and balanced accuracy in the linearized
+ratio form); AUC by Obuchowski (1997). scripts/sim_auc_cluster.py checks these SEs (five seeds, two designs); its
+range is stored in the `se_check` column of the metrics table.
+Also: the coefficient table (full model, all dyads, IRLS with a cluster-robust sandwich by event), diagnostics,
+the yes model and the stated-versus-revealed table (P5, with the waves 6 to 9 stated shares reported separately),
+and the hypothesis table.
 Run from the repository root: python scripts/part1_models.py [--specs headline|all] [--jobs 5]
 """
 import sys, json, pathlib, time, argparse
@@ -32,6 +34,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 sys.path.insert(0, "scripts")
 import modeling as M
+from sim_auc_cluster import coverage_note
 
 RES = pathlib.Path("results")
 QDA_REGS = [0.1, 0.3, 0.5, 0.7, 0.9]
@@ -40,7 +43,6 @@ RF_SEED, RF_TREES, RF_JOBS = 20261106, 500, 2
 LASSO_SEED, LASSO_STEPS = 20261206, 30
 DIRECTIONS = ("forward", "backward", "both")
 ATTRS = ["attr", "sinc", "intel", "fun", "amb", "shar"]
-SIM_COVERAGE = "clustered AUC SE checked in scripts/sim_auc_cluster.py: about 9% too narrow, 90% intervals covered 83%"
 
 
 def log(msg):
@@ -79,8 +81,16 @@ def tune_inner(Xtr, ytr, evtr, idtr, sets, k, make_model, grid):
         p = make_prep(sets, Xtr[a]).fit(Xtr[a].reset_index(drop=True), idtr[a].reset_index(drop=True))
         Da, Db = p.transform(Xtr[a].reset_index(drop=True)).to_numpy(), p.transform(Xtr[b].reset_index(drop=True)).to_numpy()
         for r in grid:
-            probs[r][b] = make_model(r).fit(Da, ytr[a]).predict_proba(Db)[:, 1]
+            probs[r][b] = predict_serial(make_model(r).fit(Da, ytr[a]), Db)
     return max(grid, key=lambda r: M.auc(probs[r], ytr))
+
+
+def predict_serial(model, D):
+    """Predicted probabilities with one thread: a forest summing its trees across threads adds them in a varying
+    order, so the last digits (and a tuning tie) could change from run to run."""
+    if "n_jobs" in model.get_params():
+        model.set_params(n_jobs=1)
+    return model.predict_proba(D)[:, 1]
 
 
 def make_qda(r):
@@ -135,7 +145,7 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
         info["qda_reg_param"] = reg
     if "rf" in models:
         leaf = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_rf(k), RF_LEAVES)
-        out["rf"] = make_rf(k)(leaf).fit(Ltr, ytr).predict_proba(Lte)[:, 1]
+        out["rf"] = predict_serial(make_rf(k)(leaf).fit(Ltr, ytr), Lte)
         info["rf_min_samples_leaf"] = leaf
     if "lasso" in models:
         C = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_lasso(k), lasso_grid(Ltr, ytr))
@@ -147,8 +157,8 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
     return dict(test_idx=np.where(test)[0], prob=out, info=info, selected=sel)
 
 
-def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=()):
-    X, y, ev, ids = M.build_frame(pairs, sets, spec, feature_set, exclude_events)
+def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=(), complete_extra=()):
+    X, y, ev, ids = M.build_frame(pairs, sets, spec, feature_set, exclude_events, complete_extra)
     folds = M.event_folds(ev)
     res = Parallel(n_jobs=jobs)(delayed(run_fold)(k, X, y, ev, ids, sets, folds, models) for k in range(5))
     names = list(res[0]["prob"])
@@ -172,27 +182,71 @@ def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=
 
 # ---------------------------------------------------------------- full-data fit, coefficient table, diagnostics
 
+def separated_columns(D, y):
+    """Two-valued columns (dummies, flags) one of whose values occurs only with non-matches (or only with matches):
+    the likelihood keeps rising as that coefficient runs off to infinity, so it has no finite estimate."""
+    out, y = [], np.asarray(y)
+    for c in D.columns:
+        v = D[c].to_numpy(float); u = np.unique(v)
+        if len(u) == 2 and any(y[v == x].min() == y[v == x].max() for x in u):
+            out.append(c)
+    return out
+
+
+def coefficient_table(D, y, g, ridge=1e-6):
+    """Logistic regression by IRLS (modeling.fit_logit, run to convergence) with the cluster-robust sandwich:
+    bread (X'WX)^-1, meat G/(G-1) times the sum over clusters of the outer products of the score sums. A separated
+    column's estimate is only where the tiny ridge stopped it, so it is reported as not estimable, and the others'
+    sandwich uses the estimable columns (its dyads have fitted probabilities near 0 and add nothing).
+    Returns (table, fitted probabilities)."""
+    A, y = D.to_numpy(float), np.asarray(y, float); n = len(y)
+    w, _ = M.fit_logit(A, y, ridge=ridge, iters=200)
+    p = M.predict_logit(w, A)
+    X = np.column_stack([np.ones(n), A]); pen = np.r_[0.0, np.full(A.shape[1], ridge)]
+    score = np.abs(X.T @ (y - p) - pen * w).max()
+    sep = set(separated_columns(D, y))
+    keep = [0] + [j + 1 for j, c in enumerate(D.columns) if c not in sep]
+    Xk = X[:, keep]
+    bread = np.linalg.inv((Xk * (p * (1 - p))[:, None]).T @ Xk)
+    S = pd.DataFrame(Xk * (y - p)[:, None]).groupby(np.asarray(g)).sum().to_numpy(); G = len(S)
+    cov = bread @ (G / (G - 1) * S.T @ S) @ bread
+    se = np.full(len(w), np.nan); se[keep] = np.sqrt(np.diag(cov))
+    est = np.ones(len(w), bool); est[[j for j in range(len(w)) if j not in keep]] = False
+    coef = np.where(est, w, np.nan)
+    t = pd.DataFrame({"term": ["const"] + list(D.columns), "coef": coef, "se_cluster_event": se, "z": coef / se,
+                      "estimable": est, "note": np.where(est, "", "not estimable: separated (one value occurs only with non-matches or only with matches)")})
+    t.attrs["max_abs_score"] = score
+    return t, p
+
+
 def full_fit(pairs, sets, spec, feature_set):
-    import statsmodels.api as sm
     X, y, ev, ids = M.build_frame(pairs, sets, spec, feature_set)
     spl = choose_splines(X, y, ids, sets)
     p = make_prep(sets, X, splines=spl).fit(X, ids)
     D = p.transform(X)
-    fit = sm.Logit(y, sm.add_constant(D)).fit(disp=0, maxiter=200, method="bfgs", cov_type="cluster", cov_kwds={"groups": ev})
-    coef = pd.DataFrame({"term": fit.params.index, "coef": fit.params.values, "se_cluster_event": fit.bse.values,
-                         "z": fit.tvalues.values}).assign(feature_set=feature_set, spec=spec.label, splines=";".join(spl),
-                                                          dyads=len(y), note="per SD of the prepared predictor; spline terms (:ns) are read as a block")
-    return coef, D, y, ev, fit
+    coef, fitted = coefficient_table(D, y, ev)
+    assert coef.attrs["max_abs_score"] < 1e-6, f"IRLS did not converge ({feature_set}): max |score| {coef.attrs['max_abs_score']:.2e}"
+    coef = coef.assign(feature_set=feature_set, spec=spec.label, splines=";".join(spl), dyads=len(y),
+                       dropped_duplicates=";".join(p.dropped_duplicates), max_abs_score=coef.attrs["max_abs_score"],
+                       scale="per SD of the prepared predictor; spline terms (:ns) are read as a block")
+    return coef, D, y, ev, fitted
 
 
-def vif(D):
-    C = np.corrcoef(D.to_numpy(), rowvar=False)
-    inv = np.linalg.pinv(C)
-    return pd.DataFrame({"term": D.columns, "vif": np.diag(inv)}).sort_values("vif", ascending=False)
+def vif(D, tol=1e-10):
+    """Variance inflation factor of each column: 1 / (1 - R^2) from regressing it on all the others with an
+    intercept. A column the others reproduce exactly (residual sum of squares below tol times its total) is
+    reported as infinite rather than hidden by a pseudo-inverse."""
+    A = D.to_numpy(float); n = len(A); out = []
+    for j in range(A.shape[1]):
+        v = A[:, j]; X = np.column_stack([np.ones(n), np.delete(A, j, axis=1)])
+        rss = np.sum((v - X @ np.linalg.lstsq(X, v, rcond=None)[0]) ** 2); tss = np.sum((v - v.mean()) ** 2)
+        out.append(np.nan if tss == 0 else np.inf if rss <= tol * tss else tss / rss)
+    return pd.DataFrame({"term": D.columns, "vif": out}).sort_values("vif", ascending=False)
 
 
-def cooks_distance(D, y, fit):
-    Xb = np.column_stack([np.ones(len(y)), D.to_numpy()]); p = fit.predict(np.column_stack([np.ones(len(y)), D.to_numpy()]))
+def cooks_distance(D, y, p):
+    """Cook's distance and leverage of a logistic fit with fitted probabilities p (Pearson residuals)."""
+    Xb = np.column_stack([np.ones(len(y)), D.to_numpy()])
     W = p * (1 - p); XW = Xb * np.sqrt(W)[:, None]
     h = np.einsum("ij,jk,ik->i", XW, np.linalg.pinv(XW.T @ XW), XW)
     r = (y - p) / np.sqrt(W)
@@ -252,7 +306,8 @@ def plot_binned(br, path):
 def yes_model():
     """Logistic regression of each date's yes on the six in-date ratings (standardized within the rater's gender),
     by gender, on dates with all six ratings; cluster-robust by event. Revealed importance = share of the positive
-    standardized coefficients; stated importance = mean own-preference share in the 100-point waves (PREREG.md)."""
+    standardized coefficients; stated importance = mean own-preference share in the 100-point waves (PREREG.md), with
+    the waves 6 to 9 shares (rated 1 to 10, converted to shares) reported separately next to it."""
     import statsmodels.api as sm
     clean = pd.read_csv("data/clean.csv", low_memory=False)
     rows = []
@@ -263,12 +318,16 @@ def yes_model():
         coef = fit.params[ATTRS]; pos = coef.clip(lower=0)
         people = clean[(clean.gender == g) & (clean.pref_scale == "100pt")].drop_duplicates("rater")
         stated = people[[f"{a}1_1_share" for a in ATTRS]].mean()
+        people69 = clean[(clean.gender == g) & (clean.pref_scale == "1-10")].drop_duplicates("rater")
+        stated69 = people69[[f"{a}1_1_share" for a in ATTRS]].mean()
         for a in ATTRS:
             rows.append(dict(rater_gender=name, attribute=a, std_coef=coef[a], se_cluster_event=fit.bse[a],
                              revealed_share=100 * pos[a] / pos.sum(), stated_share=stated[f"{a}1_1_share"],
-                             dates=len(d), raters=d.rater.nunique(), stated_people=len(people)))
+                             stated_share_waves_6_9=stated69[f"{a}1_1_share"], dates=len(d), raters=d.rater.nunique(),
+                             stated_people=len(people), stated_people_waves_6_9=int(people69[f"{a}1_1_share"].notna().sum())))
     t = pd.DataFrame(rows)
     t["gap_revealed_minus_stated"] = t.revealed_share - t.stated_share
+    t["gap_revealed_minus_stated_waves_6_9"] = t.revealed_share - t.stated_share_waves_6_9
     return t
 
 
@@ -300,21 +359,36 @@ def hypotheses(met, sr):
             d4 = rf.auc.iloc[0] - lp.auc.iloc[0]
             rows.append(dict(hypothesis="P4", version=label, statistic=f"random forest `pre` AUC {rf.auc.iloc[0]:.3f} minus full logistic {lp.auc.iloc[0]:.3f} = {d4:.3f}",
                              supported=bool(d4 < 0.03), note=""))
-    for g in ("women", "men"):
-        s = sr[sr.rater_gender == g].set_index("attribute")
-        top_coef, top_gap = s.std_coef.idxmax(), s.gap_revealed_minus_stated.idxmax()
-        rows.append(dict(hypothesis="P5", version=g, statistic=f"largest std. coefficient: {top_coef}; largest revealed-minus-stated gap: {top_gap} "
-                         f"({s.gap_revealed_minus_stated[top_gap]:+.1f} points)", supported=bool(top_coef == "attr" and top_gap == "attr"), note="dates with all six ratings"))
+    versions = [("gap_revealed_minus_stated", "{g}", "dates with all six ratings; stated shares from the 100-point waves")]
+    if "gap_revealed_minus_stated_waves_6_9" in sr:
+        versions.append(("gap_revealed_minus_stated_waves_6_9", "{g}, waves 6 to 9 stated shares",
+                         "reported separately (PREREG.md, survey format); same yes model"))
+    for col, version, note in versions:
+        for g in ("women", "men"):
+            s = sr[sr.rater_gender == g].set_index("attribute")
+            top_coef, gaps = s.std_coef.idxmax(), s[col].sort_values(ascending=False)
+            top_gap, margin = gaps.index[0], gaps.iloc[0] - gaps.iloc[1]
+            size = s[col].abs().sort_values(ascending=False)                 # read as a gap of either sign
+            rows.append(dict(hypothesis="P5", version=version.format(g=g),
+                             statistic=f"largest std. coefficient: {top_coef}; largest revealed-minus-stated gap: {top_gap} ({gaps.iloc[0]:+.1f} points)",
+                             supported=bool(top_coef == "attr" and top_gap == "attr"),
+                             note=f"{note}; the largest gap leads the next ({gaps.index[1]}) by {margin:.2f} points; by absolute size the "
+                                  f"largest is {size.index[0]}, ahead of {size.index[1]} by {size.iloc[0] - size.iloc[1]:.2f} points"))
     return pd.DataFrame(rows)
 
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--specs", default="all"); ap.add_argument("--jobs", type=int, default=5)
+    ap.add_argument("--hypotheses-only", action="store_true", help="rebuild the hypothesis table from the saved metrics and yes model")
     args = ap.parse_args()
     RES.mkdir(exist_ok=True)
+    if args.hypotheses_only:
+        hyp = hypotheses(pd.read_csv(RES / "part1_models_metrics.csv"), pd.read_csv(RES / "part1_models_stated_vs_revealed.csv"))
+        hyp.to_csv(RES / "part1_models_hypotheses.csv", index=False); print(hyp.to_string(index=False)); return
     pairs = pd.read_csv("data/pairs.csv"); sets = json.loads(pathlib.Path("data/feature_sets.json").read_text())
     specs = [M.HEADLINE, M.COMPLETE_CASE] + ([s for s in M.grid_specs() if s not in (M.HEADLINE, M.COMPLETE_CASE)] if args.specs == "all" else [])
     log(f"{len(specs)} specifications; event folds seed {M.FOLD_SEED}: {M.event_folds(pairs.event)}")
+    note = coverage_note()
     met, finfo, sel, keep = [], [], [], {}
     for i, spec in enumerate(specs):
         stepwise = spec in (M.HEADLINE, M.COMPLETE_CASE)
@@ -327,9 +401,9 @@ def main():
                 keep[fs] = kept
             best = max(rows, key=lambda r: r["auc"])
             log(f"spec {i + 1}/{len(specs)} [{spec.label}] {fs}: best AUC {best['auc']:.3f} ({best['model']}) in {time.time() - t0:.0f}s")
-        pd.DataFrame(met).to_csv(RES / "part1_models_metrics.csv", index=False)   # saved as it goes
+        pd.DataFrame(met).assign(se_check=note).to_csv(RES / "part1_models_metrics.csv", index=False)   # saved as it goes
         pd.DataFrame(finfo).to_csv(RES / "part1_models_folds.csv", index=False)
-    metrics = pd.DataFrame(met)
+    metrics = pd.DataFrame(met).assign(se_check=note)
 
     selection = pd.DataFrame(sel)
     if len(selection):
@@ -344,10 +418,10 @@ def main():
     log("full-data fits, coefficient table and diagnostics (headline)")
     coefs, cal, br, infl, vifs = [], [], [], [], []
     for fs in ("pre", "pre+date"):
-        coef, D, y, ev, fit = full_fit(pairs, sets, M.HEADLINE, fs)
+        coef, D, y, ev, fitted = full_fit(pairs, sets, M.HEADLINE, fs)
         coefs.append(coef)
         vifs.append(vif(D).assign(feature_set=fs))
-        cd, h, p = cooks_distance(D, y, fit)
+        cd, h, p = cooks_distance(D, y, fitted)
         X, _, _, ids = M.build_frame(pairs, sets, M.HEADLINE, fs)
         top = np.argsort(cd)[::-1][:10]
         infl.append(pd.DataFrame({"feature_set": fs, "f_iid": ids.f_iid.to_numpy()[top], "m_iid": ids.m_iid.to_numpy()[top], "event": ev[top],
@@ -374,8 +448,12 @@ def main():
     show_cols = ["feature_set", "model", "auc", "auc_se", "balanced_accuracy", "balanced_accuracy_se", "sensitivity", "specificity", "error_rate"]
     for lab, spec in (("HEADLINE", M.HEADLINE), ("COMPLETE CASES", M.COMPLETE_CASE)):
         t = metrics[metrics.spec == spec.label][show_cols + ["dyads", "matches"]]
-        print(f"\n{lab} ({spec.label}); event 5-fold CV; SEs cluster-robust by event; {SIM_COVERAGE}")
+        print(f"\n{lab} ({spec.label}); event 5-fold CV; SEs cluster-robust by event; {note}")
         print(t.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+    cf = pd.concat(coefs)
+    print("\ncoefficient table: IRLS max |score| " + ", ".join(f"{fs} {g.max_abs_score.iloc[0]:.1e}" for fs, g in cf.groupby("feature_set"))
+          + "; not estimable (separated): " + (", ".join(f"{r.term} ({r.feature_set})" for r in cf[~cf.estimable].itertuples()) or "none")
+          + "; identical columns dropped: " + (", ".join(sorted(set(";".join(cf.dropped_duplicates).split(";")) - {""})) or "none"))
     v = pd.concat(vifs)
     print("\nlargest variance inflation factors (headline, full design):")
     print(v.groupby("feature_set").head(5).to_string(index=False, float_format=lambda x: f"{x:.1f}"))

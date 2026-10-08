@@ -18,7 +18,7 @@ import numpy as np, pandas as pd
 
 FOLD_SEED = 20261006
 INTERACTIONS = ["age_diff_sq", "int_x_f_pref_shar", "int_x_m_pref_shar"]   # P3c in PREREG.md
-WAVES_1_TO_10 = (6, 7, 8, 9)                                               # the waves that rated preferences 1 to 10
+WAVES_RATED_1_TO_10 = (6, 7, 8, 9)                                         # the waves that rated preferences 1 to 10
 RARE_CODE_MIN = 10           # field and career codes held by fewer participants are merged into "other"
 SKEW_LIMIT = 1.0
 
@@ -80,10 +80,12 @@ def standardize_by_format(df, person_cols, dyad_cols, fmt_col="pref_scale"):
     return out
 
 
-def build_frame(pairs, sets, spec, feature_set, exclude_events=()):
+def build_frame(pairs, sets, spec, feature_set, exclude_events=(), complete_extra=()):
     """Raw design for one specification and feature set: 'pre', 'pre+date', 'pre_individual', or the P3b/P3c
     ladder steps 'pre_extended' (plus the five extended pair features) and 'pre_interactions' (plus the three
-    declared terms). exclude_events drops whole waves first (the waves 6 to 9 check).
+    declared terms). exclude_events drops whole waves first (the waves 6 to 9 and wave 12 checks). Under the
+    complete-case specification a dyad must be complete on every column of `pre+date` the models use, plus any
+    complete_extra columns (the complete-case ladder passes the shared-interests shares, which P3c's terms use).
     Returns (X, y, events, ids) where ids holds f_iid and m_iid; columns keep their canonical names."""
     df = pairs[~pairs.event.isin(exclude_events)].copy()
     subs = {}
@@ -106,7 +108,7 @@ def build_frame(pairs, sets, spec, feature_set, exclude_events=()):
             "pre_interactions": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS}[feature_set]
     cols = [c for c in cols if c not in sets["pref_reference"]]
     if spec.missing == "complete":
-        full = [c for c in sets["pre+date"] if c not in sets["pref_reference"]]
+        full = [c for c in sets["pre+date"] if c not in sets["pref_reference"]] + list(complete_extra)
         df = df[df[full].notna().all(axis=1)]
     else:
         cols = cols + sets["flags_pre"]
@@ -165,8 +167,9 @@ class Prep:
             codes = X[c]
             if any(c.endswith(m) for m in self.merge_codes):
                 stem = c.split("_", 1)[1]
-                held = pd.concat([X[[f"{s}_{stem}"]].join(ids[f"{s}_iid"]).drop_duplicates(f"{s}_iid")[f"{s}_{stem}"]
-                                  for s in self.sides if f"{s}_{stem}" in X.columns]).value_counts()
+                held = (pd.concat([pd.DataFrame({"iid": ids[f"{s}_iid"].to_numpy(), "code": X[f"{s}_{stem}"].to_numpy()})
+                                   for s in self.sides if f"{s}_{stem}" in X.columns])
+                        .drop_duplicates("iid").code.value_counts())       # each participant counted once
                 rare = set(held.index[held < RARE_CODE_MIN])
             else:
                 rare = set()
@@ -181,6 +184,9 @@ class Prep:
                 if len(q) == 4:
                     self.knots[c] = q
         D = self._design(F, X)
+        dup = D.T.duplicated().to_numpy()                       # identical columns (e.g. two missing-code dummies)
+        self.dropped_duplicates = list(D.columns[dup])
+        D = D.loc[:, ~dup]
         self.mu = {c: D[c].mean() for c in D.columns if not c.startswith(("cat:", "bin:"))}
         self.sd = {c: (D[c].std() or 1.0) for c in self.mu}
         self.columns = list(D.columns)
@@ -355,17 +361,22 @@ def auc_clustered_var(score, y, g):
 
 def metric_table(prob, y, threshold, g):
     """Event-held-out metrics with cluster-robust standard errors (clusters g = events). prob and threshold are
-    per dyad (the threshold of the fold that scored it). Each proportion is written as a mean of per-dyad
-    contributions so the cluster-robust formula applies."""
+    per dyad (the threshold of the fold that scored it). Each metric is written as a mean of per-dyad
+    contributions whose residuals are the linearized ones, so the cluster-robust formula applies: sensitivity is
+    a ratio (correct matches over matches), so a matched dyad's residual is (correct - sensitivity) * n / n1 and
+    an unmatched dyad's is 0; specificity likewise; balanced accuracy averages the two."""
     prob, y, threshold, g = map(np.asarray, (prob, y, threshold, g))
     pred = (prob > threshold).astype(float)
     n, n1 = len(y), (y == 1).sum(); n0 = n - n1
     correct = (pred == y).astype(float)
+    sens, spec = correct[y == 1].mean(), correct[y == 0].mean()
+    r_sens = np.where(y == 1, (correct - sens) * n / n1, 0.0)
+    r_spec = np.where(y == 0, (correct - spec) * n / n0, 0.0)
     contrib = {
         "error_rate": 1 - correct,
-        "sensitivity": np.where(y == 1, correct * n / n1, 0.0),
-        "specificity": np.where(y == 0, correct * n / n0, 0.0),
-        "balanced_accuracy": np.where(y == 1, correct * n / (2 * n1), correct * n / (2 * n0)),
+        "sensitivity": sens + r_sens,
+        "specificity": spec + r_spec,
+        "balanced_accuracy": (sens + spec) / 2 + (r_sens + r_spec) / 2,
     }
     out = {k: (v.mean(), np.sqrt(cluster_robust_var_of_mean(v, g))) for k, v in contrib.items()}
     out["auc"] = (auc(prob, y), np.sqrt(auc_clustered_var(prob, y, g)))

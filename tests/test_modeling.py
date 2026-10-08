@@ -3,6 +3,7 @@ Run from the repository root: python tests/test_modeling.py   (pytest also colle
 """
 import sys, pathlib
 import numpy as np, pandas as pd
+from dataclasses import replace
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import modeling as M
@@ -174,10 +175,62 @@ def test_auc_clustered_var_singletons_match_delong():
 
 def test_metric_table_known_answer():
     prob = np.array([.9, .2, .7, .1, .6, .3]); y = np.array([1, 1, 0, 0, 1, 0]); thr = np.full(6, .5)
-    m = M.metric_table(prob, y, thr, g=np.array([1, 1, 2, 2, 3, 3]))
+    g = np.array([1, 1, 2, 2, 3, 3])
+    m = M.metric_table(prob, y, thr, g=g)
     assert np.isclose(m["sensitivity"][0], 2 / 3) and np.isclose(m["specificity"][0], 2 / 3)
     assert np.isclose(m["error_rate"][0], 2 / 6) and np.isclose(m["balanced_accuracy"][0], 2 / 3)
-    assert all(se >= 0 for _, se in m.values())
+    # ratio-estimator variance by hand: G/(G-1) * sum over clusters of (sum over matched dyads of (correct - sens))^2 / n1^2
+    correct = np.array([1, 0, 0, 1, 1, 1.0]); sens, spec, G = 2 / 3, 2 / 3, 3
+    vs = G / (G - 1) * sum(sum(correct[i] - sens for i in range(6) if g[i] == k and y[i] == 1) ** 2 for k in (1, 2, 3)) / 3 ** 2
+    vp = G / (G - 1) * sum(sum(correct[i] - spec for i in range(6) if g[i] == k and y[i] == 0) ** 2 for k in (1, 2, 3)) / 3 ** 2
+    vb = G / (G - 1) * sum((sum((correct[i] - sens) / 3 for i in range(6) if g[i] == k and y[i] == 1)
+                            + sum((correct[i] - spec) / 3 for i in range(6) if g[i] == k and y[i] == 0)) ** 2 for k in (1, 2, 3)) / 4
+    assert np.isclose(m["sensitivity"][1] ** 2, vs) and np.isclose(m["specificity"][1] ** 2, vp)
+    assert np.isclose(m["balanced_accuracy"][1] ** 2, vb)
+
+
+def test_metric_table_sensitivity_se_is_honest_when_match_rates_vary():
+    """Events differ in match rate but the true sensitivity is fixed at 0.6: the SE should track the real spread
+    (the earlier fixed-count form came out several times too wide here)."""
+    rng = np.random.default_rng(11); sizes = np.r_[np.full(10, 100), np.full(11, 300)]
+    g = np.repeat(np.arange(21), sizes); rates = rng.uniform(0.08, 0.31, 21)
+    sens, ses = [], []
+    for _ in range(300):
+        y = (rng.random(len(g)) < rates[g]).astype(int)
+        hit = rng.random(len(g)) < np.where(y == 1, 0.6, 0.3)          # predicted match: 60% of matches, 30% of others
+        m = M.metric_table(hit.astype(float), y, np.full(len(g), 0.5), g)
+        sens.append(m["sensitivity"][0]); ses.append(m["sensitivity"][1])
+    ratio = np.mean(ses) / np.std(sens)
+    assert 0.8 < ratio < 1.25, ratio
+
+
+def test_prep_drops_identical_columns():
+    X = pd.DataFrame({"f_a": [1.0, 2, 3, 4] * 5, "f_field_cd": [np.nan, 1, 1, 2] * 5, "f_career_c": [np.nan, 3, 3, 3] * 5})
+    ids = pd.DataFrame({"f_iid": np.arange(20), "m_iid": np.arange(20) + 50})
+    p = M.Prep(categorical=["f_field_cd", "f_career_c"], binary=[], person_cols=[], merge_codes=()).fit(X, ids)
+    # both codes are missing on exactly the same rows, so the two "missing" dummies are identical
+    assert p.dropped_duplicates == ["cat:f_career_c=missing"] and "cat:f_field_cd=missing" in p.columns
+    assert p.transform(X).shape[1] == len(p.columns)
+
+
+def test_prep_counts_each_participant_once_across_sides():
+    # 12 people appear both as rater and partner; code 2 is held by 6 people, so it is rare (< 10) and merged,
+    # though it appears 12 times across the two sides
+    iid = np.arange(12); codes = np.r_[np.full(6, 1), np.full(6, 2)]
+    X = pd.DataFrame({"r_field_cd": np.r_[codes, codes], "p_field_cd": np.r_[codes[::-1], codes[::-1]]})
+    ids = pd.DataFrame({"r_iid": np.r_[iid, iid], "p_iid": np.r_[iid[::-1], iid[::-1]]})
+    p = M.Prep(categorical=["r_field_cd", "p_field_cd"], binary=[], person_cols=[], sides=("r", "p")).fit(X, ids)
+    assert 2.0 in p.levels["r_field_cd"][0] and 1.0 in p.levels["r_field_cd"][0]     # both held by 6 < 10 people
+
+
+def test_build_frame_complete_extra():
+    pairs, sets = P.build_pairs(toy()), P.feature_sets()
+    pairs = pairs.assign(m_gaming=5.0, m_field_cd=1.0, same_field=1.0, m_rating_sinc=5.0)   # make both toy dyads complete
+    pairs["m_pref_shar"] = [10.0, np.nan]
+    spec = replace(M.COMPLETE_CASE, pref_format="unstandardized")                 # two rows cannot be standardized
+    X1, *_ = M.build_frame(pairs, sets, spec, "pre")
+    X2, *_ = M.build_frame(pairs, sets, spec, "pre", complete_extra=sets["pref_reference"])
+    assert len(X1) == 2 and len(X2) == 1
 
 
 if __name__ == "__main__":

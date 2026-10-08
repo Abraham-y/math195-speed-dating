@@ -4,7 +4,8 @@ Input : data/speed_dating.csv (Kaggle release of the Columbia speed-dating exper
 Output: data/clean.csv, data/clean_summary.md
 
 What it does
-1. Drops rows with no decision recorded or no partner id.
+1. Drops rows with no decision recorded or no partner id (in this release: 10 wave-5 rows whose partner, the
+   woman in position 7, did not attend; no row lacks a decision).
 2. Adds identifiers: rater (iid), ratee (pid), event (wave), dyad (unordered pair), date_id (ordered pair).
 3. Harmonizes the stated-preference blocks. The codebook says waves 6 to 9 rated each attribute on a
    1 to 10 scale and the other waves split 100 points ("Preference Scale"). In the release, blocks 1_1 and
@@ -12,7 +13,10 @@ What it does
    answers, and 100-point answers do not always sum to exactly 100. Every block is converted to shares
    summing to 100 (a no-op where it already does); the survey format is kept in `pref_scale`. A check
    confirms which blocks arrived already converted. Shares from the two formats are on the same units but
-   not equally spread; see PREREG.md on standardizing within format.
+   not equally spread; see PREREG.md on standardizing within format. In the 100-point waves, a block with some
+   items blank whose answered items already sum to 100 (within 1 point) gets 0 for the blank items, since no
+   points were left to give (PREREG.md, fixes of 2026-10-08); the number of items set to 0 is kept in
+   `pref_blanks_set_to_0`.
 4. Flags missing attribute ratings and marks complete-case rows.
 5. Flags the event-level variations listed in the codebook (undergraduate wave, yes-budget wave,
    different MC, brought a book or magazine) and keeps `condtn` (limited vs extensive choice).
@@ -42,25 +46,47 @@ WAVE_FLAGS = {"wave_undergrad": {5}, "wave_yes_budget": {12}, "wave_diff_mc": {1
 
 def apply_recording_errors(df):
     """Set each known recording error to missing, keeping the recorded column as <name>_recorded.
-    Returns the frame and the number of people affected per column."""
-    people = {}
+    Returns the frame, the number of people affected and the number of values changed per column."""
+    people, values = {}, {}
     for col, bad in RECORDING_ERRORS.items():
         df[f"{col}_recorded"] = df[col]
         hit = df[col] == bad
-        people[col] = int(df.loc[hit, "rater"].nunique())
+        people[col], values[col] = int(df.loc[hit, "rater"].nunique()), int(hit.sum())
         df.loc[hit, col] = np.nan
-    return df, people
+    return df, people, values
 
 
-def main():
-    raw = pd.read_csv(RAW, encoding="latin-1")
+def fill_blank_allocations(df):
+    """In the 100-point waves, set the blank items of a stated-preference block to 0 when the answered items
+    already sum to 100 within 1 point. Adds `pref_blanks_set_to_0` (items set to 0 in the row, over all blocks).
+    Returns the frame and, per block, (people, rows) changed."""
+    changed = {}
+    df["pref_blanks_set_to_0"] = 0
+    for blk in PREF_BLOCKS:
+        cols = [f"{a}{blk}" for a in ATTRS]
+        if not all(c in df.columns for c in cols):
+            continue
+        block = df[cols].astype(float)
+        blank = block.isna()
+        hit = (~df.event.isin(SCALE_1_TO_10_WAVES) & blank.any(axis=1) & ~blank.all(axis=1)
+               & block.sum(axis=1).sub(100).abs().le(1))
+        df[cols] = block.mask(blank & hit.to_numpy()[:, None], 0.0)
+        df["pref_blanks_set_to_0"] += (blank & hit.to_numpy()[:, None]).sum(axis=1)
+        changed[blk] = (sorted(df.loc[hit, "rater"].unique().tolist()), int(hit.sum()))
+    return df, changed
+
+
+def clean_frame(raw):
+    """Every cleaning step on the raw release; returns (clean frame, summary notes)."""
     notes = [f"Raw rows: {len(raw)}; participants: {raw.iid.nunique()}; waves: {raw.wave.nunique()}"]
     df = raw.copy()
 
     # 1. drop unusable rows
-    n0 = len(df)
-    df = df.dropna(subset=["dec", "pid"])
-    notes.append(f"Dropped {n0 - len(df)} rows with no decision or no partner id")
+    no_pid, no_dec = df.pid.isna(), df.dec.isna()
+    df = df[~(no_pid | no_dec)]
+    waves = sorted(raw.loc[no_pid, "wave"].unique().tolist())
+    notes.append(f"Dropped {int(no_pid.sum())} rows with no partner id (waves {waves}) and {int((no_dec & ~no_pid).sum())} "
+                 "further rows with no decision")
     dup = int(df.duplicated(subset=["iid", "pid"]).sum())
     df = df.drop_duplicates(subset=["iid", "pid"])
     notes.append(f"Dropped {dup} duplicate (rater, ratee) rows")
@@ -75,6 +101,9 @@ def main():
 
     # 3. harmonize stated-preference blocks
     df["pref_scale"] = np.where(df.event.isin(SCALE_1_TO_10_WAVES), "1-10", "100pt")
+    df, filled = fill_blank_allocations(df)
+    notes.append("Blank items set to 0 where the answered items of a 100-point block already sum to 100 (PREREG.md, 2026-10-08): "
+                 + "; ".join(f"block {b}: iids {ids} ({n} rows)" for b, (ids, n) in filled.items() if n))
     for blk, desc in PREF_BLOCKS.items():
         cols = [f"{a}{blk}" for a in ATTRS]
         if not all(c in df.columns for c in cols):
@@ -106,8 +135,8 @@ def main():
     notes.append("Event flags added: " + ", ".join(f"{k} (waves {sorted(v)})" for k, v in WAVE_FLAGS.items()) + "; condtn kept (1 = limited choice, 2 = extensive)")
 
     # 6. recording errors in the interest ratings
-    df, people = apply_recording_errors(df)
-    notes.append("Set to missing as recording errors (PREREG.md): " + ", ".join(f"{c} = {RECORDING_ERRORS[c]} for {n} people" for c, n in people.items())
+    df, people, values = apply_recording_errors(df)
+    notes.append("Set to missing as recording errors (PREREG.md): " + ", ".join(f"{c} = {RECORDING_ERRORS[c]} for {n} people ({values[c]} rows)" for c, n in people.items())
                  + "; recorded values kept in " + ", ".join(f"{c}_recorded" for c in RECORDING_ERRORS))
 
     # 7. derived predictors
@@ -130,7 +159,11 @@ def main():
     notes.append(f"Dyads: {len(pairs)}; seen from both sides: {int((pairs == 2).sum())}; one side only: {int((pairs == 1).sum())}")
     dpr = df.groupby("rater").size()
     notes.append(f"Dates per rater: min {dpr.min()}, median {int(dpr.median())}, max {dpr.max()}")
+    return df, notes
 
+
+def main():
+    df, notes = clean_frame(pd.read_csv(RAW, encoding="latin-1"))
     df.to_csv(OUT, index=False)
     SUMMARY.write_text("# Cleaning summary\n\n" + "\n".join(f"- {n}" for n in notes) + f"\n\nOutput: {OUT} with {len(df)} rows and {df.shape[1]} columns.\n")
     print("\n".join(notes)); print(f"wrote {OUT}")

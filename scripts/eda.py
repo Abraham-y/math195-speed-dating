@@ -360,11 +360,13 @@ def main():
         print(f"  {f:15s} {s[1]:.3f} / {s[0]:.3f}")
 
     zeros, inter, oor = out_of_range(clean, pairs)
-    z = zeros[zeros.rating != "like"]
+    z = zeros[zeros.rating.isin(ATTRS)]                                  # the six attributes (not liking or the yes-guess)
+    pz = zeros.set_index("rating").like_on_zero_cards["prob"]
     print(f"\nout-of-range: {oor['scorecards with a rating of 0']} scorecards with a 0 from {oor['people giving a 0']} people in "
           f"{oor['events with a 0']} events; N/A rate {oor['N/A rate in ratings, people giving a 0']:.3f} (people giving a 0) "
           f"vs {oor['N/A rate in ratings, everyone else']:.3f}; liking on cards with a 0 averages "
-          f"{z.like_on_zero_cards.min():.1f} to {z.like_on_zero_cards.max():.1f} by attribute, against {clean.like.mean():.1f} on all cards")
+          f"{z.like_on_zero_cards.min():.1f} to {z.like_on_zero_cards.max():.1f} across the six attributes ({pz:.1f} with a 0 yes-guess), "
+          f"against {clean.like.mean():.1f} on all cards")
     print("interest values outside 1 to 10: " + "; ".join(f"{r.interest} = {r.value:g}: {r.people} people in {r.events} events" for r in inter.itertuples()))
     print(f"people with an interest of 0: {oor['people with an interest rating of 0']} (one gave {oor['most interest zeros from one person']}); "
           f"dyads involving a gaming-14 or reading-13 person: {oor['dyads involving a gaming-14 or reading-13 person']}")

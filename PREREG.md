@@ -258,3 +258,7 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   specificity and balanced accuracy; the coefficient table; two like-model bugs; the complete-case ladder; blank
   100-point allocations; the AUC error-bar simulation; two wording errors); ran the wave 12 check and P5 for waves 6
   to 9.
+- 2026-10-08 (no hypothesis changed) After the rerun: the blank-allocation fix raised the complete-case count on the
+  columns the models use to 2,685 dyads (477 matches), the same on every step of the complete-case ladder (2,679 and
+  2,662 before the fix), and 2,790 (491) with interest values as recorded (2,784 before). Earlier and new results
+  are side by side in results/compare_runs_*.csv (scripts/compare_runs.py); no verdict changed.

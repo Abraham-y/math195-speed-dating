@@ -8,8 +8,11 @@ No random operations, so no seed.
 2. Yes rate and match rate in each wave. Rates rather than counts, because waves had 5 to 22 dates per person;
    the average number of yeses per participant is in the table.
 3. The pre-event survey: participants' ages and their main reason for coming.
-Every number is computed two independent ways (from clean.csv and from the raw file or the pair table), and the
-script stops if they disagree. The captions file is generated here, so no number is typed into the report by hand.
+Cross-checks (the script stops if any disagree): participant counts per wave and gender against the raw file;
+every participant's number of dates equals the number of opposite-sex participants in their wave; the yes rate
+from clean.csv, the pair table and the raw file; the match rate from clean.csv and the pair table; the ages and
+reasons for coming against the raw file. The captions file is generated here, so no number is typed into the
+report by hand.
 Run from the repository root after clean.py and pairs.py: python scripts/data_description.py
 """
 import sys, pathlib
@@ -48,7 +51,7 @@ def survey_snapshot(clean):
     return people.age, goal, int(people.goal.isna().sum())
 
 
-def cross_check(clean, pairs, raw, parts, rates):
+def cross_check(clean, pairs, raw, parts, rates, age, goal):
     """Independent recomputations; every one must agree."""
     rp = raw.drop_duplicates("iid").groupby(["wave", "gender"]).size().unstack(fill_value=0)
     assert (rp[0].to_numpy() == parts.women.to_numpy()).all() and (rp[1].to_numpy() == parts.men.to_numpy()).all(), "participant counts"
@@ -56,7 +59,7 @@ def cross_check(clean, pairs, raw, parts, rates):
     # each participant's number of dates equals the number of opposite-sex participants in the wave
     n = clean.groupby(["event", "rater", "gender"]).size().reset_index(name="dates")
     other = n.apply(lambda r: parts.loc[r.event, "men" if r.gender == 0 else "women"], axis=1)
-    assert (n.dates == other).mean() > 0.99, "dates per participant"          # 10 rows were dropped in clean.py
+    assert (n.dates == other).all(), "dates per participant"     # wave 5's absent woman (iid 118) is in neither count
     # yes rate from the pair table (both decisions of every dyad) equals the rate from clean.csv
     yes_pairs = (pairs.groupby("event").f_dec.sum() + pairs.groupby("event").m_dec.sum()) / (2 * pairs.groupby("event").size())
     assert np.allclose(yes_pairs.to_numpy(), rates.yes_rate.to_numpy()), "yes rate"
@@ -65,6 +68,10 @@ def cross_check(clean, pairs, raw, parts, rates):
     # yes rate from the raw file, after dropping the rows clean.py drops
     r = raw.dropna(subset=["dec", "pid"]).groupby("wave").dec.mean()
     assert np.allclose(r.to_numpy(), rates.yes_rate.to_numpy()), "yes rate against the raw file"
+    # ages and reasons for coming from the raw file, one row per participant
+    people = raw.drop_duplicates("iid").set_index("iid")
+    assert np.allclose(people.age.sort_values().dropna().to_numpy(), age.sort_values().dropna().to_numpy()), "ages"
+    assert (people.goal.map(GOALS).value_counts().reindex(goal.index, fill_value=0) == goal).all(), "reasons for coming"
 
 
 def bar(ax, x, h, color, width=0.62, **kw):
@@ -124,8 +131,8 @@ def main():
     pairs = pd.read_csv("data/pairs.csv")
     raw = pd.read_csv("data/speed_dating.csv", encoding="latin-1")
     parts, rates = participants_by_wave(clean), rates_by_wave(clean, pairs)
-    cross_check(clean, pairs, raw, parts, rates)
     age, goal, goal_missing = survey_snapshot(clean)
+    cross_check(clean, pairs, raw, parts, rates, age, goal)
     overall_yes, overall_match = clean.dec.mean(), pairs.match.mean()
     dpp = clean.groupby("rater").size()                                     # dates per participant
 
@@ -158,14 +165,15 @@ yes to at most half of their dates.
 ({goal.max()} participants); {goal.loc['Looking for a serious relationship']} said they were looking for a serious
 relationship.
 
-Source: Columbia speed-dating experiment (Fisman, Iyengar, Kamenica and Simonson), Kaggle release; counts after
-dropping the 10 rows with no decision recorded. Tables: results/data_description_by_wave.csv and
+Source: Columbia speed-dating experiment (Fisman, Iyengar, Kamenica and Simonson), Kaggle release. Counts leave out
+10 scorecards with no partner id: in wave 5, ten men each rated a woman who has no record in the release (no
+decision is missing anywhere). Tables: results/data_description_by_wave.csv and
 results/data_description_goals.csv.
 """
     (RES / "data_description_captions.md").write_text(captions)
     print(captions)
     print("cross-checks passed: participant counts against the raw file, dates per participant, yes rate three ways, "
-          "match rate two ways")
+          "match rate two ways, ages and reasons for coming against the raw file")
     print("wrote " + ", ".join(sorted(p.name for p in RES.glob("data_description_*"))))
 
 
