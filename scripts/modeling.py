@@ -9,7 +9,7 @@
   one-hot coding, splines, standardizing), in the order PREREG.md fixes.
 - fit_logit, bic, stepwise: logistic regression by IRLS and forward / backward / both-ways selection by BIC
   over blocks of columns.
-- cluster_robust_var_of_mean, metric_table, auc, auc_clustered_var: event-held-out metrics with cluster-robust
+- cluster_robust_var_of_mean, metric_table, auc, auc_clustered_var, r_squared_and_rmse: event-held-out metrics with cluster-robust
   error bars (convention 6); the clustered AUC variance is Obuchowski (1997).
 Every function here has a known-answer test in tests/test_modeling.py.
 """
@@ -184,9 +184,9 @@ class Prep:
                 if len(q) == 4:
                     self.knots[c] = q
         D = self._design(F, X)
-        dup = D.T.duplicated().to_numpy()                       # identical columns (e.g. two missing-code dummies)
-        self.dropped_duplicates = list(D.columns[dup])
-        D = D.loc[:, ~dup]
+        # Columns identical in the training fold (e.g. two missing-code dummies held by the same people) are all
+        # kept: the data cannot divide their combined effect, and fit_logit's ridge divides it equally (PREREG.md,
+        # second set of fixes of 2026-10-08).
         self.mu = {c: D[c].mean() for c in D.columns if not c.startswith(("cat:", "bin:"))}
         self.sd = {c: (D[c].std() or 1.0) for c in self.mu}
         self.columns = list(D.columns)
@@ -357,6 +357,20 @@ def auc_clustered_var(score, y, g):
     S01 = K / ((K - 1) * N) * np.sum(b ** 2)
     S11 = K / (K - 1) * np.sum(a * b)
     return S10 / M + S01 / N + 2 * S11 / (M * N)
+
+
+def r_squared_and_rmse(y, pred, g):
+    """Held-out R-squared and RMSE with cluster-robust SEs (clusters g = events). R-squared = 1 - A / B with A the
+    mean squared error and B the mean squared deviation of y from its mean; each date contributes the linearized
+    residual -(e_i - A) / B + A (d_i - B) / B^2, with e_i its squared error and d_i its squared deviation, to the
+    cluster-robust variance of a mean (convention 6). RMSE = sqrt(A), SE by the delta method."""
+    y, pred, g = np.asarray(y, float), np.asarray(pred, float), np.asarray(g)
+    e, d = (y - pred) ** 2, (y - y.mean()) ** 2
+    A, B = e.mean(), d.mean()
+    z = -(e - A) / B + A * (d - B) / B ** 2
+    se_a = np.sqrt(cluster_robust_var_of_mean(e, g))
+    return dict(r_squared=1 - A / B, r_squared_se=np.sqrt(cluster_robust_var_of_mean(1 - A / B + z, g)),
+                rmse=np.sqrt(A), rmse_se=se_a / (2 * np.sqrt(A)))
 
 
 def metric_table(prob, y, threshold, g):

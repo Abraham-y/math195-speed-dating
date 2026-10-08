@@ -16,4 +16,4 @@
 - Dyads: 4184; seen from both sides: 4184; one side only: 0
 - Dates per rater: min 5, median 16, max 22
 
-Output: data/clean.csv with 8368 rows and 235 columns.
+Output: data/clean.csv with 8368 rows and 253 columns.

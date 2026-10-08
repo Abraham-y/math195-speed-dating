@@ -4,8 +4,8 @@ Input : data/speed_dating.csv (Kaggle release of the Columbia speed-dating exper
 Output: data/clean.csv, data/clean_summary.md
 
 What it does
-1. Drops rows with no decision recorded or no partner id (in this release: 10 wave-5 rows whose partner, the
-   woman in position 7, did not attend; no row lacks a decision).
+1. Drops rows with no decision recorded or no partner id (in this release: 10 wave-5 rows, ten men's scorecards
+   for partner number 7, a woman whose own record is missing from the release; no row lacks a decision).
 2. Adds identifiers: rater (iid), ratee (pid), event (wave), dyad (unordered pair), date_id (ordered pair).
 3. Harmonizes the stated-preference blocks. The codebook says waves 6 to 9 rated each attribute on a
    1 to 10 scale and the other waves split 100 points ("Preference Scale"). In the release, blocks 1_1 and
@@ -16,7 +16,8 @@ What it does
    not equally spread; see PREREG.md on standardizing within format. In the 100-point waves, a block with some
    items blank whose answered items already sum to 100 (within 1 point) gets 0 for the blank items, since no
    points were left to give (PREREG.md, fixes of 2026-10-08); the number of items set to 0 is kept in
-   `pref_blanks_set_to_0`.
+   `pref_blanks_set_to_0`, and each item left blank on the form in `<item>_was_blank` (the missing-data flags
+   count those items as blank).
 4. Flags missing attribute ratings and marks complete-case rows.
 5. Flags the event-level variations listed in the codebook (undergraduate wave, yes-budget wave,
    different MC, brought a book or magazine) and keeps `condtn` (limited vs extensive choice).
@@ -58,7 +59,8 @@ def apply_recording_errors(df):
 
 def fill_blank_allocations(df):
     """In the 100-point waves, set the blank items of a stated-preference block to 0 when the answered items
-    already sum to 100 within 1 point. Adds `pref_blanks_set_to_0` (items set to 0 in the row, over all blocks).
+    already sum to 100 within 1 point. Adds `pref_blanks_set_to_0` (items set to 0 in the row, over all blocks)
+    and `<item>_was_blank` for every block item (1 = blank on the form, whether or not it was then set to 0).
     Returns the frame and, per block, (people, rows) changed."""
     changed = {}
     df["pref_blanks_set_to_0"] = 0
@@ -68,6 +70,7 @@ def fill_blank_allocations(df):
             continue
         block = df[cols].astype(float)
         blank = block.isna()
+        df[[f"{c}_was_blank" for c in cols]] = blank.astype(int).to_numpy()
         hit = (~df.event.isin(SCALE_1_TO_10_WAVES) & blank.any(axis=1) & ~blank.all(axis=1)
                & block.sum(axis=1).sub(100).abs().le(1))
         df[cols] = block.mask(blank & hit.to_numpy()[:, None], 0.0)

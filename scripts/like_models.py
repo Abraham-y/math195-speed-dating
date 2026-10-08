@@ -9,7 +9,9 @@ information, one row per date from one side, dates with `like` recorded. Predict
 own pre-event answers (the `pre_individual` columns relabelled r_ and p_), the rater's gender, and the eleven pair
 features of P3b, prepared exactly as the headline match models (survey-format standardization, recording-error fix,
 skewness rule, training-fold medians with missing-data flags, rare codes, standardizing). Event 5-fold CV; held-out
-R-squared = 1 - (pooled squared error) / (variance of `like`), and RMSE, with cluster-robust standard errors by event.
+R-squared = 1 - (pooled squared error) / (variance of `like`), and RMSE, with cluster-robust standard errors by event:
+R-squared's in the linearized ratio form (both the squared error and the variance of `like` vary), checked in
+scripts/sim_like_cluster.py. A baseline row predicts each held-out date by its training fold's mean liking.
 Ladder: rater only; plus partner; plus pair features. Linear terms only (the spline step belongs to the logistic
 models). Complete-case version (fixes of 2026-10-08): the dates complete on every predictor of the full model, no
 filling and no missing-data flags, the same ladder on those dates.
@@ -20,6 +22,7 @@ import numpy as np, pandas as pd
 from joblib import Parallel, delayed
 sys.path.insert(0, "scripts")
 import modeling as M
+from sim_like_cluster import coverage_note
 
 RES = pathlib.Path("results")
 
@@ -71,6 +74,8 @@ def complete_dates(D, rater, partner, pair):
 
 def fit_fold(k, D, cols, folds, sets):
     test = D.event.map(folds).to_numpy() == k; train = ~test
+    if not cols:                                                     # the baseline: the training fold's mean
+        return np.where(test)[0], np.full(test.sum(), D.like.to_numpy()[train].mean())
     Xtr, Xte = D.loc[train, cols].reset_index(drop=True), D.loc[test, cols].reset_index(drop=True)
     ids = D.loc[train, ["r_iid", "p_iid"]].reset_index(drop=True)
     cat, binary = column_types(cols, sets)
@@ -88,11 +93,8 @@ def cross_validate(D, cols, sets, jobs):
     pred = np.empty(len(D))
     for idx, p in res:
         pred[idx] = p
-    y = D.like.to_numpy(); sq = (y - pred) ** 2
-    mse, var = sq.mean(), y.var()
-    se_mse = np.sqrt(M.cluster_robust_var_of_mean(sq, D.event.to_numpy()))
-    return dict(r_squared=r_squared(y, pred), r_squared_se=se_mse / var, rmse=np.sqrt(mse), rmse_se=se_mse / (2 * np.sqrt(mse)),
-                dates=len(y), predictors=len(cols), fold_scheme="event", seed=M.FOLD_SEED)
+    return dict(**M.r_squared_and_rmse(D.like.to_numpy(), pred, D.event.to_numpy()),
+                dates=len(D), predictors=len(cols), fold_scheme="event", seed=M.FOLD_SEED)
 
 
 def main():
@@ -102,17 +104,19 @@ def main():
     D, rater, partner, pair = dates_table(pairs, sets, clean)
     rows = []
     for version, (d, r, p, q) in (("headline", (D, rater, partner, pair)), ("complete-case", complete_dates(D, rater, partner, pair))):
-        ladder = (("rater only", r), ("rater + partner", r + p), ("rater + partner + pair", r + p + q))
+        ladder = (("baseline: training-fold mean", []), ("rater only", r), ("rater + partner", r + p), ("rater + partner + pair", r + p + q))
         rows += [dict(version=version, model=name, **cross_validate(d, cols, sets, args.jobs)) for name, cols in ladder]
-    met = pd.DataFrame(rows); met.to_csv(RES / "like_models_metrics.csv", index=False)
+    note = coverage_note()
+    met = pd.DataFrame(rows).assign(se_check=note); met.to_csv(RES / "like_models_metrics.csv", index=False)
     hyp = []
     for version, m in met.groupby("version", sort=False):
         full, rp = m.set_index("model").loc["rater + partner + pair"], m.set_index("model").loc["rater + partner"]
-        hyp += [dict(hypothesis="L1", version=version, statistic=f"held-out R-squared of the full model {full.r_squared:.3f} (SE {full.r_squared_se:.3f})",
+        hyp += [dict(hypothesis="L1", version=version, statistic=f"held-out R-squared of the full model {full.r_squared:.4f} (SE {full.r_squared_se:.4f})",
                      supported=bool(full.r_squared < 0.10)),
-                dict(hypothesis="L2", version=version, statistic=f"pair features add {full.r_squared - rp.r_squared:.4f} ({full.r_squared:.3f} minus {rp.r_squared:.3f})",
+                dict(hypothesis="L2", version=version, statistic=f"pair features add {full.r_squared - rp.r_squared:.4f} ({full.r_squared:.4f} minus {rp.r_squared:.4f})",
                      supported=bool(full.r_squared - rp.r_squared < 0.01))]
-    hyp = pd.DataFrame(hyp); hyp.to_csv(RES / "like_models_hypotheses.csv", index=False)
+    hyp = pd.DataFrame(hyp).assign(fold_scheme="event", seed=M.FOLD_SEED, se_check=note)
+    hyp.to_csv(RES / "like_models_hypotheses.csv", index=False)
     print(f"{len(D)} dates with `like` recorded; mean {D.like.mean():.2f}, SD {D.like.std():.2f}; event 5-fold CV, seed {M.FOLD_SEED}")
     print(met.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     print(hyp.to_string(index=False))

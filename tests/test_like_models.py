@@ -45,6 +45,12 @@ def test_complete_dates_drop_incomplete_rows_and_flags():
     assert len(d) == 1 and d.like.iloc[0] == 5 and r == ["r_age"] and p == ["p_age"] and q == ["fit_to_rater_prefs"]
 
 
+def test_baseline_predicts_the_training_fold_mean():
+    D = pd.DataFrame({"event": [1, 1, 2, 2, 3, 3], "like": [4.0, 6, 8, 8, 1, 3]})
+    idx, pred = L.fit_fold(0, D, [], {1: 0, 2: 1, 3: 1}, sets=None)
+    assert list(idx) == [0, 1] and np.allclose(pred, 5.0)                     # mean of events 2 and 3
+
+
 def test_r_squared_known_answer():
     y = np.array([1.0, 2, 3, 4]); assert np.isclose(L.r_squared(y, y), 1) and np.isclose(L.r_squared(y, np.full(4, 2.5)), 0)
 

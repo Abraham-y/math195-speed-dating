@@ -28,7 +28,7 @@ def test_rates_by_wave():
     clean, pairs = toy()
     r = DD.rates_by_wave(clean, pairs)
     assert np.isclose(r.loc[1, "yes_rate"], 6 / 8) and np.isclose(r.loc[2, "yes_rate"], 0)      # 6 yeses of 8 decisions
-    assert np.isclose(r.loc[1, "yeses_per_participant"], 1.5)                                     # 1, 2, 2, 1 yeses
+    assert np.isclose(r.loc[1, "yeses_per_participant"], 1.5)                                     # 1, 2, 1, 2 yeses (raters 1 to 4)
     assert np.isclose(r.loc[1, "match_rate"], 2 / 4) and r.loc[1, "dyads"] == 4 and r.loc[1, "decisions"] == 8
 
 

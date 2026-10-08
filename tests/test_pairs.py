@@ -15,6 +15,8 @@ def person(**kw):
     d.update(kw)
     for c in P.RECORDED:                      # recorded value defaults to the fixed one
         d.setdefault(f"{c}_recorded", d[c])
+    for a in P.ATTRS:                         # no preference item left blank unless given
+        d.setdefault(f"{a}1_1_was_blank", int(np.isnan(d[f"{a}1_1_share"])))
     return d
 
 
@@ -53,6 +55,15 @@ def toy():
 
 def built():
     return P.build_pairs(toy()).set_index("m_iid")
+
+
+def test_flag_counts_preference_items_set_to_zero():
+    """A preference item left blank on the form and set to 0 by the blank-allocation rule still counts as blank."""
+    t = toy()
+    w = t.rater == 1
+    t.loc[w, "amb1_1_share"], t.loc[w, "amb1_1_was_blank"] = 0.0, 1
+    b = P.build_pairs(t)
+    assert (b.f_pre_missing == 1).all() and (P.build_pairs(toy()).f_pre_missing == 0).all()
 
 
 def test_row_corr_known():

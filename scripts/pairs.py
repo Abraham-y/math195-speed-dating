@@ -35,8 +35,8 @@ Columns
   abs_date_diff and abs_go_out_diff (absolute differences in dating and going-out frequency codes), int_mad (mean
   absolute difference across the 17 interests) and int_cosine (cosine similarity of the two 17-interest vectors),
   the last two over the interests both people answered.
-- missing-data flags: f_pre_missing, m_pre_missing (any pre-event answer left blank, counting the recorded
-  values, not the recording-error fix) and f_date_missing, m_date_missing (any in-date answer left blank).
+- missing-data flags: f_pre_missing, m_pre_missing (any pre-event answer left blank on the form: the recorded
+  values count, not the recording-error fix, and so do preference items the blank-allocation rule set to 0) and f_date_missing, m_date_missing (any in-date answer left blank).
 - in-date features, for p in {f, m}: p_rating_<a> for the six attributes and like (the rating p gave the
   partner), p_prob (p's guess that the partner would say yes).
 - event-level columns carried for sensitivity checks, not features: condtn, pref_scale, the wave flags.
@@ -65,6 +65,7 @@ PERSON = {**{c: c for c in ["age", "field_cd", "career_c", "goal", "date", "go_o
           **{f"{a}3_1": f"self_{a}" for a in SELF_ATTRS},
           **{f"{a}1_1_share": f"pref_{a}" for a in ATTRS}}
 PERSON_RECORDED = {f"{c}_recorded": f"{c}_recorded" for c in RECORDED}
+WAS_BLANK = {f"{a}1_1_was_blank": f"pref_{a}_was_blank" for a in ATTRS}   # left blank on the form (clean.py)
 # in-date columns, the rater's view of the partner
 IN_DATE = {**{a: f"rating_{a}" for a in ATTRS + ["like"]}, "prob": "prob"}
 EVENT_LEVEL = ["condtn", "pref_scale", "wave_undergrad", "wave_yes_budget", "wave_diff_mc", "wave_brought_item"]
@@ -144,7 +145,7 @@ def same_code(a, b):
 
 def side(clean, gender, p):
     """The rows rated by one gender, renamed to that gender's prefix."""
-    cols = {"rater": f"{p}_iid", "dec": f"{p}_dec", **{k: f"{p}_{v}" for k, v in {**PERSON, **PERSON_RECORDED}.items()},
+    cols = {"rater": f"{p}_iid", "dec": f"{p}_dec", **{k: f"{p}_{v}" for k, v in {**PERSON, **PERSON_RECORDED, **WAS_BLANK}.items()},
             **{k: f"{p}_{v}" for k, v in IN_DATE.items()}}
     return clean.loc[clean.gender == gender, ["dyad"] + list(cols)].rename(columns=cols)
 
@@ -180,7 +181,8 @@ def build_pairs(clean):
         "fit_to_m_prefs": compat_fit(prefs("m"), selfs("f")),
         "fit_raw_to_f_prefs": pref_fit(prefs("f"), selfs("m")),
         "fit_raw_to_m_prefs": pref_fit(prefs("m"), selfs("f")),
-        **{f"{p}_pre_missing": pairs[recorded_person_cols(p)].isna().any(axis=1).astype(int) for p in "fm"},
+        **{f"{p}_pre_missing": (pairs[recorded_person_cols(p)].isna().any(axis=1)
+                                | pairs[[f"{p}_{v}" for v in WAS_BLANK.values()]].eq(1).any(axis=1)).astype(int) for p in "fm"},
         **{f"{p}_date_missing": cols(p, IN_DATE.values()).isna().any(axis=1).astype(int) for p in "fm"},
     }, index=pairs.index)
     pairs = pd.concat([pairs, new], axis=1)

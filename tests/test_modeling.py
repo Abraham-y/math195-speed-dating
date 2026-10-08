@@ -152,6 +152,18 @@ def test_cluster_robust_known_answer():
     assert np.isclose(M.cluster_robust_var_of_mean(u, np.arange(10)), 10 / 9 * np.sum((u - u.mean()) ** 2) / 100)
 
 
+def test_auc_clustered_var_mixed_clusters_matches_cluster_linearization():
+    """Clusters holding both matches and non-matches exercise the cross term S11: the variance must equal
+    K/(K-1) * sum over clusters of (sum of v10 - A over its matches / M + sum of v01 - A over its non-matches / N)^2."""
+    rng = np.random.default_rng(17)
+    g = np.repeat(np.arange(12), rng.integers(5, 30, 12)); s_ = rng.normal(size=len(g)) + rng.normal(0, 0.5, 12)[g]
+    y = (rng.random(len(g)) < 1 / (1 + np.exp(-(s_ - 1)))).astype(int)
+    v10, v01 = M.placement_values(s_, y); A = v10.mean(); Mn, Nn = len(v10), len(v01)
+    c = np.array([(v10[g[y == 1] == k] - A).sum() / Mn + (v01[g[y == 0] == k] - A).sum() / Nn for k in range(12)])
+    assert np.isclose(M.auc_clustered_var(s_, y, g), 12 / 11 * np.sum(c ** 2), rtol=1e-12)
+    assert len({tuple(sorted(set(y[g == k]))) for k in range(12)} & {(0, 1)}) == 1      # some clusters are mixed
+
+
 def test_auc_known_answer():
     assert np.isclose(M.auc([.1, .4, .35, .8], [0, 0, 1, 1]), 0.75)
     assert np.isclose(M.auc([.5, .5, .5, .5], [0, 1, 0, 1]), 0.5)                 # all ties
@@ -204,13 +216,37 @@ def test_metric_table_sensitivity_se_is_honest_when_match_rates_vary():
     assert 0.8 < ratio < 1.25, ratio
 
 
-def test_prep_drops_identical_columns():
-    X = pd.DataFrame({"f_a": [1.0, 2, 3, 4] * 5, "f_field_cd": [np.nan, 1, 1, 2] * 5, "f_career_c": [np.nan, 3, 3, 3] * 5})
-    ids = pd.DataFrame({"f_iid": np.arange(20), "m_iid": np.arange(20) + 50})
+def test_r_squared_and_rmse_point_values_and_honest_se():
+    y = np.array([1.0, 2, 3, 4, 5, 6]); pred = np.array([1.5, 2, 2.5, 4, 5.5, 6]); g = np.array([0, 0, 1, 1, 2, 2])
+    m = M.r_squared_and_rmse(y, pred, g)
+    assert np.isclose(m["r_squared"], 1 - np.sum((y - pred) ** 2) / np.sum((y - y.mean()) ** 2))
+    assert np.isclose(m["rmse"], np.sqrt(np.mean((y - pred) ** 2)))
+    # SE against the spread over replicates: events with their own level, predictions that miss it
+    rng = np.random.default_rng(20); g = np.repeat(np.arange(21), rng.integers(80, 600, 21))
+    r2, se = [], []
+    for _ in range(300):
+        x = rng.normal(size=len(g)); yy = rng.normal(0, 0.4, 21)[g] + 0.5 * x + rng.normal(size=len(g))
+        out = M.r_squared_and_rmse(yy, 0.4 * x, g); r2.append(out["r_squared"]); se.append(out["r_squared_se"])
+    assert 0.8 < np.mean(se) / np.std(r2) < 1.25, np.mean(se) / np.std(r2)
+
+
+def test_prep_keeps_identical_columns_and_the_ridge_splits_them():
+    rng = np.random.default_rng(16)
+    n = 400; miss = rng.random(n) < 0.1
+    X = pd.DataFrame({"f_a": rng.normal(size=n), "f_field_cd": np.where(miss, np.nan, rng.integers(1, 3, n)),
+                      "f_career_c": np.where(miss, np.nan, rng.integers(1, 3, n))})
+    ids = pd.DataFrame({"f_iid": np.arange(n), "m_iid": np.arange(n) + n})
     p = M.Prep(categorical=["f_field_cd", "f_career_c"], binary=[], person_cols=[], merge_codes=()).fit(X, ids)
-    # both codes are missing on exactly the same rows, so the two "missing" dummies are identical
-    assert p.dropped_duplicates == ["cat:f_career_c=missing"] and "cat:f_field_cd=missing" in p.columns
-    assert p.transform(X).shape[1] == len(p.columns)
+    D = p.transform(X)
+    # both codes are missing on exactly the same rows, so the two "missing" dummies are identical, and both stay
+    assert "cat:f_field_cd=missing" in p.columns and "cat:f_career_c=missing" in p.columns
+    assert np.array_equal(D["cat:f_field_cd=missing"], D["cat:f_career_c=missing"])
+    y = (rng.random(n) < 1 / (1 + np.exp(-(X.f_a + 1.5 * miss - 1)))).astype(float)
+    w, _ = M.fit_logit(D.to_numpy(), y)
+    j, k = 1 + p.columns.index("cat:f_field_cd=missing"), 1 + p.columns.index("cat:f_career_c=missing")
+    single = D.drop(columns="cat:f_career_c=missing")
+    w1, _ = M.fit_logit(single.to_numpy(), y)
+    assert np.isclose(w[j], w[k]) and np.isclose(w[j] + w[k], w1[1 + list(single.columns).index("cat:f_field_cd=missing")], atol=1e-5)
 
 
 def test_prep_counts_each_participant_once_across_sides():

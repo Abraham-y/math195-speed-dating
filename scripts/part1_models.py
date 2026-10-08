@@ -18,9 +18,10 @@ Everything is refitted inside each training fold. Thresholds: the training fold'
 cluster-robust estimator with events as clusters (sensitivity, specificity and balanced accuracy in the linearized
 ratio form); AUC by Obuchowski (1997). scripts/sim_auc_cluster.py checks these SEs (five seeds, two designs); its
 range is stored in the `se_check` column of the metrics table.
-Also: the coefficient table (full model, all dyads, IRLS with a cluster-robust sandwich by event), diagnostics,
-the yes model and the stated-versus-revealed table (P5, with the waves 6 to 9 stated shares reported separately),
-and the hypothesis table.
+Also: the coefficient table (full model, all dyads, headline and complete-case; IRLS with a cluster-robust sandwich
+by event; identical columns reported as one term and separated terms as not estimable; its SEs checked in
+scripts/sim_coef_cluster.py), diagnostics, the yes model and the stated-versus-revealed table (P5: the signed gap,
+with the waves 6 to 9 stated shares reported separately without a verdict), and the hypothesis table.
 Run from the repository root: python scripts/part1_models.py [--specs headline|all] [--jobs 5]
 """
 import sys, json, pathlib, time, argparse
@@ -109,17 +110,18 @@ def make_lasso(k):
                                         random_state=LASSO_SEED + k)
 
 
-def make_rf(k):
+def make_rf(k, seed=RF_SEED):
     return lambda leaf: RandomForestClassifier(n_estimators=RF_TREES, max_features="sqrt", min_samples_leaf=leaf,
-                                               random_state=RF_SEED + k, n_jobs=RF_JOBS)
+                                               random_state=seed + k, n_jobs=RF_JOBS)
 
 
-def run_fold(k, X, y, ev, ids, sets, folds, models):
+def run_fold(k, X, y, ev, ids, sets, folds, models, rf_seed=RF_SEED):
     import warnings; warnings.filterwarnings("ignore")
     test = np.array([folds[e] == k for e in ev]); train = ~test
     Xtr, Xte, ytr = X[train].reset_index(drop=True), X[test].reset_index(drop=True), y[train]
     idtr = ids[train].reset_index(drop=True)
-    out, info = {}, dict(fold=k, threshold=float(ytr.mean()), n_train=int(train.sum()), n_test=int(test.sum()))
+    out, info = {}, dict(fold=k, threshold=float(ytr.mean()), n_train=int(train.sum()), n_test=int(test.sum()),
+                         inner_seed=M.FOLD_SEED + 1 + k, rf_random_state=rf_seed + k, lasso_random_state=LASSO_SEED + k)
     spl = choose_splines(Xtr, ytr, idtr, sets)
     p = make_prep(sets, Xtr, splines=spl).fit(Xtr, idtr)
     Dtr, Dte = p.transform(Xtr).to_numpy(), p.transform(Xte).to_numpy()
@@ -144,8 +146,8 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
         out["qda"] = make_qda(reg).fit(Ltr, ytr).predict_proba(Lte)[:, 1]
         info["qda_reg_param"] = reg
     if "rf" in models:
-        leaf = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_rf(k), RF_LEAVES)
-        out["rf"] = predict_serial(make_rf(k)(leaf).fit(Ltr, ytr), Lte)
+        leaf = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_rf(k, rf_seed), RF_LEAVES)
+        out["rf"] = predict_serial(make_rf(k, rf_seed)(leaf).fit(Ltr, ytr), Lte)
         info["rf_min_samples_leaf"] = leaf
     if "lasso" in models:
         C = tune_inner(Xtr, ytr, ev[train], idtr, sets, k, make_lasso(k), lasso_grid(Ltr, ytr))
@@ -157,10 +159,14 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
     return dict(test_idx=np.where(test)[0], prob=out, info=info, selected=sel)
 
 
-def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=(), complete_extra=()):
+def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=(), complete_extra=(), folds=None,
+                   fold_seed=M.FOLD_SEED, rf_seed=RF_SEED):
+    """Event 5-fold CV of the given models. Folds: by default the events used are dealt into 5 folds by fold_seed;
+    `folds` (event -> fold) fixes them instead, e.g. the headline folds with some waves left out."""
     X, y, ev, ids = M.build_frame(pairs, sets, spec, feature_set, exclude_events, complete_extra)
-    folds = M.event_folds(ev)
-    res = Parallel(n_jobs=jobs)(delayed(run_fold)(k, X, y, ev, ids, sets, folds, models) for k in range(5))
+    folds_used = M.event_folds(ev, seed=fold_seed) if folds is None else {e: folds[e] for e in np.unique(ev)}
+    fold_label = f"seed {fold_seed} over the events used" if folds is None else "given (headline folds)"
+    res = Parallel(n_jobs=jobs)(delayed(run_fold)(k, X, y, ev, ids, sets, folds_used, models, rf_seed) for k in range(5))
     names = list(res[0]["prob"])
     prob = {m: np.empty(len(y)) for m in names}; thr = np.empty(len(y))
     for r in res:
@@ -172,7 +178,8 @@ def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=
         met = M.metric_table(prob[m], y, thr, ev)
         rows.append(dict(spec=spec.label, missing=spec.missing, fit=spec.fit, out_of_range=spec.out_of_range,
                          pref_format=spec.pref_format, headline=spec == M.HEADLINE, feature_set=feature_set, model=m,
-                         fold_scheme="event", dyads=len(y), matches=int(y.sum()), seed=M.FOLD_SEED,
+                         fold_scheme="event", folds=fold_label, dyads=len(y), matches=int(y.sum()), seed=fold_seed,
+                         rf_seed=rf_seed, lasso_seed=LASSO_SEED,
                          **{f"{k}": v[0] for k, v in met.items()}, **{f"{k}_se": v[1] for k, v in met.items()}))
     fold_info = [dict(spec=spec.label, feature_set=feature_set, **r["info"]) for r in res]
     selection = [dict(spec=spec.label, feature_set=feature_set, direction=d, fold=r["info"]["fold"], block=b)
@@ -182,39 +189,51 @@ def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=
 
 # ---------------------------------------------------------------- full-data fit, coefficient table, diagnostics
 
-def separated_columns(D, y):
-    """Two-valued columns (dummies, flags) one of whose values occurs only with non-matches (or only with matches):
-    the likelihood keeps rising as that coefficient runs off to infinity, so it has no finite estimate."""
-    out, y = [], np.asarray(y)
+def twin_groups(D):
+    """Groups of columns that are identical over every row of D, in column order."""
+    seen = {}
     for c in D.columns:
-        v = D[c].to_numpy(float); u = np.unique(v)
-        if len(u) == 2 and any(y[v == x].min() == y[v == x].max() for x in u):
-            out.append(c)
-    return out
+        seen.setdefault(D[c].to_numpy(float).tobytes(), []).append(c)
+    return [grp for grp in seen.values() if len(grp) > 1]
 
 
-def coefficient_table(D, y, g, ridge=1e-6):
-    """Logistic regression by IRLS (modeling.fit_logit, run to convergence) with the cluster-robust sandwich:
-    bread (X'WX)^-1, meat G/(G-1) times the sum over clusters of the outer products of the score sums. A separated
-    column's estimate is only where the tiny ridge stopped it, so it is reported as not estimable, and the others'
-    sandwich uses the estimable columns (its dyads have fitted probabilities near 0 and add nothing).
+def coefficient_table(D, y, g, ridge=1e-6, path=(1e-4, 1e-8), tol=0.01):
+    """Logistic regression by IRLS (modeling.fit_logit, run to convergence) with the cluster-robust sandwich: bread
+    (X'WX + ridge)^-1, meat G/(G-1) times the sum over clusters of the outer products of the score sums.
+    - Identical columns: only their combined effect is estimable, so each group is fitted as one column and reported
+      as one term, its names joined by ' + '.
+    - Separation: a coefficient that moves by more than tol when the ridge goes from path[0] to path[1] has no
+      finite estimate (the likelihood keeps rising along some direction, through one column or several together),
+      so it is reported as not estimable; where several move and their sum does not, the sum gets its own row. The
+      other coefficients and SEs are the limit of the likelihood, since the separated dyads' fitted probabilities
+      sit at 0 or 1 and add nothing.
     Returns (table, fitted probabilities)."""
-    A, y = D.to_numpy(float), np.asarray(y, float); n = len(y)
-    w, _ = M.fit_logit(A, y, ridge=ridge, iters=200)
-    p = M.predict_logit(w, A)
+    y, g = np.asarray(y, float), np.asarray(g); n = len(y)
+    groups = twin_groups(D)
+    R = D.drop(columns=[c for grp in groups for c in grp[1:]])
+    names = {grp[0]: " + ".join(grp) for grp in groups}
+    terms = np.array(["const"] + [names.get(c, c) for c in R.columns], dtype=object)
+    A = R.to_numpy(float)
+    fits = {r: M.fit_logit(A, y, ridge=r, iters=500)[0] for r in (ridge, *path)}
+    w = fits[ridge]; p = M.predict_logit(w, A)
     X = np.column_stack([np.ones(n), A]); pen = np.r_[0.0, np.full(A.shape[1], ridge)]
     score = np.abs(X.T @ (y - p) - pen * w).max()
-    sep = set(separated_columns(D, y))
-    keep = [0] + [j + 1 for j, c in enumerate(D.columns) if c not in sep]
-    Xk = X[:, keep]
-    bread = np.linalg.inv((Xk * (p * (1 - p))[:, None]).T @ Xk)
-    S = pd.DataFrame(Xk * (y - p)[:, None]).groupby(np.asarray(g)).sum().to_numpy(); G = len(S)
+    moves = np.abs(fits[path[0]] - fits[path[1]]) > tol
+    bread = np.linalg.inv((X * (p * (1 - p))[:, None]).T @ X + np.diag(pen))
+    S = pd.DataFrame(X * (y - p)[:, None]).groupby(g).sum().to_numpy(); G = len(S)
     cov = bread @ (G / (G - 1) * S.T @ S) @ bread
-    se = np.full(len(w), np.nan); se[keep] = np.sqrt(np.diag(cov))
-    est = np.ones(len(w), bool); est[[j for j in range(len(w)) if j not in keep]] = False
-    coef = np.where(est, w, np.nan)
-    t = pd.DataFrame({"term": ["const"] + list(D.columns), "coef": coef, "se_cluster_event": se, "z": coef / se,
-                      "estimable": est, "note": np.where(est, "", "not estimable: separated (one value occurs only with non-matches or only with matches)")})
+    coef, se = np.where(moves, np.nan, w), np.where(moves, np.nan, np.sqrt(np.diag(cov)))
+    note = ["not estimable: separation (the estimate grows without bound as the ridge shrinks)" if m
+            else "identical columns in the data: one combined term" if t in names.values() else "" for t, m in zip(terms, moves)]
+    t = pd.DataFrame({"term": terms, "coef": coef, "se_cluster_event": se, "z": coef / se, "estimable": ~moves, "note": note})
+    idx = np.where(moves)[0]
+    if len(idx) >= 2:
+        a = np.zeros(len(w)); a[idx] = 1
+        if abs(a @ fits[path[0]] - a @ fits[path[1]]) <= tol:
+            v = np.sqrt(a @ cov @ a)
+            t = pd.concat([t, pd.DataFrame([dict(term="sum: " + " + ".join(terms[idx]), coef=a @ w, se_cluster_event=v, z=a @ w / v,
+                                                 estimable=True, note="sum of the separated terms, which the data do identify")])],
+                          ignore_index=True)
     t.attrs["max_abs_score"] = score
     return t, p
 
@@ -226,9 +245,8 @@ def full_fit(pairs, sets, spec, feature_set):
     D = p.transform(X)
     coef, fitted = coefficient_table(D, y, ev)
     assert coef.attrs["max_abs_score"] < 1e-6, f"IRLS did not converge ({feature_set}): max |score| {coef.attrs['max_abs_score']:.2e}"
-    coef = coef.assign(feature_set=feature_set, spec=spec.label, splines=";".join(spl), dyads=len(y),
-                       dropped_duplicates=";".join(p.dropped_duplicates), max_abs_score=coef.attrs["max_abs_score"],
-                       scale="per SD of the prepared predictor; spline terms (:ns) are read as a block")
+    coef = coef.assign(feature_set=feature_set, spec=spec.label, splines=";".join(spl), dyads=len(y), fold_scheme="none (all dyads)",
+                       max_abs_score=coef.attrs["max_abs_score"], scale="per SD of the prepared predictor; spline terms (:ns) are read as a block")
     return coef, D, y, ev, fitted
 
 
@@ -303,28 +321,36 @@ def plot_binned(br, path):
 
 # ---------------------------------------------------------------- the yes model (P5)
 
-def yes_model():
+def yes_design(clean, g, exclude_events=()):
+    """One gender's dates with all six ratings: (standardized ratings, yes, event)."""
+    d = clean[(clean.gender == g) & clean[ATTRS].notna().all(axis=1) & ~clean.event.isin(exclude_events)]
+    return (d[ATTRS] - d[ATTRS].mean()) / d[ATTRS].std(), d.dec.to_numpy(float), d.event.to_numpy(), d
+
+
+def yes_model(exclude_events=()):
     """Logistic regression of each date's yes on the six in-date ratings (standardized within the rater's gender),
-    by gender, on dates with all six ratings; cluster-robust by event. Revealed importance = share of the positive
-    standardized coefficients; stated importance = mean own-preference share in the 100-point waves (PREREG.md), with
-    the waves 6 to 9 shares (rated 1 to 10, converted to shares) reported separately next to it."""
-    import statsmodels.api as sm
+    by gender, on dates with all six ratings; cluster-robust sandwich by event with G/(G-1) (coefficient_table).
+    Revealed importance = share of the positive standardized coefficients; stated importance = mean own-preference
+    share in the 100-point waves (PREREG.md), with the waves 6 to 9 shares (rated 1 to 10, converted to shares)
+    reported separately next to it. exclude_events leaves waves out of both (the wave 12 check)."""
     clean = pd.read_csv("data/clean.csv", low_memory=False)
     rows = []
+    shares = [f"{a}1_1_share" for a in ATTRS]
     for g, name in ((0, "women"), (1, "men")):
-        d = clean[(clean.gender == g) & clean[ATTRS].notna().all(axis=1)]
-        Z = (d[ATTRS] - d[ATTRS].mean()) / d[ATTRS].std()
-        fit = sm.Logit(d.dec.to_numpy(float), sm.add_constant(Z)).fit(disp=0, cov_type="cluster", cov_kwds={"groups": d.event.to_numpy()})
-        coef = fit.params[ATTRS]; pos = coef.clip(lower=0)
-        people = clean[(clean.gender == g) & (clean.pref_scale == "100pt")].drop_duplicates("rater")
-        stated = people[[f"{a}1_1_share" for a in ATTRS]].mean()
-        people69 = clean[(clean.gender == g) & (clean.pref_scale == "1-10")].drop_duplicates("rater")
-        stated69 = people69[[f"{a}1_1_share" for a in ATTRS]].mean()
+        Z, yv, ev, d = yes_design(clean, g, exclude_events)
+        tab, _ = coefficient_table(Z, yv, ev)
+        coef, se = tab.set_index("term").coef[ATTRS], tab.set_index("term").se_cluster_event[ATTRS]
+        pos = coef.clip(lower=0)
+        people = clean[(clean.gender == g) & ~clean.event.isin(exclude_events)].drop_duplicates("rater")
+        p100 = people[(people.pref_scale == "100pt") & people[shares].notna().all(axis=1)]
+        p69 = people[(people.pref_scale == "1-10") & people[shares].notna().all(axis=1)]
+        stated, stated69 = p100[shares].mean(), p69[shares].mean()
         for a in ATTRS:
-            rows.append(dict(rater_gender=name, attribute=a, std_coef=coef[a], se_cluster_event=fit.bse[a],
+            rows.append(dict(rater_gender=name, attribute=a, std_coef=coef[a], se_cluster_event=se[a],
                              revealed_share=100 * pos[a] / pos.sum(), stated_share=stated[f"{a}1_1_share"],
                              stated_share_waves_6_9=stated69[f"{a}1_1_share"], dates=len(d), raters=d.rater.nunique(),
-                             stated_people=len(people), stated_people_waves_6_9=int(people69[f"{a}1_1_share"].notna().sum())))
+                             stated_people=len(p100), stated_people_waves_6_9=len(p69),
+                             excluded_events=";".join(map(str, exclude_events)), fold_scheme="none (all dates)"))
     t = pd.DataFrame(rows)
     t["gap_revealed_minus_stated"] = t.revealed_share - t.stated_share
     t["gap_revealed_minus_stated_waves_6_9"] = t.revealed_share - t.stated_share_waves_6_9
@@ -333,8 +359,26 @@ def yes_model():
 
 # ---------------------------------------------------------------- hypotheses
 
+def p5_rows(sr, version="{g}", col="gap_revealed_minus_stated", verdict=True,
+            note="dates with all six ratings; stated shares from the 100-point waves"):
+    """P5 as tested since its first run: attractiveness has the largest standardized coefficient and the largest
+    signed gap (revealed minus stated). The margin over the next gap and the reading by absolute size are
+    exploratory. verdict=False reports a version without a verdict (the waves 6 to 9 stated shares)."""
+    rows = []
+    for g in ("women", "men"):
+        s = sr[sr.rater_gender == g].set_index("attribute")
+        top_coef, gaps = s.std_coef.idxmax(), s[col].sort_values(ascending=False)
+        size = s[col].abs().sort_values(ascending=False)
+        rows.append(dict(hypothesis="P5", version=version.format(g=g), fold_scheme="none (all dates)",
+                         statistic=f"largest std. coefficient: {top_coef}; largest revealed-minus-stated gap: {gaps.index[0]} ({gaps.iloc[0]:+.1f} points)",
+                         supported=bool(top_coef == "attr" and gaps.index[0] == "attr") if verdict else None,
+                         note=f"{note}; exploratory: the largest gap leads the next ({gaps.index[1]}) by {gaps.iloc[0] - gaps.iloc[1]:.2f} points, "
+                              f"and by absolute size the largest is {size.index[0]}, ahead of {size.index[1]} by {size.iloc[0] - size.iloc[1]:.2f} points"))
+    return rows
+
+
 def hypotheses(met, sr):
-    h = met[met.headline]
+    h = met[met.headline.astype(bool)]
     cand = ["logistic", "stepwise_forward", "stepwise_backward", "stepwise_both", "lda", "qda", "rf"]
     def best(df, fs):
         d = df[(df.feature_set == fs) & df.model.isin(cand)]
@@ -344,37 +388,33 @@ def hypotheses(met, sr):
         if df.empty or "pre" not in set(df.feature_set):
             continue
         bp, bd = best(df, "pre"), best(df, "pre+date")
-        rows.append(dict(hypothesis="P1", version=label, statistic=f"best `pre` AUC {bp.auc:.3f} ({bp.model}, SE {bp.auc_se:.3f})",
+        rows.append(dict(hypothesis="P1", version=label, statistic=f"best `pre` AUC {bp.auc:.4f} ({bp.model}, SE {bp.auc_se:.4f})",
                          supported=bool(0.58 <= bp.auc < 0.70), note=""))
         gap = bd.auc - bp.auc
-        rows.append(dict(hypothesis="P2", version=label, statistic=f"best `pre+date` AUC {bd.auc:.3f} ({bd.model}) minus best `pre` {bp.auc:.3f} = {gap:.3f}",
+        rows.append(dict(hypothesis="P2", version=label, statistic=f"best `pre+date` AUC {bd.auc:.4f} ({bd.model}) minus best `pre` {bp.auc:.4f} = {gap:.4f}",
                          supported=bool(gap >= 0.10), note=""))
         lp = df[(df.feature_set == "pre") & (df.model == "logistic")]; li = df[(df.feature_set == "pre_individual") & (df.model == "logistic")]
         if len(lp) and len(li):
             d3 = lp.auc.iloc[0] - li.auc.iloc[0]
-            rows.append(dict(hypothesis="P3", version=label, statistic=f"full logistic `pre` AUC {lp.auc.iloc[0]:.3f} minus without pair features {li.auc.iloc[0]:.3f} = {d3:.3f}",
+            rows.append(dict(hypothesis="P3", version=label, statistic=f"full logistic `pre` AUC {lp.auc.iloc[0]:.4f} minus without pair features {li.auc.iloc[0]:.4f} = {d3:.4f}",
                              supported=bool(d3 < 0.02), note=""))
         rf = df[(df.feature_set == "pre") & (df.model == "rf")]
         if len(lp) and len(rf):
             d4 = rf.auc.iloc[0] - lp.auc.iloc[0]
-            rows.append(dict(hypothesis="P4", version=label, statistic=f"random forest `pre` AUC {rf.auc.iloc[0]:.3f} minus full logistic {lp.auc.iloc[0]:.3f} = {d4:.3f}",
+            rows.append(dict(hypothesis="P4", version=label, statistic=f"random forest `pre` AUC {rf.auc.iloc[0]:.4f} minus full logistic {lp.auc.iloc[0]:.4f} = {d4:.4f}",
                              supported=bool(d4 < 0.03), note=""))
-    versions = [("gap_revealed_minus_stated", "{g}", "dates with all six ratings; stated shares from the 100-point waves")]
+    for r in rows:
+        r["fold_scheme"] = "event"
+    rows += p5_rows(sr)
     if "gap_revealed_minus_stated_waves_6_9" in sr:
-        versions.append(("gap_revealed_minus_stated_waves_6_9", "{g}, waves 6 to 9 stated shares",
-                         "reported separately (PREREG.md, survey format); same yes model"))
-    for col, version, note in versions:
-        for g in ("women", "men"):
-            s = sr[sr.rater_gender == g].set_index("attribute")
-            top_coef, gaps = s.std_coef.idxmax(), s[col].sort_values(ascending=False)
-            top_gap, margin = gaps.index[0], gaps.iloc[0] - gaps.iloc[1]
-            size = s[col].abs().sort_values(ascending=False)                 # read as a gap of either sign
-            rows.append(dict(hypothesis="P5", version=version.format(g=g),
-                             statistic=f"largest std. coefficient: {top_coef}; largest revealed-minus-stated gap: {top_gap} ({gaps.iloc[0]:+.1f} points)",
-                             supported=bool(top_coef == "attr" and top_gap == "attr"),
-                             note=f"{note}; the largest gap leads the next ({gaps.index[1]}) by {margin:.2f} points; by absolute size the "
-                                  f"largest is {size.index[0]}, ahead of {size.index[1]} by {size.iloc[0] - size.iloc[1]:.2f} points"))
+        rows += p5_rows(sr, "{g}, waves 6 to 9 stated shares", "gap_revealed_minus_stated_waves_6_9", verdict=False,
+                        note="reported separately without a verdict (PREREG.md, survey format); same yes model")
     return pd.DataFrame(rows)
+
+
+def with_se_check(hyp, auc_note, yes_note):
+    """The SE check that applies to each hypothesis row: the AUC simulation for P1 to P4, the yes-model bootstrap for P5."""
+    return hyp.assign(se_check=np.where(hyp.hypothesis == "P5", yes_note, auc_note))
 
 
 def main():
@@ -382,8 +422,10 @@ def main():
     ap.add_argument("--hypotheses-only", action="store_true", help="rebuild the hypothesis table from the saved metrics and yes model")
     args = ap.parse_args()
     RES.mkdir(exist_ok=True)
+    from sim_coef_cluster import coverage_note as coef_note        # imported here: that script imports this one
     if args.hypotheses_only:
-        hyp = hypotheses(pd.read_csv(RES / "part1_models_metrics.csv"), pd.read_csv(RES / "part1_models_stated_vs_revealed.csv"))
+        hyp = with_se_check(hypotheses(pd.read_csv(RES / "part1_models_metrics.csv"), pd.read_csv(RES / "part1_models_stated_vs_revealed.csv")),
+                            coverage_note(), coef_note("yes"))
         hyp.to_csv(RES / "part1_models_hypotheses.csv", index=False); print(hyp.to_string(index=False)); return
     pairs = pd.read_csv("data/pairs.csv"); sets = json.loads(pathlib.Path("data/feature_sets.json").read_text())
     specs = [M.HEADLINE, M.COMPLETE_CASE] + ([s for s in M.grid_specs() if s not in (M.HEADLINE, M.COMPLETE_CASE)] if args.specs == "all" else [])
@@ -415,9 +457,10 @@ def main():
         freq["share_of_folds"] = freq.folds_selected / 5
         freq.sort_values(["spec", "feature_set", "direction", "folds_selected"], ascending=[True, True, True, False]).to_csv(RES / "part1_models_stepwise_selection.csv", index=False)
 
-    log("full-data fits, coefficient table and diagnostics (headline)")
+    log("full-data fits: coefficient table (headline and complete-case) and diagnostics (headline)")
     coefs, cal, br, infl, vifs = [], [], [], [], []
     for fs in ("pre", "pre+date"):
+        coefs.append(full_fit(pairs, sets, M.COMPLETE_CASE, fs)[0])
         coef, D, y, ev, fitted = full_fit(pairs, sets, M.HEADLINE, fs)
         coefs.append(coef)
         vifs.append(vif(D).assign(feature_set=fs))
@@ -430,7 +473,7 @@ def main():
         cal.append(calibration(prob["logistic"], yy).assign(feature_set=fs))
         cont = [c for c in XX.columns if c not in sets["categorical"] and c not in sets["binary"] and XX[c].nunique() > 2]
         br.append(binned_residuals(prob["logistic"], yy, XX, cont).assign(feature_set=fs))
-    pd.concat(coefs).to_csv(RES / "part1_models_coefficients.csv", index=False)
+    pd.concat(coefs).assign(se_check=coef_note("coefficients")).to_csv(RES / "part1_models_coefficients.csv", index=False)
     pd.concat(vifs).to_csv(RES / "part1_models_vif.csv", index=False)
     pd.concat(infl).to_csv(RES / "part1_models_influential.csv", index=False)
     cal = pd.concat(cal); cal.to_csv(RES / "part1_models_calibration.csv", index=False)
@@ -441,8 +484,8 @@ def main():
     plot_binned(br[(br.feature_set == "pre") & br.predictor.isin(show)], RES / "part1_models_binned_residuals.png")
 
     log("yes model (P5)")
-    sr = yes_model(); sr.to_csv(RES / "part1_models_stated_vs_revealed.csv", index=False)
-    hyp = hypotheses(metrics, sr); hyp.to_csv(RES / "part1_models_hypotheses.csv", index=False)
+    sr = yes_model().assign(se_check=coef_note("yes")); sr.to_csv(RES / "part1_models_stated_vs_revealed.csv", index=False)
+    hyp = with_se_check(hypotheses(metrics, sr), note, coef_note("yes")); hyp.to_csv(RES / "part1_models_hypotheses.csv", index=False)
 
     # printed summary for the weekly report
     show_cols = ["feature_set", "model", "auc", "auc_se", "balanced_accuracy", "balanced_accuracy_se", "sensitivity", "specificity", "error_rate"]
@@ -451,9 +494,10 @@ def main():
         print(f"\n{lab} ({spec.label}); event 5-fold CV; SEs cluster-robust by event; {note}")
         print(t.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     cf = pd.concat(coefs)
-    print("\ncoefficient table: IRLS max |score| " + ", ".join(f"{fs} {g.max_abs_score.iloc[0]:.1e}" for fs, g in cf.groupby("feature_set"))
-          + "; not estimable (separated): " + (", ".join(f"{r.term} ({r.feature_set})" for r in cf[~cf.estimable].itertuples()) or "none")
-          + "; identical columns dropped: " + (", ".join(sorted(set(";".join(cf.dropped_duplicates).split(";")) - {""})) or "none"))
+    for (spec, fs), g in cf.groupby(["spec", "feature_set"], sort=False):
+        print(f"\ncoefficient table [{spec}] {fs}: {g.dyads.iloc[0]} dyads, IRLS max |score| {g.max_abs_score.iloc[0]:.1e}")
+        for r in g[g.note != ""].itertuples():
+            print(f"  {r.term}: {r.note}" + ("" if np.isnan(r.coef) else f" ({r.coef:+.3f}, SE {r.se_cluster_event:.3f})"))
     v = pd.concat(vifs)
     print("\nlargest variance inflation factors (headline, full design):")
     print(v.groupby("feature_set").head(5).to_string(index=False, float_format=lambda x: f"{x:.1f}"))

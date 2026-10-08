@@ -28,6 +28,8 @@ def test_blank_allocations_filled_only_when_nothing_was_left():
     assert out.loc[0, "amb1_1"] == 0 and out.loc[0, "shar1_1"] == 0 and out.loc[1, "shar1_1"] == 0
     assert out.loc[2:, [f"{a}1_1" for a in C.ATTRS]].isna().sum().sum() == df.loc[2:, [f"{a}1_1" for a in C.ATTRS]].isna().sum().sum()
     assert out.pref_blanks_set_to_0.tolist() == [2, 2, 0, 0, 0, 0] and changed["1_1"] == ([1, 2], 2)
+    # blank on the form, whether or not it was then set to 0
+    assert out.amb1_1_was_blank.tolist() == [1, 1, 1, 1, 1, 0] and out.attr1_1_was_blank.tolist() == [0, 0, 0, 0, 1, 0]
 
 
 def test_clean_frame_on_the_release():

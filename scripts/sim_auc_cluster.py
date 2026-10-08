@@ -4,8 +4,8 @@ before they are reported (convention 7; PREREG.md model building, and the fixes 
 Design: the 21 real event sizes (dyads per event). Each event has a random effect on the match logit and a random
 shift in the score, so dyads in an event are correlated; the match rate is close to the real 16.5%. Two designs:
 `first` (event SD 0.6 on the logit, the original check) and `calibrated` (event SD 0.4, whose spread of match
-rates across events is close to the real one). Each runs five seeds. For each replicate, modeling.metric_table
-scores the dyads at a fixed threshold, giving the AUC with its clustered SE (Obuchowski 1997) and sensitivity,
+rates across events is close to the real one). Each runs five seeds of its own (20261006 + i for `first`,
+20261011 + i for `calibrated`). For each replicate, modeling.metric_table scores the dyads at a fixed threshold, giving the AUC with its clustered SE (Obuchowski 1997) and sensitivity,
 specificity and balanced accuracy with their cluster-robust SEs (linearized ratio form); the AUC also gets the
 independent-rows SE (DeLong) for contrast. Targets are the population values of the same process, from 4,000
 events. Output: results/sim_auc_cluster.csv (per replicate), results/sim_auc_cluster_summary.csv (per design,
@@ -17,7 +17,7 @@ import numpy as np, pandas as pd
 sys.path.insert(0, "scripts")
 from modeling import auc, metric_table, placement_values
 
-SEED, SEEDS = 20261006, 5                                     # seeds SEED, SEED + 1, ..., SEED + 4
+SEED, SEEDS = 20261006, 5                                     # design d uses seeds SEED + 5 d, ..., SEED + 5 d + 4
 TAU_S, BETA, ALPHA = 0.4, 0.8, -1.95                          # event shift in the score, slope, intercept
 DESIGNS = {"first": 0.6, "calibrated": 0.4}                   # event SD on the match logit
 METRICS = ["auc", "sensitivity", "specificity", "balanced_accuracy"]
@@ -69,27 +69,27 @@ def summarize(R):
 
 
 def coverage_note(path=SUMMARY):
-    """One line for every results table: the range of the clustered AUC and balanced-accuracy SE checks."""
+    """One line for every results table with these SEs: the ranges of the clustered SE checks."""
     S = pd.read_csv(path); S = S[S.se_type == "clustered"]
     def rng_(metric, col, pct):
         v = S[S.metric == metric][col]
         return f"{v.min():.0%} to {v.max():.0%}" if pct else f"{v.min():.2f} to {v.max():.2f}"
-    return (f"SEs checked in scripts/sim_auc_cluster.py ({S.seed.nunique()} seeds x {S.design.nunique()} designs, 21 events): "
+    return (f"SEs checked in scripts/sim_auc_cluster.py ({S.groupby('design').seed.nunique().max()} seeds x {S.design.nunique()} designs, 21 events): "
             f"AUC SE / true SD {rng_('auc', 'ratio_mean_se_to_sd', False)}, 90% intervals covered {rng_('auc', 'coverage_90', True)}; "
-            f"balanced accuracy SE / true SD {rng_('balanced_accuracy', 'ratio_mean_se_to_sd', False)}, "
-            f"covered {rng_('balanced_accuracy', 'coverage_90', True)}")
+            + "; ".join(f"{m.replace('_', ' ')} {rng_(m, 'ratio_mean_se_to_sd', False)}, covered {rng_(m, 'coverage_90', True)}"
+                        for m in ("sensitivity", "specificity", "balanced_accuracy")))
 
 
 def main():
     reps = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
     pairs = pd.read_csv("data/pairs.csv")
     sizes = pairs.groupby("event").size().to_numpy()
-    R = pd.concat([run(sizes, d, SEED + i, reps) for d in DESIGNS for i in range(SEEDS)], ignore_index=True)
+    R = pd.concat([run(sizes, d, SEED + SEEDS * j + i, reps) for j, d in enumerate(DESIGNS) for i in range(SEEDS)], ignore_index=True)
     out = pathlib.Path("results"); out.mkdir(exist_ok=True)
     R.to_csv(out / "sim_auc_cluster.csv", index=False)
     S = summarize(R); S.to_csv(SUMMARY, index=False)
     real_sd = pairs.groupby("event")["match"].mean().std()
-    print(f"seeds {SEED} to {SEED + SEEDS - 1}; {reps} replicates per seed of 21 events ({sizes.sum()} dyads); "
+    print(f"seeds {SEED} to {SEED + SEEDS * len(DESIGNS) - 1}; {reps} replicates per seed of 21 events ({sizes.sum()} dyads); "
           f"SD of event match rates: real {real_sd:.3f}, " + ", ".join(f"{d} {R[R.design == d].event_rate_sd.mean():.3f}" for d in DESIGNS))
     for (d, k, t), g in S.groupby(["design", "metric", "se_type"], sort=False):
         print(f"  {d:10s} {k:17s} {t:11s} SE/SD {g.ratio_mean_se_to_sd.min():.2f} to {g.ratio_mean_se_to_sd.max():.2f}; "

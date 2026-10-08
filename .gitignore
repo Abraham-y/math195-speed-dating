@@ -9,4 +9,4 @@ results/*.png
 results/*.csv
 !results/.gitkeep
 .DS_Store
-results/earlier/
+results/earlier*/

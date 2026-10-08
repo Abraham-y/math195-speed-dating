@@ -23,7 +23,7 @@ def test_cooks_distance_matches_statsmodels_glm():
 def test_coefficient_table_matches_statsmodels_cluster_sandwich():
     import statsmodels.api as sm
     rng = np.random.default_rng(12)
-    n, g = 1200, np.repeat(np.arange(15), 80)
+    g = np.repeat(np.arange(15), rng.integers(20, 160, 15)); n = len(g)                  # unbalanced clusters
     D = pd.DataFrame(rng.normal(size=(n, 3)), columns=["a", "b", "c"])
     y = (rng.random(n) < 1 / (1 + np.exp(-(-1.5 + D.a - 0.5 * D.b + rng.normal(0, 0.5, 15)[g])))).astype(float)
     tab, p = P1.coefficient_table(D, y, g)
@@ -39,7 +39,6 @@ def test_coefficient_table_marks_a_separated_dummy():
     D = pd.DataFrame({"a": rng.normal(size=n), "d": (rng.random(n) < 0.05).astype(float)})
     y = (rng.random(n) < 1 / (1 + np.exp(-(-1.5 + D.a)))).astype(float)
     y[D.d == 1] = 0                                                              # the dummy's category has no matches
-    assert P1.separated_columns(D, y) == ["d"]
     tab, _ = P1.coefficient_table(D, y, g)
     row = tab.set_index("term")
     assert not row.loc["d", "estimable"] and np.isnan(row.loc["d", "coef"]) and np.isnan(row.loc["d", "se_cluster_event"])
@@ -48,6 +47,44 @@ def test_coefficient_table_marks_a_separated_dummy():
     ref = sm.Logit(y[keep], sm.add_constant(D.loc[keep, ["a"]])).fit(disp=0, cov_type="cluster", cov_kwds={"groups": g[keep], "use_correction": False})
     assert np.allclose(row.loc[["const", "a"], "coef"], ref.params, atol=1e-4)
     assert np.allclose(row.loc[["const", "a"], "se_cluster_event"], ref.bse * np.sqrt(15 / 14), rtol=1e-3)
+
+
+def test_coefficient_table_separation_across_two_columns():
+    """The real case: a man missing his field but not his goal has no matches, so the missing-field and missing-goal
+    dummies run off together (opposite signs); neither is separated alone. Both must be marked not estimable, their
+    sum (the effect when both are missing) reported, and the rest equal the limit fit without his dyads."""
+    import statsmodels.api as sm
+    rng = np.random.default_rng(18)
+    g = np.repeat(np.arange(15), 120); n = len(g)
+    a = rng.normal(size=n)
+    field = np.zeros(n); goal = np.zeros(n)
+    field[:20] = 1                                   # the man missing his field only: 20 dyads in event 0
+    field[20:60] = 1; goal[20:60] = 1                # men missing both: 40 dyads in event 0 and 1 (some matches)
+    y = (rng.random(n) < 1 / (1 + np.exp(-(-1.5 + a)))).astype(float)
+    y[:20] = 0
+    D = pd.DataFrame({"a": a, "field": field, "goal": goal})
+    tab, _ = P1.coefficient_table(D, y, g)
+    row = tab.set_index("term")
+    assert not row.loc["field", "estimable"] and not row.loc["goal", "estimable"] and row.loc["a", "estimable"]
+    keep = np.arange(n) >= 20
+    ref = sm.Logit(y[keep], sm.add_constant(pd.DataFrame({"a": a, "both": field})[keep])).fit(
+        disp=0, cov_type="cluster", cov_kwds={"groups": g[keep], "use_correction": False})
+    assert np.allclose(row.loc[["const", "a"], "coef"], ref.params[["const", "a"]], atol=1e-4)
+    assert np.allclose(row.loc[["const", "a"], "se_cluster_event"], ref.bse[["const", "a"]] * np.sqrt(15 / 14), rtol=1e-3)
+    assert np.isclose(row.loc["sum: field + goal", "coef"], ref.params["both"], atol=1e-4)
+    assert np.isclose(row.loc["sum: field + goal", "se_cluster_event"], ref.bse["both"] * np.sqrt(15 / 14), rtol=1e-3)
+
+
+def test_coefficient_table_reports_identical_columns_as_one_term():
+    rng = np.random.default_rng(19)
+    g = np.repeat(np.arange(12), 100); n = len(g)
+    D = pd.DataFrame({"a": rng.normal(size=n), "m1": (rng.random(n) < 0.1).astype(float)})
+    D["m2"] = D.m1
+    y = (rng.random(n) < 1 / (1 + np.exp(-(-1 + D.a + D.m1)))).astype(float)
+    tab = P1.coefficient_table(D, y, g)[0].set_index("term")
+    one = P1.coefficient_table(D[["a", "m1"]], y, g)[0].set_index("term")
+    assert "m1 + m2" in tab.index and "m2" not in tab.index and tab.loc["m1 + m2", "estimable"]
+    assert np.isclose(tab.loc["m1 + m2", "coef"], one.loc["m1", "coef"]) and np.isclose(tab.loc["m1 + m2", "se_cluster_event"], one.loc["m1", "se_cluster_event"])
 
 
 def test_vif_known_answers_and_exact_collinearity():
@@ -60,14 +97,17 @@ def test_vif_known_answers_and_exact_collinearity():
     assert np.isinf(v[["a", "b", "s"]]).all() and np.isfinite(v["c"])
 
 
-def test_predict_serial_matches_threaded_forest():
+def test_predict_serial_is_bit_reproducible():
+    """A forest fitted on two threads and one fitted on one thread give bit-identical serial predictions, equal to
+    the threaded ones up to rounding (threads add the trees' votes in a varying order)."""
     from sklearn.ensemble import RandomForestClassifier
     rng = np.random.default_rng(15)
     X = rng.normal(size=(400, 4)); y = (X[:, 0] + rng.normal(size=400) > 0).astype(int)
-    rf = RandomForestClassifier(n_estimators=50, random_state=1, n_jobs=2).fit(X, y)
-    threaded = rf.predict_proba(X)[:, 1]
-    serial = P1.predict_serial(rf, X)
-    assert rf.n_jobs == 1 and np.allclose(serial, threaded) and np.array_equal(serial, P1.predict_serial(rf, X))
+    rf2 = RandomForestClassifier(n_estimators=50, random_state=1, n_jobs=2).fit(X, y)
+    threaded = rf2.predict_proba(X)[:, 1]
+    serial2 = P1.predict_serial(rf2, X)
+    serial1 = P1.predict_serial(RandomForestClassifier(n_estimators=50, random_state=1, n_jobs=1).fit(X, y), X)
+    assert rf2.n_jobs == 1 and np.array_equal(serial2, serial1) and np.allclose(serial2, threaded)
 
 
 def test_calibration_deciles():
@@ -98,8 +138,9 @@ def test_hypotheses_logic():
     assert h.loc[("P3", "headline"), "supported"]                      # 0.60 - 0.59 = 0.01 < 0.02
     assert h.loc[("P5", "women"), "supported"] and h.loc[("P5", "men"), "supported"]
     assert not h.loc[("P4", "headline"), "supported"]                  # 0.635 - 0.60 = 0.035, not < 0.03
-    assert "leads the next (fun) by 15.00 points" in h.loc[("P5", "women"), "note"]
+    assert "exploratory: the largest gap leads the next (fun) by 15.00 points" in h.loc[("P5", "women"), "note"]
     assert "by absolute size the largest is attr, ahead of sinc by 10.00 points" in h.loc[("P5", "women"), "note"]
+    assert h.loc[("P1", "headline"), "statistic"].startswith("best `pre` AUC 0.6350 (rf")          # four decimals
 
 
 def test_hypotheses_keep_the_lasso_out_of_the_best_model():
@@ -112,7 +153,7 @@ def test_hypotheses_keep_the_lasso_out_of_the_best_model():
     h = P1.hypotheses(met, sr).set_index(["hypothesis", "version"])
     assert "logistic" in h.loc[("P1", "headline"), "statistic"] and h.loc[("P1", "headline"), "supported"]   # 0.60, not the lasso's 0.71
     assert h.loc[("P2", "headline"), "supported"]                                                            # 0.75 - 0.60, lasso ignored
-    assert not h.loc[("P5", "women, waves 6 to 9 stated shares"), "supported"]                              # fun's gap is larger there
+    assert h.loc[("P5", "women, waves 6 to 9 stated shares"), "supported"] is None                           # reported without a verdict
 
 
 def test_tune_inner_picks_the_better_setting():
