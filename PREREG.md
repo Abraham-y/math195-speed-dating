@@ -205,6 +205,37 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   exploratory. The solver was chosen by speed and convergence on one training fold (`saga` took 20 times
   longer), without looking at any lasso result.
 
+- Fixes after an independent check of the code (2026-10-08, after the models ran; each changed result is reported
+  next to the earlier one, and no hypothesis changes):
+  - Error bars for sensitivity, specificity and balanced accuracy treated the number of matches (or non-matches)
+    as fixed, so each event's term absorbed that event's match rate and the SEs were overstated (up to 1.7 times).
+    They now use the linearized ratio form: for sensitivity each matched dyad contributes (correct minus
+    sensitivity) divided by the number of matches, likewise for specificity, and balanced accuracy averages the
+    two; the cluster-robust formula of convention 6 is unchanged. Point estimates, the error rate and the AUC are
+    unaffected.
+  - Identical columns in a training design (a man missing both his field and his career code) are reduced to one
+    before fitting. The coefficient table now comes from the converged IRLS fit with a cluster-robust sandwich
+    (events, G/(G-1)); a dummy whose category has no matches is reported as not estimable rather than as a
+    number. The variance inflation table reports an exactly collinear column as infinite.
+  - Like model: `same_goal` is a binary feature, not a categorical code; the rare-code rule counts each
+    participant once even when they appear as both rater and partner. Added: its complete-case version (dates
+    complete on every predictor, no filling, no flags). It uses linear terms only; the spline step belongs to the
+    logistic models.
+  - Complete-case ladder (P3, P3b, P3c): all four steps use the dyads complete on every column any step uses,
+    including the shared-interests shares in P3c's terms (2,662 dyads), so this version involves no filling.
+  - Blank allocations: in the 100-point waves, a stated-preference block with some items left blank whose answered
+    items already sum to 100 (within 1 point) gets 0 for the blank items, since no points were left to give: iids
+    129, 130 and 528 in block 1_1, 130 in block 2_1 and 528 in block 4_1 (40 dyads). The evidence numbers quoted
+    in the entries above were computed before this fix.
+  - Clustered AUC error bars: the check now runs five seeds and a second design whose event effect (SD 0.4 on the
+    logit) matches the real spread of match rates across events (SD 0.058, against 0.079 in the first design).
+    The result is reported as a range and stored with every results table.
+  - Wording: in the out-of-range entry, liking on cards with a 0 averages 0.0 to 3.7 across the six attributes
+    (the 4.2 was the yes-guess, not an attribute); the complete-case count with interest values as recorded is
+    2,784 dyads (490 matches) on the columns the models use.
+  - Two pre-registered results that had not been produced are now run: the wave 12 sensitivity check (P1 to P4
+    without wave 12, every model except stepwise) and P5's stated shares for waves 6 to 9, reported separately.
+
 ## Change log
 
 - (date) (hypothesis) (what changed and why)
@@ -223,3 +254,7 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   interaction terms, the waves 6 to 9 check and the like model, after P1 to P5 had been tested and before any of
   these ran.
 - 2026-10-08 (no hypothesis changed) Corrected the complete-case count to the columns the models use (2,679).
+- 2026-10-08 (no hypothesis changed) Fixes after an independent check of the code (error bars for sensitivity,
+  specificity and balanced accuracy; the coefficient table; two like-model bugs; the complete-case ladder; blank
+  100-point allocations; the AUC error-bar simulation; two wording errors); ran the wave 12 check and P5 for waves 6
+  to 9.
