@@ -147,8 +147,8 @@ def run_fold(k, X, y, ev, ids, sets, folds, models):
     return dict(test_idx=np.where(test)[0], prob=out, info=info, selected=sel)
 
 
-def cross_validate(pairs, sets, spec, feature_set, models, jobs):
-    X, y, ev, ids = M.build_frame(pairs, sets, spec, feature_set)
+def cross_validate(pairs, sets, spec, feature_set, models, jobs, exclude_events=()):
+    X, y, ev, ids = M.build_frame(pairs, sets, spec, feature_set, exclude_events)
     folds = M.event_folds(ev)
     res = Parallel(n_jobs=jobs)(delayed(run_fold)(k, X, y, ev, ids, sets, folds, models) for k in range(5))
     names = list(res[0]["prob"])

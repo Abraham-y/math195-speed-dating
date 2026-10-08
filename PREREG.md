@@ -181,6 +181,10 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
   "complete" means complete on both feature sets as built under each specification. Under the headline
   out-of-range rule that is 2,662 dyads (476 matches); with interest values as recorded it is the 2,766 quoted
   above, which was counted before the recording-error fix (`results/eda_complete_cases.csv` gives both).
+- Correction to the count above (2026-10-08, after the models ran; no result changes): the complete-case runs
+  use 2,679 dyads (476 matches), complete on every column the models use. The 2,662 quoted above also required
+  the shared-interests preference share, which the models leave out as the reference share; the 17 extra dyads
+  have no matches.
 - Random forest (2026-10-06, before it has been run): scikit-learn `RandomForestClassifier` with 500 trees,
   the square root of the number of predictors tried at each split (ISL 8.2.2), and the minimum leaf size chosen
   from 1, 5, 20 and 50 by event-grouped 4-fold cross-validation (pooled AUC) inside each training fold, on the
@@ -218,3 +222,4 @@ Option 2, forecast accuracy: hypotheses C1 and C2 from proposals/05, copied here
 - 2026-10-07 (new hypotheses P3b, P3c, L1, L2) Added a teammate's extended compatibility features, three declared
   interaction terms, the waves 6 to 9 check and the like model, after P1 to P5 had been tested and before any of
   these ran.
+- 2026-10-08 (no hypothesis changed) Corrected the complete-case count to the columns the models use (2,679).

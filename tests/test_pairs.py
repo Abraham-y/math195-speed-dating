@@ -126,10 +126,23 @@ def test_missing_flags_count_blanks_not_fixes():
     assert (b.f_pre_missing == 0).all() and (b.f_date_missing == 0).all()
 
 
+def test_extended_pair_features_known():
+    b = built()
+    w = np.array(W_INT, float); m3 = w.copy(); m3[7] = np.nan; m4 = np.array(M4_INT, float)
+    keep = ~np.isnan(m3)
+    assert np.isclose(b.loc[3, "int_mad"], 0.0) and np.isclose(b.loc[4, "int_mad"], np.abs(w - m4).mean())
+    assert np.isclose(b.loc[3, "int_cosine"], 1.0)
+    assert np.isclose(b.loc[4, "int_cosine"], w @ m4 / np.sqrt((w @ w) * (m4 @ m4)))
+    assert b.loc[3, "same_career"] == 1 and b.loc[3, "abs_date_diff"] == 0 and b.loc[3, "abs_go_out_diff"] == 0
+    A = np.array([[1.0, 2, 3, np.nan], [1, 2, np.nan, np.nan]]); B = np.array([[2.0, 2, 5, 9], [1, 2, 3, 4]])
+    assert np.isclose(P.row_mad_pairwise(A, B)[0], 1.0) and np.isnan(P.row_mad_pairwise(A, B)[1])      # (1+0+2)/3; 2 shared
+    assert np.isclose(P.row_cosine_pairwise(A, B)[0], (2 + 4 + 15) / np.sqrt(14 * 33))
+
+
 def test_swapping_gender_swaps_directional_features_only():
     t = toy()
     b, s = built(), P.build_pairs(t.assign(gender=1 - t.gender)).set_index("f_iid")   # men now in the f_ slot
-    for c in ["abs_age_diff", "int_corr", "int_corr17", "same_field", "same_goal"]:
+    for c in ["abs_age_diff", "int_corr", "int_corr17", "same_field", "same_goal"] + P.EXTENDED_PAIR:
         assert np.allclose(b[c], s.loc[b.index, c], equal_nan=True), c
     assert np.allclose(b.fit_to_f_prefs, s.loc[b.index, "fit_to_m_prefs"])
     assert np.allclose(b.fit_raw_to_f_prefs, s.loc[b.index, "fit_raw_to_m_prefs"])

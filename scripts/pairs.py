@@ -31,6 +31,10 @@ Columns
                     fit_raw_to_m_prefs are the plain weighted means (option A in PREREG.md), kept for the grid;
                     each equals the partner's mean self-rating plus the compatibility term. Standardizing within
                     survey format happens in part1_models.py.
+- extended pair features (P3b in PREREG.md, a teammate's proposal): same_career (1 if the career codes agree),
+  abs_date_diff and abs_go_out_diff (absolute differences in dating and going-out frequency codes), int_mad (mean
+  absolute difference across the 17 interests) and int_cosine (cosine similarity of the two 17-interest vectors),
+  the last two over the interests both people answered.
 - missing-data flags: f_pre_missing, m_pre_missing (any pre-event answer left blank, counting the recorded
   values, not the recording-error fix) and f_date_missing, m_date_missing (any in-date answer left blank).
 - in-date features, for p in {f, m}: p_rating_<a> for the six attributes and like (the rating p gave the
@@ -65,6 +69,7 @@ PERSON_RECORDED = {f"{c}_recorded": f"{c}_recorded" for c in RECORDED}
 IN_DATE = {**{a: f"rating_{a}" for a in ATTRS + ["like"]}, "prob": "prob"}
 EVENT_LEVEL = ["condtn", "pref_scale", "wave_undergrad", "wave_yes_budget", "wave_diff_mc", "wave_brought_item"]
 PAIR_FEATURES = ["abs_age_diff", "int_corr", "same_field", "same_goal", "fit_to_f_prefs", "fit_to_m_prefs"]
+EXTENDED_PAIR = ["same_career", "abs_date_diff", "abs_go_out_diff", "int_mad", "int_cosine"]
 FLAGS_PRE, FLAGS_DATE = ["f_pre_missing", "m_pre_missing"], ["f_date_missing", "m_date_missing"]
 
 
@@ -87,6 +92,27 @@ def row_corr_pairwise(A, B, min_n=3):
         mb = np.where(ok, B, 0.0).sum(axis=1) / n
         ac, bc = np.where(ok, A - ma[:, None], 0.0), np.where(ok, B - mb[:, None], 0.0)
         r = (ac * bc).sum(axis=1) / np.sqrt((ac ** 2).sum(axis=1) * (bc ** 2).sum(axis=1))
+    r[n < min_n] = np.nan
+    return r
+
+
+def row_mad_pairwise(A, B, min_n=3):
+    """Mean absolute difference between matching rows over the columns both have; NaN with fewer than min_n."""
+    A, B = np.asarray(A, float), np.asarray(B, float)
+    ok = ~(np.isnan(A) | np.isnan(B)); n = ok.sum(axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        r = np.where(ok, np.abs(A - B), 0.0).sum(axis=1) / n
+    r[n < min_n] = np.nan
+    return r
+
+
+def row_cosine_pairwise(A, B, min_n=3):
+    """Cosine similarity between matching rows over the columns both have; NaN with fewer than min_n or a zero row."""
+    A, B = np.asarray(A, float), np.asarray(B, float)
+    ok = ~(np.isnan(A) | np.isnan(B)); n = ok.sum(axis=1)
+    a, b = np.where(ok, A, 0.0), np.where(ok, B, 0.0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        r = (a * b).sum(axis=1) / np.sqrt((a ** 2).sum(axis=1) * (b ** 2).sum(axis=1))
     r[n < min_n] = np.nan
     return r
 
@@ -145,6 +171,11 @@ def build_pairs(clean):
         "int_corr17": row_corr_pairwise(cols("f", INTERESTS), cols("m", INTERESTS)),
         "same_field": same_code(pairs.f_field_cd, pairs.m_field_cd),
         "same_goal": same_code(pairs.f_goal, pairs.m_goal),
+        "same_career": same_code(pairs.f_career_c, pairs.m_career_c),
+        "abs_date_diff": (pairs.f_date - pairs.m_date).abs(),
+        "abs_go_out_diff": (pairs.f_go_out - pairs.m_go_out).abs(),
+        "int_mad": row_mad_pairwise(cols("f", INTERESTS), cols("m", INTERESTS)),
+        "int_cosine": row_cosine_pairwise(cols("f", INTERESTS), cols("m", INTERESTS)),
         "fit_to_f_prefs": compat_fit(prefs("f"), selfs("m")),
         "fit_to_m_prefs": compat_fit(prefs("m"), selfs("f")),
         "fit_raw_to_f_prefs": pref_fit(prefs("f"), selfs("m")),
@@ -154,7 +185,7 @@ def build_pairs(clean):
     }, index=pairs.index)
     pairs = pd.concat([pairs, new], axis=1)
     sets = feature_sets()
-    order = (["dyad", "event", "f_iid", "m_iid", "match", "f_dec", "m_dec"] + PAIR_FEATURES
+    order = (["dyad", "event", "f_iid", "m_iid", "match", "f_dec", "m_dec"] + PAIR_FEATURES + EXTENDED_PAIR
              + ["int_corr_released", "fit_raw_to_f_prefs", "fit_raw_to_m_prefs", "age_diff", "int_corr17"]
              + FLAGS_PRE + FLAGS_DATE + sets["pre_individual"] + [f"{p}_{c}_recorded" for p in "fm" for c in RECORDED]
              + sets["date"] + EVENT_LEVEL)
@@ -168,8 +199,8 @@ def feature_sets():
     pre = individual + PAIR_FEATURES
     return {"pre": pre, "pre+date": pre + in_date, "pre_individual": individual, "pre_pair": PAIR_FEATURES,
             "date": in_date, "categorical": [f"{p}_{c}" for p in ("f", "m") for c in CATEGORICAL],
-            "flags_pre": FLAGS_PRE, "flags_date": FLAGS_DATE,
-            "binary": ["same_field", "same_goal"] + FLAGS_PRE + FLAGS_DATE,
+            "extended_pair": EXTENDED_PAIR, "flags_pre": FLAGS_PRE, "flags_date": FLAGS_DATE,
+            "binary": ["same_field", "same_goal", "same_career"] + FLAGS_PRE + FLAGS_DATE,
             "pref_reference": ["f_pref_shar", "m_pref_shar"],
             "format_standardized": [f"{p}_pref_{a}" for p in ("f", "m") for a in ATTRS] + ["fit_to_f_prefs", "fit_to_m_prefs"],
             "spline_candidates": ["f_age", "m_age", "abs_age_diff", "int_corr", "fit_to_f_prefs", "fit_to_m_prefs"],
@@ -207,7 +238,7 @@ def check_pairs(pairs, clean):
     clean_dyad = ~fixed & ~np.isnan(rel)
     level = pairs[[f"m_self_{a}" for a in SELF_ATTRS]].mean(axis=1)
     flipped = build_pairs(clean.assign(gender=1 - clean.gender)).set_index("dyad").loc[pairs.dyad]
-    sym = ["abs_age_diff", "int_corr", "int_corr_released", "int_corr17", "same_field", "same_goal"]
+    sym = ["abs_age_diff", "int_corr", "int_corr_released", "int_corr17", "same_field", "same_goal"] + EXTENDED_PAIR
     neq = lambda a, b: int((~np.isclose(np.asarray(a, float), np.asarray(b, float), equal_nan=True)).sum())
     return {
         "dyads where the released formula on recorded values differs from int_corr_released": neq(released_formula, rel),
@@ -234,7 +265,7 @@ def main():
 
     sets = feature_sets()
     alt = [c for d in sets["alternatives"].values() for c in d.values()]
-    missing_cols = [c for s in ("pre", "pre+date", "categorical", "flags_pre", "flags_date", "format_standardized", "spline_candidates")
+    missing_cols = [c for s in ("pre", "pre+date", "categorical", "extended_pair", "flags_pre", "flags_date", "format_standardized", "spline_candidates")
                     for c in sets[s] if c not in pairs.columns] + [c for c in alt if c not in pairs.columns]
     assert not missing_cols, f"feature-set columns not in the table: {missing_cols}"
     for name in ("pre", "pre+date"):

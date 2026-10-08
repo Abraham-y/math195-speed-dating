@@ -1,0 +1,47 @@
+"""Known-answer tests for scripts/like_models.py and scripts/participants.py.
+Run from the repository root: python tests/test_like_models.py"""
+import sys, pathlib
+import numpy as np, pandas as pd
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import like_models as L
+import participants as PT
+import pairs as P
+from test_pairs import toy
+
+
+def toy_clean():
+    t = toy().copy()
+    likes = {(3, 1): 7.0, (1, 3): 9.0, (4, 1): 2.0, (1, 4): np.nan}       # (rater, ratee) -> like
+    t["like"] = [likes[(r, e)] for r, e in zip(t.rater, t.ratee)]
+    return t
+
+
+def test_dates_table_maps_rater_and_partner():
+    clean = toy_clean()
+    D, rater, partner, pair = L.dates_table(P.build_pairs(clean), P.feature_sets(), clean)
+    assert len(D) == 3                                                      # the date with no like is dropped
+    w = D[(D.r_iid == 1) & (D.p_iid == 3)].iloc[0]; m = D[(D.r_iid == 3) & (D.p_iid == 1)].iloc[0]
+    assert w.r_age == 25 and w.p_age == 30 and w.r_male == 0 and w.like == 9.0
+    assert m.r_age == 30 and m.p_age == 25 and m.r_male == 1 and m.like == 7.0
+    # (in the toy both men have fit 0 to their own preferences, so that standardized column is NaN; compare NaN-aware)
+    assert np.isclose(w.fit_to_rater_prefs, m.fit_to_partner_prefs, equal_nan=True) and np.isclose(w.fit_to_partner_prefs, m.fit_to_rater_prefs, equal_nan=True)
+    assert not np.isnan(w.fit_to_rater_prefs)
+    assert np.isclose(w.abs_age_diff, m.abs_age_diff) and "fit_to_rater_prefs" in pair and "r_male" in rater
+
+
+def test_r_squared_known_answer():
+    y = np.array([1.0, 2, 3, 4]); assert np.isclose(L.r_squared(y, y), 1) and np.isclose(L.r_squared(y, np.full(4, 2.5)), 0)
+
+
+def test_participant_catalog_one_row_per_person():
+    clean = toy_clean().assign(field="x", career="y", **{f"{a}1_1_share": 100 / 6 for a in ["attr", "sinc", "intel", "fun", "amb", "shar"]})
+    people = PT.build(clean)
+    assert sorted(people.iid) == [1, 3, 4] and people.loc[people.iid == 4, "any_pre_missing"].iloc[0] == 1   # man 4 left field blank
+    assert people.loc[people.iid == 3, "any_pre_missing"].iloc[0] == 0                                      # only a recording-error fix
+
+
+if __name__ == "__main__":
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_"):
+            fn(); print("ok", name)

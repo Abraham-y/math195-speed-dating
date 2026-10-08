@@ -58,6 +58,28 @@ def test_build_frame_applies_spec():
     assert not set(sets["pre_pair"]) & set(Xi.columns)
 
 
+def test_build_frame_ladder_and_excluded_waves():
+    pairs, sets = P.build_pairs(toy()), P.feature_sets()
+    Xe, *_ = M.build_frame(pairs, sets, M.Spec(pref_format="unstandardized"), "pre_extended")
+    Xi, *_ = M.build_frame(pairs, sets, M.Spec(pref_format="unstandardized"), "pre_interactions")
+    assert set(sets["extended_pair"]) <= set(Xe.columns) and not set(M.INTERACTIONS) & set(Xe.columns)
+    assert set(M.INTERACTIONS) <= set(Xi.columns)
+    order = pairs.sort_values(["event", "f_iid", "m_iid"]).reset_index(drop=True)
+    assert np.allclose(Xi.age_diff_sq, (order.m_age - order.f_age) ** 2)
+    assert np.allclose(Xi.int_x_f_pref_shar, order.int_corr * order.f_pref_shar)
+    X0, y0, ev0, _ = M.build_frame(pairs, sets, M.HEADLINE, "pre", exclude_events=(1,))
+    assert len(X0) == 0                                        # the toy has only event 1
+
+
+def test_prep_rater_partner_prefixes():
+    X = pd.DataFrame({"r_age": [20.0, 30.0, 40.0, 25.0] * 6, "p_age": [22.0, 28.0, 35.0, 31.0] * 6,
+                      "r_field_cd": [1, 1, 2, 1] * 6, "p_field_cd": [1, 3, 1, 1] * 6})
+    ids = pd.DataFrame({"r_iid": np.arange(24), "p_iid": np.arange(24) + 100})
+    p = M.Prep(categorical=["r_field_cd", "p_field_cd"], binary=[], person_cols=["r_age", "p_age"], sides=("r", "p")).fit(X, ids)
+    rare, keep, ref = p.levels["r_field_cd"]
+    assert rare == {2.0, 3.0} and ref == "1"                   # codes 2 and 3 held by 6 participants each (< 10)
+
+
 # ---------------------------------------------------------------- preparation
 
 def test_skew_rule_both_directions_and_binary_untouched():

@@ -17,6 +17,8 @@ from dataclasses import dataclass, replace
 import numpy as np, pandas as pd
 
 FOLD_SEED = 20261006
+INTERACTIONS = ["age_diff_sq", "int_x_f_pref_shar", "int_x_m_pref_shar"]   # P3c in PREREG.md
+WAVES_1_TO_10 = (6, 7, 8, 9)                                               # the waves that rated preferences 1 to 10
 RARE_CODE_MIN = 10           # field and career codes held by fewer participants are merged into "other"
 SKEW_LIMIT = 1.0
 
@@ -78,10 +80,12 @@ def standardize_by_format(df, person_cols, dyad_cols, fmt_col="pref_scale"):
     return out
 
 
-def build_frame(pairs, sets, spec, feature_set):
-    """Raw design for one specification and feature set ('pre', 'pre+date' or 'pre_individual').
+def build_frame(pairs, sets, spec, feature_set, exclude_events=()):
+    """Raw design for one specification and feature set: 'pre', 'pre+date', 'pre_individual', or the P3b/P3c
+    ladder steps 'pre_extended' (plus the five extended pair features) and 'pre_interactions' (plus the three
+    declared terms). exclude_events drops whole waves first (the waves 6 to 9 check).
     Returns (X, y, events, ids) where ids holds f_iid and m_iid; columns keep their canonical names."""
-    df = pairs.copy()
+    df = pairs[~pairs.event.isin(exclude_events)].copy()
     subs = {}
     if spec.out_of_range == "recorded":
         subs.update(sets["alternatives"]["out_of_range_as_recorded"])
@@ -94,8 +98,12 @@ def build_frame(pairs, sets, spec, feature_set):
         person += ["m" + c[1:] for c in person]
         dyad = [c for c in sets["format_standardized"] if not c.startswith(("f_pref_", "m_pref_"))]
         df = standardize_by_format(df, person, dyad)
-    cols = {"pre": sets["pre"], "pre+date": sets["pre+date"],
-            "pre_individual": sets["pre_individual"]}[feature_set]
+    df["age_diff_sq"] = (df.m_age - df.f_age) ** 2
+    df["int_x_f_pref_shar"] = df.int_corr * df.f_pref_shar
+    df["int_x_m_pref_shar"] = df.int_corr * df.m_pref_shar
+    cols = {"pre": sets["pre"], "pre+date": sets["pre+date"], "pre_individual": sets["pre_individual"],
+            "pre_extended": sets["pre"] + sets.get("extended_pair", []),
+            "pre_interactions": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS}[feature_set]
     cols = [c for c in cols if c not in sets["pref_reference"]]
     if spec.missing == "complete":
         full = [c for c in sets["pre+date"] if c not in sets["pref_reference"]]
@@ -129,9 +137,9 @@ class Prep:
     """Preparation fitted on a training fold and applied unchanged to the held-out events (PREREG.md order:
     skewness rule, median filling, rare-code merging and one-hot coding, splines, standardizing)."""
 
-    def __init__(self, categorical, binary, person_cols, merge_codes=("field_cd", "career_c"), splines=()):
+    def __init__(self, categorical, binary, person_cols, merge_codes=("field_cd", "career_c"), splines=(), sides=("f", "m")):
         self.categorical, self.binary, self.person_cols = list(categorical), set(binary), set(person_cols)
-        self.merge_codes, self.splines = tuple(merge_codes), tuple(splines)
+        self.merge_codes, self.splines, self.sides = tuple(merge_codes), tuple(splines), tuple(sides)
 
     def fit(self, X, ids):
         self.numeric = [c for c in X.columns if c not in self.categorical and c not in self.binary]
@@ -142,7 +150,7 @@ class Prep:
             if X[c].nunique(dropna=True) <= 2:
                 continue
             if c in self.person_cols:                            # one value per participant
-                side = c[0]
+                side = c.split("_")[0]
                 v = pd.concat([X[c], ids[f"{side}_iid"]], axis=1).drop_duplicates(f"{side}_iid")[c].to_numpy(float)
             s = skew(v)
             if s > SKEW_LIMIT:
@@ -156,9 +164,9 @@ class Prep:
         for c in self.categorical:                               # rare codes, then one-hot levels
             codes = X[c]
             if any(c.endswith(m) for m in self.merge_codes):
-                stem = c[2:]
-                held = pd.concat([X[[f"f_{stem}"]].join(ids.f_iid).drop_duplicates("f_iid")[f"f_{stem}"],
-                                  X[[f"m_{stem}"]].join(ids.m_iid).drop_duplicates("m_iid")[f"m_{stem}"]]).value_counts()
+                stem = c.split("_", 1)[1]
+                held = pd.concat([X[[f"{s}_{stem}"]].join(ids[f"{s}_iid"]).drop_duplicates(f"{s}_iid")[f"{s}_{stem}"]
+                                  for s in self.sides if f"{s}_{stem}" in X.columns]).value_counts()
                 rare = set(held.index[held < RARE_CODE_MIN])
             else:
                 rare = set()

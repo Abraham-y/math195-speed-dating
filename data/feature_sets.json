@@ -277,6 +277,13 @@
     "m_career_c",
     "m_goal"
   ],
+  "extended_pair": [
+    "same_career",
+    "abs_date_diff",
+    "abs_go_out_diff",
+    "int_mad",
+    "int_cosine"
+  ],
   "flags_pre": [
     "f_pre_missing",
     "m_pre_missing"
@@ -288,6 +295,7 @@
   "binary": [
     "same_field",
     "same_goal",
+    "same_career",
     "f_pre_missing",
     "m_pre_missing",
     "f_date_missing",
