@@ -427,6 +427,5 @@ Settings, fixed now:
 - 2026-10-08 (new hypotheses B1, B2, C1, C2 copied from proposals/05; T1, T2, D1, D2, E1, E2, W1, S1 added) Part 2:
   both further questions, tree models, the leakage comparison and matched simulation for A1 and A2, the
   two-decision model, ensembles, within-event prediction and strategic yes-saying, committed before any ran.
-
 - 2026-10-08 (no hypothesis changed) Error-bar study: the real-data comparison with the final models and the Bates,
   Hastie and Tibshirani bias adjustment, added before either ran.
