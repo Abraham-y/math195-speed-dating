@@ -165,6 +165,19 @@ Settings, fixed now:
   every error bar is cluster-robust by event. Results go to `results/` under each script's name, earlier
   results stay in place, and each new table names its fold scheme and seeds.
 
+- Error-bar study, the real-data part and the bias adjustment (2026-10-08, added before scripts/sim_cv_matched.py
+  and scripts/errorbars_real.py ran; no new hypothesis):
+  - Real data, descriptive (`scripts/errorbars_real.py`, seed 20262506): for the full logistic regression and LDA
+    (the Part 1 models cheap enough for nested CV) under the headline specification, `pre` and `pre+date`: the
+    event-CV error rate and AUC with naive, event cluster-robust and two-way (woman and man) cluster-robust SEs,
+    the latter by Cameron, Gelbach and Miller (2011): the woman and man cluster variances minus the dyad one; the
+    cluster-nested CV estimate of the error's root MSE (10 repetitions); and random-row CV with its naive SE and
+    the nested interval of Bates, Hastie and Tibshirani (2024).
+  - Bias adjustment (Bates, Hastie and Tibshirani 2024): the nested interval is centred at the nested estimate
+    minus (1 + (K - 2)/K)(nested estimate - standard CV estimate), with half-width 1.645 sqrt((K - 1)/K) times the
+    root of the nested MSE estimate, K = 5. It is reported for random-row nested CV and for event cluster-nested CV,
+    in the A2 simulation and on the real data, next to the unadjusted intervals.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -414,3 +427,6 @@ Settings, fixed now:
 - 2026-10-08 (new hypotheses B1, B2, C1, C2 copied from proposals/05; T1, T2, D1, D2, E1, E2, W1, S1 added) Part 2:
   both further questions, tree models, the leakage comparison and matched simulation for A1 and A2, the
   two-decision model, ensembles, within-event prediction and strategic yes-saying, committed before any ran.
+
+- 2026-10-08 (no hypothesis changed) Error-bar study: the real-data comparison with the final models and the Bates,
+  Hastie and Tibshirani bias adjustment, added before either ran.
