@@ -26,7 +26,11 @@ dates. `generalized_reciprocity_corrected` subtracts these terms (the round-robi
 relations model, here for the two-sided design) and is exploratory (PREREG.md change log, 2026-10-15). K2 is
 decided on the registered estimator. With very small events (3 or 4 a side) the corrected variances can approach
 zero and the ratio becomes unstable; on the real design its simulated bias is near zero (results/srm_check.csv).
-Run from the repository root: python scripts/srm.py [bootstrap resamples] [simulation replicates]
+K3 (PREREG.md, Part 4): `python scripts/srm.py dec` runs the same model on the yes decisions (0/1) and writes
+results/srm_dec_*.csv. Its simulation check draws a latent social relations model with the liking variance shares
+and a latent pair correlation of 0.2, thresholded at the real yes rate; since the 0/1 estimator's target differs
+from the latent value, the intervals are checked for covering the mean estimate over replicates.
+Run from the repository root: python scripts/srm.py [like|dec] [bootstrap resamples] [simulation replicates]
 """
 import sys, pathlib
 import numpy as np, pandas as pd
@@ -53,15 +57,15 @@ def additive(x, r, c, tol=1e-12, max_iter=1000):
     return mu + a.mean() + b.mean(), pd.Series(a - a.mean(), index=ru), pd.Series(b - b.mean(), index=cu), e
 
 
-def event_pieces(ev):
+def event_pieces(ev, col="like"):
     """One event: the dyads' residual pairs, sums over people for the generalized-reciprocity moments, and the
     variance-share moments of each direction."""
     eff, res, s2, mom = {}, {}, {}, []
     for g in (0, 1):
-        d = ev[(ev.gender == g) & ev.like.notna()]
+        d = ev[(ev.gender == g) & ev[col].notna()]
         if d.empty:
             continue
-        mu, a, b, e = additive(d.like.to_numpy(float), d.rater.to_numpy(), d.ratee.to_numpy())
+        mu, a, b, e = additive(d[col].to_numpy(float), d.rater.to_numpy(), d.ratee.to_numpy())
         nr, nc = d.rater.nunique(), d.ratee.nunique()
         s2[g] = np.sum(e ** 2) / max(len(e) - nr - nc + 1, 1)
         given, received = d.rater.value_counts(), d.ratee.value_counts()
@@ -126,9 +130,58 @@ def simulate(clean, truth, rng):
     return sim
 
 
+def simulate_binary(clean, shares, rp, rate, rng):
+    """0/1 decisions from a latent social relations model: actor, partner and pair parts with the given variance
+    shares (no generalized reciprocity), pair parts correlated rp between directions, thresholded so the share of
+    yeses on the observed dates equals rate."""
+    truth = dict(generalized=0.0, dyadic=rp, actor_var=shares["actor_share"], partner_var=shares["partner_share"],
+                 residual_var=shares["residual_share"])
+    sim = simulate(clean.rename(columns={"dec": "like_dec"}).assign(like=clean.dec), truth, rng)
+    obs = sim.like.notna()
+    cut = np.quantile(sim.like[obs], 1 - rate)
+    return sim.assign(dec=np.where(obs, (sim.like > cut).astype(float), np.nan))
+
+
+def main_dec(B, reps):
+    clean = pd.read_csv("data/clean.csv", low_memory=False)
+    pieces = [event_pieces(ev, "dec") for _, ev in clean.groupby("event")]
+    est = estimates(pieces)
+    ci = bootstrap(pieces, B, np.random.default_rng(BOOT_SEED))
+    E = pd.DataFrame([dict(quantity=k, estimate=est[k], ci90_low=ci[k][0], ci90_high=ci[k][1], people=est["people"], dyads=est["dyads"],
+                           bootstrap=B, seed=BOOT_SEED, registered=k != "generalized_reciprocity_corrected", outcome="dec") for k in KEYS])
+    E.to_csv(RES / "srm_dec_estimates.csv", index=False)
+    shares = estimates([event_pieces(ev, "like") for _, ev in clean.groupby("event")])
+    rate = clean.dec.mean()
+    rng = np.random.default_rng(SIM_SEED); sims = []
+    for _ in range(reps):
+        sim = simulate_binary(clean, shares, 0.2, rate, rng)
+        sp = [event_pieces(ev, "dec") for _, ev in sim.groupby("event")]
+        s, c = estimates(sp), bootstrap(sp, 200, rng, keys=("dyadic_reciprocity",))
+        sims.append(dict(estimate=s["dyadic_reciprocity"], lo=c["dyadic_reciprocity"][0], hi=c["dyadic_reciprocity"][1]))
+    S = pd.DataFrame(sims); target = S.estimate.mean()
+    check = pd.DataFrame([dict(quantity="dyadic_reciprocity (0/1 decisions)", latent_pair_correlation=0.2, mean_estimate=target,
+                               sd=S.estimate.std(ddof=1), coverage_90_of_mean_estimate=((S.lo <= target) & (target <= S.hi)).mean(),
+                               reps=reps, bootstrap=200, seed=SIM_SEED, yes_rate=rate)])
+    check.to_csv(RES / "srm_dec_check.csv", index=False)
+    r = E.set_index("quantity").loc["dyadic_reciprocity"]
+    hyp = pd.DataFrame([dict(hypothesis="K3", statistic=f"dyadic reciprocity of the yes decisions {r.estimate:.3f} (90% interval "
+                             f"{r.ci90_low:.3f} to {r.ci90_high:.3f}), {est['dyads']} dyads", supported=bool(r.ci90_low > 0),
+                             se_check=f"simulation check ({reps} replicates, latent model thresholded at the yes rate): coverage "
+                             f"{check.coverage_90_of_mean_estimate.iloc[0]:.0%} of the mean estimate", fold_scheme="none (all decisions)")])
+    hyp.to_csv(RES / "srm_dec_hypotheses.csv", index=False)
+    print(E.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+    print(check.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+    print(hyp[["hypothesis", "statistic", "supported"]].to_string(index=False))
+
+
 def main():
-    B = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
-    reps = int(sys.argv[2]) if len(sys.argv) > 2 else 200
+    args = sys.argv[1:]
+    col = args.pop(0) if args and not args[0].isdigit() else "like"
+    B = int(args[0]) if len(args) > 0 else 1000
+    reps = int(args[1]) if len(args) > 1 else 200
+    if col == "dec":
+        return main_dec(B, reps)
+    assert col == "like", "srm.py takes like or dec"
     clean = pd.read_csv("data/clean.csv", low_memory=False)
     pieces = [event_pieces(ev) for _, ev in clean.groupby("event")]
     est = estimates(pieces)

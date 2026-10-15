@@ -296,10 +296,16 @@
     "same_field",
     "same_goal",
     "same_career",
+    "samerace",
     "f_pre_missing",
     "m_pre_missing",
     "f_date_missing",
     "m_date_missing"
+  ],
+  "race_block": [
+    "samerace",
+    "samerace_x_f_imprace",
+    "samerace_x_m_imprace"
   ],
   "pref_reference": [
     "f_pref_shar",
@@ -352,6 +358,7 @@
   "notes": {
     "f_/m_": "the woman's / the man's own answer; for rating_* and prob, her / his view of the partner",
     "categorical": "integer codes; rare codes merged and one-hot encoded inside each training fold",
-    "excluded": "race variables (PREREG decision), f_dec/m_dec (define the response), age_diff (collinear with f_age and m_age), int_corr17 (near-duplicate of int_corr)"
+    "race": "samerace and imprace enter only the P3d block (pre_race; PREREG.md, Part 4); individual race codes are not used",
+    "excluded": "individual race codes (PREREG decision), f_dec/m_dec (define the response), age_diff (collinear with f_age and m_age), int_corr17 (near-duplicate of int_corr)"
   }
 }

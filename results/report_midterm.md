@@ -86,6 +86,15 @@ Across 18 simulated designs: **N1** (not supported): cluster-nested bias-adjuste
 - **K2** (not supported): generalized reciprocity is 0.036 (90% interval -0.021 to 0.085). Our simulation check found this registered estimator biased by +0.034. A corrected estimator, which is exploratory, gives -0.003 (90% interval -0.071 to 0.055).
 - **Stable matching** (exploratory): 44% of stable pairs were mutual yeses, and 18% of real matches were stable pairs. The proposing side gets better-ranked partners: men 4.51 against women 4.76 when men propose, and women 4.43 against men 4.87 when women propose.
 
+### 4.5 Part 4: race, reciprocity of yes decisions, and repairing the error bars
+
+- **P3d** (supported; the team decided on 2026-10-15 to include race variables in this block only): full logistic AUC with the race block 0.5425 minus without 0.5465 = -0.0039 (4184 dyads). In the framing of Fisman et al. (2008), women said yes to 39.3% of same-race dates and 34.7% of others (men 47.5% and 47.5%); with the six ratings held fixed, the same-race coefficient is -0.003 (SE 0.090) for women and -0.065 (SE 0.075) for men.
+- **K3** (supported): dyadic reciprocity of the yes decisions 0.103 (90% interval 0.076 to 0.129), 4184 dyads. Exploratory: people who say yes often are chosen less often (generalized reciprocity of the decisions -0.197, 90% interval -0.279 to -0.116).
+- **N3** (supported): floor interval coverage 0.890 to 0.965 over 15 designs with events redrawn; 15 of 15 at least 0.85.
+- **N4** (supported): A2 with the 21 events redrawn: event CV with the cluster-robust SE covers 0.874 (500 data sets).
+- **N5** (supported): A2 with the 21 events redrawn: the cluster-nested, bias-adjusted interval covers 0.836, against 0.926 in A2.
+- Exploratory comparison: the Nadeau-Bengio corrected t on event folds covered 90.0% to 97.5% over the same designs, with a mean half-width of 0.038 against 0.047 for the floor. An existing correction, applied to whole events, does as well as our repair; a confirmatory test is the next pre-registration.
+
 ## 5. What it means
 
 What is known before the date carries a small, real signal. It mostly reflects who tends to like others and who tends to be liked, not who suits whom, and no model choice gets past it. The four-minute meeting carries far more information than everything known beforehand. Standard error bars on such results are far too narrow when people and events repeat; holding out whole events and using event-aware error bars is necessary, not optional.

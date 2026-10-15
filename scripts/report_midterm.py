@@ -192,6 +192,33 @@ def main():
         f"The proposing side gets better-ranked partners: men {m_.men_mean_rank_of_partner:.2f} against women "
         f"{m_.women_mean_rank_of_partner:.2f} when men propose, and women {w_.women_mean_rank_of_partner:.2f} against men "
         f"{w_.men_mean_rank_of_partner:.2f} when women propose.\n")
+    add("### 4.5 Part 4: race, reciprocity of yes decisions, and repairing the error bars\n")
+    if (RES / "race_models_hypotheses.csv").exists():
+        p3d = hyp("race_models", "P3d", "headline"); rates = csv("race_models_rates").set_index("rater_gender")
+        yc = csv("race_models_yes"); sr = yc[yc.term == "samerace"].set_index("rater_gender")
+        add(f"- **P3d** ({verdict(p3d)}; the team decided on 2026-10-15 to include race variables in this block only): {p3d.statistic}. "
+            f"In the framing of Fisman et al. (2008), women said yes to {rates.loc['women'].yes_rate_same_race:.1%} of same-race dates and "
+            f"{rates.loc['women'].yes_rate_different_race:.1%} of others (men {rates.loc['men'].yes_rate_same_race:.1%} and "
+            f"{rates.loc['men'].yes_rate_different_race:.1%}); with the six ratings held fixed, the same-race coefficient is "
+            f"{sr.loc['women'].coef:+.3f} (SE {sr.loc['women'].se_cluster_event:.3f}) for women and {sr.loc['men'].coef:+.3f} "
+            f"(SE {sr.loc['men'].se_cluster_event:.3f}) for men.")
+    if (RES / "srm_dec_hypotheses.csv").exists():
+        k3 = hyp("srm_dec", "K3"); g = csv("srm_dec_estimates").set_index("quantity").loc["generalized_reciprocity"]
+        add(f"- **K3** ({verdict(k3)}): {k3.statistic}. Exploratory: people who say yes often are chosen less often "
+            f"(generalized reciprocity of the decisions {g.estimate:.3f}, 90% interval {g.ci90_low:.3f} to {g.ci90_high:.3f}).")
+    if (RES / "sim_cv_repair_hypotheses.csv").exists():
+        rh = csv("sim_cv_repair_hypotheses").set_index("hypothesis")
+        for k in ("N3", "N4", "N5"):
+            add(f"- **{k}** ({verdict(rh.loc[k])}): {rh.loc[k].statistic}.")
+        rc = csv("sim_cv_repair_coverage")
+        rc = rc[rc.design.str.startswith("grid") & ((rc.person_sd > 0) | (rc.event_sd > 0))]
+        stat = lambda name: rc[rc.procedure == name]
+        nb, fl = stat("Nadeau-Bengio corrected t, grouped folds"), stat("floor: max(cluster-robust, cluster-nested) (N3)")
+        add(f"- Exploratory comparison: the Nadeau-Bengio corrected t on event folds covered {nb.coverage_90.min():.1%} to "
+            f"{nb.coverage_90.max():.1%} over the same designs, with a mean half-width of {nb.mean_half_width.mean():.3f} against "
+            f"{fl.mean_half_width.mean():.3f} for the floor. An existing correction, applied to whole events, does as well as our "
+            f"repair; a confirmatory test is the next pre-registration.")
+    add("")
     add("## 5. What it means\n")
     add("What is known before the date carries a small, real signal. It mostly reflects who tends to like others and who "
         "tends to be liked, not who suits whom, and no model choice gets past it. The four-minute meeting carries far more "

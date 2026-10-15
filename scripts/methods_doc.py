@@ -146,6 +146,7 @@ def later_parts(add):
     import stable_matching as SMT
     import srm as SRM
     import sim_cv_designs as SD
+    import sim_cv_repair as SR
     add(r"\section{Part 2: more models, leakage and the yes decisions}\label{sec:part2}")
     add(r"""Part 2 uses the Part 1 machinery unchanged: the same event folds (seed """ + str(M.FOLD_SEED) + r"""), the same
 preparation inside each training fold (Section~\ref{sec:prep}; splines only for the logistic models), tuning by inner
@@ -263,9 +264,28 @@ diagnostics were added (\texttt{results/sim\_cv\_designs\_diagnostics.csv}): the
 among the rest, and the floor $\max(\hat V_{\text{CR}}, \widehat{\text{MSE}}_{\text{CN}})$. No verdict rests on them.""")
     add(snippet(SD.dyadic_var_of_mean, "Dyadic-robust variance of a mean"))
 
-    add(r"\section{Part 2 and Part 3 results}")
+    add(r"\section{Part 4: the race block, reciprocity of yes decisions, and the error-bar repair}\label{sec:part4}")
+    add(r"""\textbf{P3d} (the team's decision of 15 October 2026). The full logistic model of the P3b/P3c ladder, with and without
+the block \texttt{samerace}, \texttt{samerace} $\times$ \texttt{f\_imprace}, \texttt{samerace} $\times$ \texttt{m\_imprace}
+(feature set \texttt{pre\_race}), on the same rows and headline folds. Individual race codes are not used, and race is
+never a response. In the framing of Fisman et al.\ (2008), a yes model by gender adds \texttt{samerace} and its product
+with the rater's own stated importance of same race (\texttt{race\_models.py}).
+
+\textbf{K3.} The social relations model of Section~\ref{sec:part3} on the 0/1 yes decisions (\texttt{srm.py dec}), with a
+simulation check from a latent model thresholded at the real yes rate.
+
+\textbf{N3 to N5} (\texttt{sim\_cv\_repair.py}). The design grid with the events redrawn in every data set for every
+size, and the A2 truth with its 21 events redrawn. Added intervals: the floor (event CV estimate $\pm 1.645 \max(\text{SE}_{\text{CR}},
+\sqrt{\widehat{\text{MSE}}_{\text{CN}}})$, N3), a fallback to the cluster-robust SE when the MSE estimate is not positive, the
+Nadeau--Bengio corrected $t$ on grouped folds, a cluster bootstrap of grouped CV (copies of an event kept in one fold),
+internal--external CV with a DerSimonian--Laird random-effects mean, and grouped nested CV with a row-level variance.""")
+    add(snippet(SR.nadeau_bengio, "Nadeau--Bengio corrected resampled t"))
+    add(snippet(SR.dersimonian_laird, "DerSimonian--Laird random-effects mean"))
+
+    add(r"\section{Part 2 to Part 4 results}")
     files = ["part2_models_hypotheses.csv", "sim_cv_matched_hypotheses.csv", "ranking_hypotheses.csv", "forecasts_hypotheses.csv",
-             "yes_extensions_hypotheses.csv", "mean_reversion_hypotheses.csv", "srm_hypotheses.csv", "sim_cv_designs_hypotheses.csv"]
+             "yes_extensions_hypotheses.csv", "mean_reversion_hypotheses.csv", "srm_hypotheses.csv", "sim_cv_designs_hypotheses.csv",
+             "race_models_hypotheses.csv", "srm_dec_hypotheses.csv", "sim_cv_repair_hypotheses.csv"]
     rows = []
     for f in files:
         if not (RES / f).exists():
@@ -333,7 +353,7 @@ def main():
 \setlist{itemsep=2pt,topsep=4pt}
 \setlength{\parskip}{0.5em}\setlength{\parindent}{0pt}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 3: data, predictors, models, metrics, error bars and checks}
+\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 4: data, predictors, models, metrics, error bars and checks}
 \author{Math 195 capstone: Sophia Qin, Jenna Yang, Abraham Yeung}
 \date{15 October 2026 \quad (code at commit """ + tx(commit) + r""")}
 \begin{document}
@@ -865,7 +885,8 @@ The same code and seeds reproduce every number to the last digit (checked by two
             ["Forecast slope check", "20262306"],
             ["Real-data error bars", "20262506"],
             ["Social relations model: bootstrap; simulation", "20262606; 20262706"],
-            ["Design grid; dyadic design", "20262806 + design index; 20262906"]]
+            ["Design grid; dyadic design", "20262806 + design index; 20262906"],
+            ["Repair grid; A2 redrawn; matched dyadic design", "20263006 + design; 20263106 + chunk; 20263206 + chunk"]]
     add(table(["Random operation", "Seed"], rows, "L{5cm}L{9cm}"))
     add(r"\section{More code}")
     add("The rest of the code that decides the reported results, as it ran.")

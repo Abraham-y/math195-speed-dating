@@ -82,8 +82,8 @@ def standardize_by_format(df, person_cols, dyad_cols, fmt_col="pref_scale"):
 
 def build_frame(pairs, sets, spec, feature_set, exclude_events=(), complete_extra=()):
     """Raw design for one specification and feature set: 'pre', 'pre+date', 'pre_individual', or the P3b/P3c
-    ladder steps 'pre_extended' (plus the five extended pair features) and 'pre_interactions' (plus the three
-    declared terms). exclude_events drops whole waves first (the waves 6 to 9 and wave 12 checks). Under the
+    ladder steps 'pre_extended' (plus the five extended pair features), 'pre_interactions' (plus the three
+    declared terms) and 'pre_race' (plus the P3d race block). exclude_events drops whole waves first (the waves 6 to 9 and wave 12 checks). Under the
     complete-case specification a dyad must be complete on every column of `pre+date` the models use, plus any
     complete_extra columns (the complete-case ladder passes the shared-interests shares, which P3c's terms use).
     Returns (X, y, events, ids) where ids holds f_iid and m_iid; columns keep their canonical names."""
@@ -103,9 +103,13 @@ def build_frame(pairs, sets, spec, feature_set, exclude_events=(), complete_extr
     df["age_diff_sq"] = (df.m_age - df.f_age) ** 2
     df["int_x_f_pref_shar"] = df.int_corr * df.f_pref_shar
     df["int_x_m_pref_shar"] = df.int_corr * df.m_pref_shar
+    if "samerace" in df:                                       # P3d (PREREG.md, Part 4)
+        df["samerace_x_f_imprace"] = df.samerace * df.f_imprace
+        df["samerace_x_m_imprace"] = df.samerace * df.m_imprace
     cols = {"pre": sets["pre"], "pre+date": sets["pre+date"], "pre_individual": sets["pre_individual"],
             "pre_extended": sets["pre"] + sets.get("extended_pair", []),
-            "pre_interactions": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS}[feature_set]
+            "pre_interactions": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS,
+            "pre_race": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS + sets.get("race_block", [])}[feature_set]
     cols = [c for c in cols if c not in sets["pref_reference"]]
     if spec.missing == "complete":
         full = [c for c in sets["pre+date"] if c not in sets["pref_reference"]] + list(complete_extra)

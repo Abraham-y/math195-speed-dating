@@ -13,9 +13,9 @@
 \setlist{itemsep=2pt,topsep=4pt}
 \setlength{\parskip}{0.5em}\setlength{\parindent}{0pt}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 3: data, predictors, models, metrics, error bars and checks}
+\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 4: data, predictors, models, metrics, error bars and checks}
 \author{Math 195 capstone: Sophia Qin, Jenna Yang, Abraham Yeung}
-\date{15 October 2026 \quad (code at commit 05efb56)}
+\date{15 October 2026 \quad (code at commit cd47fc4)}
 \begin{document}
 \maketitle
 \begin{abstract}
@@ -323,8 +323,8 @@ def standardize_by_format(df, person_cols, dyad_cols, fmt_col="pref_scale"):
 \begin{lstlisting}[caption={The raw design for one specification and feature set (scripts/modeling.py)}]
 def build_frame(pairs, sets, spec, feature_set, exclude_events=(), complete_extra=()):
     """Raw design for one specification and feature set: 'pre', 'pre+date', 'pre_individual', or the P3b/P3c
-    ladder steps 'pre_extended' (plus the five extended pair features) and 'pre_interactions' (plus the three
-    declared terms). exclude_events drops whole waves first (the waves 6 to 9 and wave 12 checks). Under the
+    ladder steps 'pre_extended' (plus the five extended pair features), 'pre_interactions' (plus the three
+    declared terms) and 'pre_race' (plus the P3d race block). exclude_events drops whole waves first (the waves 6 to 9 and wave 12 checks). Under the
     complete-case specification a dyad must be complete on every column of `pre+date` the models use, plus any
     complete_extra columns (the complete-case ladder passes the shared-interests shares, which P3c's terms use).
     Returns (X, y, events, ids) where ids holds f_iid and m_iid; columns keep their canonical names."""
@@ -344,9 +344,13 @@ def build_frame(pairs, sets, spec, feature_set, exclude_events=(), complete_extr
     df["age_diff_sq"] = (df.m_age - df.f_age) ** 2
     df["int_x_f_pref_shar"] = df.int_corr * df.f_pref_shar
     df["int_x_m_pref_shar"] = df.int_corr * df.m_pref_shar
+    if "samerace" in df:                                       # P3d (PREREG.md, Part 4)
+        df["samerace_x_f_imprace"] = df.samerace * df.f_imprace
+        df["samerace_x_m_imprace"] = df.samerace * df.m_imprace
     cols = {"pre": sets["pre"], "pre+date": sets["pre+date"], "pre_individual": sets["pre_individual"],
             "pre_extended": sets["pre"] + sets.get("extended_pair", []),
-            "pre_interactions": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS}[feature_set]
+            "pre_interactions": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS,
+            "pre_race": sets["pre"] + sets.get("extended_pair", []) + INTERACTIONS + sets.get("race_block", [])}[feature_set]
     cols = [c for c in cols if c not in sets["pref_reference"]]
     if spec.missing == "complete":
         full = [c for c in sets["pre+date"] if c not in sets["pref_reference"]] + list(complete_extra)
@@ -1455,7 +1459,44 @@ def dyadic_var_of_mean(e, a, b):
     return N / (N - 1) * (np.sum(per_person ** 2) - np.sum(dyad ** 2)) / n ** 2
 \end{lstlisting}
 
-\section{Part 2 and Part 3 results}
+\section{Part 4: the race block, reciprocity of yes decisions, and the error-bar repair}\label{sec:part4}
+
+\textbf{P3d} (the team's decision of 15 October 2026). The full logistic model of the P3b/P3c ladder, with and without
+the block \texttt{samerace}, \texttt{samerace} $\times$ \texttt{f\_imprace}, \texttt{samerace} $\times$ \texttt{m\_imprace}
+(feature set \texttt{pre\_race}), on the same rows and headline folds. Individual race codes are not used, and race is
+never a response. In the framing of Fisman et al.\ (2008), a yes model by gender adds \texttt{samerace} and its product
+with the rater's own stated importance of same race (\texttt{race\_models.py}).
+
+\textbf{K3.} The social relations model of Section~\ref{sec:part3} on the 0/1 yes decisions (\texttt{srm.py dec}), with a
+simulation check from a latent model thresholded at the real yes rate.
+
+\textbf{N3 to N5} (\texttt{sim\_cv\_repair.py}). The design grid with the events redrawn in every data set for every
+size, and the A2 truth with its 21 events redrawn. Added intervals: the floor (event CV estimate $\pm 1.645 \max(\text{SE}_{\text{CR}},
+\sqrt{\widehat{\text{MSE}}_{\text{CN}}})$, N3), a fallback to the cluster-robust SE when the MSE estimate is not positive, the
+Nadeau--Bengio corrected $t$ on grouped folds, a cluster bootstrap of grouped CV (copies of an event kept in one fold),
+internal--external CV with a DerSimonian--Laird random-effects mean, and grouped nested CV with a row-level variance.
+
+\begin{lstlisting}[caption={Nadeau--Bengio corrected resampled t (scripts/sim\_cv\_repair.py)}]
+def nadeau_bengio(fold_losses, K=K):
+    """Corrected resampled t (Nadeau and Bengio 2003) on J = len(fold_losses) splits with test/train ratio 1/(K-1):
+    (centre, SE, t quantile for a two-sided 90% interval)."""
+    J = len(fold_losses)
+    se = np.sqrt((1 / J + 1 / (K - 1)) * np.var(fold_losses, ddof=1))
+    return float(np.mean(fold_losses)), float(se), float(stats.t.ppf(0.95, J - 1))
+\end{lstlisting}
+
+\begin{lstlisting}[caption={DerSimonian--Laird random-effects mean (scripts/sim\_cv\_repair.py)}]
+def dersimonian_laird(est, var):
+    """Random-effects mean and its SE (DerSimonian and Laird 1986), and the between-study variance tau^2."""
+    est, var = np.asarray(est, float), np.asarray(var, float)
+    w = 1 / var; mean_f = np.sum(w * est) / np.sum(w)
+    Q = np.sum(w * (est - mean_f) ** 2)
+    tau2 = max(0.0, (Q - (len(est) - 1)) / (np.sum(w) - np.sum(w ** 2) / np.sum(w)))
+    ws = 1 / (var + tau2)
+    return float(np.sum(ws * est) / np.sum(ws)), float(np.sqrt(1 / np.sum(ws))), float(tau2)
+\end{lstlisting}
+
+\section{Part 2 to Part 4 results}
 
 \footnotesize
 \begin{longtable}{lL{2.6cm}L{9.6cm}l}
@@ -1484,6 +1525,11 @@ K1 &  & dyadic reciprocity 0.208 (90\% interval 0.182 to 0.240), 4011 dyads & su
 K2 &  & generalized reciprocity 0.036 (90\% interval -0.021 to 0.085), 551 people (exploratory corrected estimate -0.003 (90\% interval -0.071 to 0.055)) & not supported \\
 N1 &  & cluster-nested bias-adjusted coverage 0.735 to 0.920 over 15 designs; 6 of 15 within 0.85 to 0.95 & not supported \\
 N2 &  & random-row nested bias-adjusted coverage 0.460 to 0.735 over 12 designs; 12 of 12 below 0.80 & supported \\
+P3d & headline & full logistic AUC with the race block 0.5425 minus without 0.5465 = -0.0039 (4184 dyads) & supported \\
+K3 &  & dyadic reciprocity of the yes decisions 0.103 (90\% interval 0.076 to 0.129), 4184 dyads & supported \\
+N3 &  & floor interval coverage 0.890 to 0.965 over 15 designs with events redrawn; 15 of 15 at least 0.85 & supported \\
+N4 &  & A2 with the 21 events redrawn: event CV with the cluster-robust SE covers 0.874 (500 data sets) & supported \\
+N5 &  & A2 with the 21 events redrawn: the cluster-nested, bias-adjusted interval covers 0.836, against 0.926 in A2 & supported \\
 \bottomrule
 \end{longtable}
 \normalsize
@@ -1638,6 +1684,7 @@ Forecast slope check & 20262306 \\
 Real-data error bars & 20262506 \\
 Social relations model: bootstrap; simulation & 20262606; 20262706 \\
 Design grid; dyadic design & 20262806 + design index; 20262906 \\
+Repair grid; A2 redrawn; matched dyadic design & 20263006 + design; 20263106 + chunk; 20263206 + chunk \\
 \bottomrule
 \end{tabular}
 \end{center}

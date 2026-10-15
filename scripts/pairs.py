@@ -71,6 +71,8 @@ IN_DATE = {**{a: f"rating_{a}" for a in ATTRS + ["like"]}, "prob": "prob"}
 EVENT_LEVEL = ["condtn", "pref_scale", "wave_undergrad", "wave_yes_budget", "wave_diff_mc", "wave_brought_item"]
 PAIR_FEATURES = ["abs_age_diff", "int_corr", "same_field", "same_goal", "fit_to_f_prefs", "fit_to_m_prefs"]
 EXTENDED_PAIR = ["same_career", "abs_date_diff", "abs_go_out_diff", "int_mad", "int_cosine"]
+RACE = ["samerace", "f_imprace", "m_imprace"]                # carried for P3d only (PREREG.md, Part 4)
+RACE_BLOCK = ["samerace", "samerace_x_f_imprace", "samerace_x_m_imprace"]   # built in modeling.build_frame
 FLAGS_PRE, FLAGS_DATE = ["f_pre_missing", "m_pre_missing"], ["f_date_missing", "m_date_missing"]
 
 
@@ -185,12 +187,19 @@ def build_pairs(clean):
                                 | pairs[[f"{p}_{v}" for v in WAS_BLANK.values()]].eq(1).any(axis=1)).astype(int) for p in "fm"},
         **{f"{p}_date_missing": cols(p, IN_DATE.values()).isna().any(axis=1).astype(int) for p in "fm"},
     }, index=pairs.index)
-    pairs = pd.concat([pairs, new], axis=1)
+    pairs = pd.concat([pairs, new], axis=1).copy()
+    if {"samerace", "imprace"} <= set(clean.columns):
+        imp = clean.groupby("rater").imprace.first()
+        imp = imp.where(imp.between(1, 10))                   # one 0 on the 1-10 scale: missing (out-of-range rule)
+        pairs = pairs.assign(samerace=pairs.dyad.map(clean.groupby("dyad").samerace.first()),
+                             f_imprace=pairs.f_iid.map(imp), m_imprace=pairs.m_iid.map(imp))
+    else:                                                     # toy frames in the tests
+        pairs = pairs.assign(**{c: np.nan for c in RACE})
     sets = feature_sets()
     order = (["dyad", "event", "f_iid", "m_iid", "match", "f_dec", "m_dec"] + PAIR_FEATURES + EXTENDED_PAIR
              + ["int_corr_released", "fit_raw_to_f_prefs", "fit_raw_to_m_prefs", "age_diff", "int_corr17"]
              + FLAGS_PRE + FLAGS_DATE + sets["pre_individual"] + [f"{p}_{c}_recorded" for p in "fm" for c in RECORDED]
-             + sets["date"] + EVENT_LEVEL)
+             + sets["date"] + EVENT_LEVEL + RACE)
     return pairs[order].sort_values(["event", "f_iid", "m_iid"]).reset_index(drop=True)
 
 
@@ -202,7 +211,8 @@ def feature_sets():
     return {"pre": pre, "pre+date": pre + in_date, "pre_individual": individual, "pre_pair": PAIR_FEATURES,
             "date": in_date, "categorical": [f"{p}_{c}" for p in ("f", "m") for c in CATEGORICAL],
             "extended_pair": EXTENDED_PAIR, "flags_pre": FLAGS_PRE, "flags_date": FLAGS_DATE,
-            "binary": ["same_field", "same_goal", "same_career"] + FLAGS_PRE + FLAGS_DATE,
+            "binary": ["same_field", "same_goal", "same_career", "samerace"] + FLAGS_PRE + FLAGS_DATE,
+            "race_block": RACE_BLOCK,
             "pref_reference": ["f_pref_shar", "m_pref_shar"],
             "format_standardized": [f"{p}_pref_{a}" for p in ("f", "m") for a in ATTRS] + ["fit_to_f_prefs", "fit_to_m_prefs"],
             "spline_candidates": ["f_age", "m_age", "abs_age_diff", "int_corr", "fit_to_f_prefs", "fit_to_m_prefs"],
@@ -212,7 +222,8 @@ def feature_sets():
             "response": "match", "ids": ["dyad", "event", "f_iid", "m_iid"],
             "notes": {"f_/m_": "the woman's / the man's own answer; for rating_* and prob, her / his view of the partner",
                       "categorical": "integer codes; rare codes merged and one-hot encoded inside each training fold",
-                      "excluded": "race variables (PREREG decision), f_dec/m_dec (define the response), age_diff "
+                      "race": "samerace and imprace enter only the P3d block (pre_race; PREREG.md, Part 4); individual race codes are not used",
+                      "excluded": "individual race codes (PREREG decision), f_dec/m_dec (define the response), age_diff "
                                   "(collinear with f_age and m_age), int_corr17 (near-duplicate of int_corr)"}}
 
 
@@ -223,7 +234,7 @@ def check_two_sided(clean):
     return {
         "dyads not seen from exactly one woman and one man": int(g.gender.agg(lambda s: sorted(s) != [0, 1]).sum()),
         **{f"dyads whose two rows disagree on {c}": int((g[c].nunique(dropna=False) > 1).sum())
-           for c in ["event", "match", "int_corr", "same_field", "condtn"]},
+           for c in ["event", "match", "int_corr", "same_field", "condtn", "samerace"] if c in clean},
         "dyads where age_diff is not antisymmetric": int(((both.age_diff[0] + both.age_diff[1]).abs() > 1e-9).sum()),
         "dyads where match != her yes * his yes": int((g.match.first() != both.dec[0] * both.dec[1]).sum()),
     }

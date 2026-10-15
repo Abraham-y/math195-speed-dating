@@ -215,6 +215,21 @@ Status, 2026-10-15:
   averaging 0.017 against a true spread of 0.010 to 0.017. With events redrawn it matches the spread, and its
   coverage falls to 84% to 94.5%. This is Proposition 2 seen from the other side: $\hat V_{\mathrm{CR}}$ estimates
   the random-design variance.
+- **Part 4 results (`sim_cv_repair.py`, events redrawn in every data set).** The floor covered 89% to 96.5% in all
+  15 designs with person or event effects (N3 supported). With A2's events redrawn, the cluster-robust interval
+  covered 87.4% instead of 99.2%, which confirms the fixed-design explanation (N4). The cluster-nested,
+  bias-adjusted interval covered 83.6% instead of 92.6% (N5). Exploratory: the Nadeau-Bengio corrected t on
+  event folds covered 90% to 97.5%, with a mean half-width of 0.038 against 0.047 for the floor. Next for theory:
+  derive the expectation of the Nadeau-Bengio variance under Proposition 1's covariance structure, and find when
+  its $1/(K-1)$ term matches $\bar c$. Next for simulation: a pre-registered confirmatory run on fresh seeds.
+- **Estimating $\bar c$ directly (item 2): not from one CV run.** The obvious estimator averages the cross-products
+  $(\bar e_g-\bar e)(\bar e_{g'}-\bar e)$ over pairs of clusters in different folds. With balanced clusters,
+  $\sum_{g\ne g'}(\bar e_g-\bar e)(\bar e_{g'}-\bar e)=\big(\sum_g(\bar e_g-\bar e)\big)^2-\sum_g(\bar e_g-\bar e)^2=-\sum_g(\bar e_g-\bar e)^2$. The
+  sum over different-fold pairs is the same quantity minus the same-fold pairs, so it is determined by the
+  cluster-robust sum and the within-fold structure, and adds no information about $\bar c$. A direct estimate needs
+  variation across fold assignments or training sets. Candidates are covariances of cluster errors across the $R$
+  repeated assignments, or the nested structure's outer-fold errors. This is open, for Jenna. Meanwhile Part 4
+  tests the floor (N3) and other repairs empirically (`sim_cv_repair.py`).
 - **The dyadic design.** Within-rater CV is biased by +0.024 for the full-data error (training-size effect), so
   every interval missed. Against the spread of the CV estimate (0.0065), the rater-clustered and ratee-clustered
   SEs fit (0.0064 and 0.0065), the two-way and dyadic-robust SEs are about 15% wide, and the naive SE is 20% narrow.
