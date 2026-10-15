@@ -153,6 +153,52 @@ Proof. $\hat a_i=(a_i-\bar a)+(\bar g_{i\cdot}-\bar g_{\cdot\cdot})$ and $\hat b
 
 Reading. The correlation of the raw estimated effects, which is the registered K2 estimator, therefore tends to $(\sigma_{ab}+c/m)/\sqrt{(\sigma_a^2+\sigma^2/m)(\sigma_b^2+\sigma'^2/m)}$, not to the generalized reciprocity. Put in the real estimates ($\sigma_a^2\approx0.98$, $\sigma_b^2\approx0.52$, $\sigma^2\approx1.89$, $c\approx0.21\times1.89$, $m\approx13$) and a true value near 0: this gives about 0.03, which matches the observed 0.036 and the simulated mean 0.031. With missing ratings, $c/m$ becomes $c\cdot n^{\mathrm{both}}_i/(n^{\mathrm{given}}_in^{\mathrm{received}}_i)$ per person, which is what the script uses (approximate). The ratio of corrected moments is consistent but can be unstable when a corrected variance is near zero (events of 3 or 4 a side; tested in `tests/test_part3.py`).
 
+## 6c. The Nadeau-Bengio correction on grouped folds (proved for fixed losses, 2026-10-15; for Jenna's review)
+
+Part 4 found that the Nadeau-Bengio corrected resampled t, run with whole events in each fold, covered close to
+90% with narrower intervals than our repair. The proposition below explains why. It concerns the test-sampling
+part of the variance, conditioning on the losses (no refitting).
+
+Setup:
+
+- Losses $\ell_1,\dots,\ell_n$ are fixed, in $G$ balanced clusters of $m$ rows with $G=Kq$. Write $\bar y$ for their
+  mean, $\bar c_g$ for the cluster means, $s_c^2=\frac{1}{G-1}\sum_g(\bar c_g-\bar y)^2$, and
+  $s^2=\frac{1}{n-1}\sum_i(\ell_i-\bar y)^2$.
+- A *grouped* partition deals the clusters at random into $K$ folds of $q$ clusters each. A *row* partition deals the
+  rows at random into $K$ folds of $n/K$ rows each.
+- Take $R$ independent partitions and let $e_1,\dots,e_J$ ($J=RK$) be the fold mean losses. The Nadeau-Bengio
+  variance is $\hat\sigma^2_{\mathrm{NB}}=\big(\frac1J+\frac{1}{K-1}\big)S^2$, with $S^2$ the sample variance of the
+  $e_j$.
+
+Proposition 6. Averaging over the random partitions,
+
+$$E\big[\hat\sigma^2_{\mathrm{NB}}\big]=\frac{J+K-1}{J-1}\cdot\frac{s_c^2}{G}\quad\text{(grouped)},\qquad E\big[\hat\sigma^2_{\mathrm{NB}}\big]=\frac{J+K-1}{J-1}\cdot\frac{s^2}{n}\quad\text{(rows)}.$$
+
+With balanced clusters, $s_c^2/G$ is exactly the cluster-robust variance of $\bar y$ (the $G/(G-1)$ form of Section 4), and
+$s^2/n$ is the naive variance. So on grouped folds the test-sampling part of the Nadeau-Bengio variance is the
+cluster-robust variance times $1+K/(J-1)$. On row folds it is the naive variance times the same factor.
+
+Proof.
+
+1. Every partition's folds average to $\bar y$, so the mean of all $J$ fold means is $\bar y$ exactly. Hence
+   $E[S^2]=\frac{1}{J-1}\sum_jE[(e_j-\bar y)^2]=\frac{J}{J-1}\operatorname{Var}_{\mathrm{sel}}(e_j)$.
+2. A grouped fold mean is the mean of $q$ cluster means drawn without replacement from $G$. Its selection variance is
+   $(1-q/G)\,s_c^2/q=(K-1)s_c^2/G$; for rows it is $(K-1)s^2/n$.
+3. Multiply by $\frac1J+\frac{1}{K-1}=\frac{K-1+J}{J(K-1)}$. $\square$
+
+Consequences.
+
+1. **Under clustering.** Under the two-level model, $E[s_c^2/G]\approx\operatorname{Var}(\bar y)$, while $E[s^2/n]\approx\sigma^2/n$
+   falls short of $\operatorname{Var}(\bar y)=\sigma^2(1+(m-1)\rho)/n$ by the Kish design effect. The correction therefore
+   handles clustering only because the folds are grouped. On row folds it inherits the naive variance's shortfall,
+   exactly $1+(m-1)\rho$. Registered prediction N7 tests this.
+2. **One CV run ($R=1$, $J=K$).** The factor is $(2K-1)/(K-1)$, which is 2.25 at $K=5$. Applied to a single $K$-fold
+   run, the correction overstates the test-sampling variance by that much.
+3. **With refitting.** Fold errors also vary because the fitted model changes from fold to fold. That extra spread
+   in $S^2$ is the training-set variability that the cluster-robust SE misses ($\bar c$ in Proposition 2). Conjecture,
+   to be checked in N6's grid and then proved: the excess of $\hat\sigma^2_{\mathrm{NB}}$ over
+   $\frac{J+K-1}{J-1}\hat V_{\mathrm{CR}}$ tracks $\bar c$.
+
 ## 7. First simulation (done; to be extended)
 
 Design. $G=40$ clusters of $m=20$ rows, $p=10$ covariates, logistic regression fitted by IRLS with a tiny ridge, 0-1 loss, $K=5$. Data: $x_i=u_{g(i)}+v_i$ with $u_g,v_i\sim N(0,I)$ (half the covariate variance is between clusters), $y_i\sim\mathrm{Bernoulli}(\sigma(x_i^\top\beta+a_{g(i)}))$ with $a_g\sim N(0,1)$ and $\beta=(1,1,0.5,0.5,0,\dots,0)$. The truth $\mathrm{Err}^{\mathrm{new}}(D)$ for the full-data model is computed on 300 fresh clusters. 300 replicates; nested procedures average over $R=20$ fold assignments. The Bates, Hastie and Tibshirani bias adjustment is omitted. Script: `sim_cv_cluster.py`.

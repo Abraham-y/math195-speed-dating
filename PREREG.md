@@ -295,6 +295,87 @@ Settings, fixed now:
   expected loss of the CV fold models themselves on fresh outcomes for their held-out pairs (the quantity
   within-rater CV estimates); the same five SEs; 200 replicates in 8 chunks of 25, seeds 20263206 + chunk.
 
+## Part 5 (committed 2026-10-15, after the Part 4 results and before any of this ran)
+
+The extensions listed in the team's extensions document, and a confirmatory test of the Nadeau-Bengio interval
+on event folds, which did well in Part 4's exploratory comparison. Proposition 6 (proposals/06), written before
+this entry, says the Nadeau-Bengio variance works on clustered data only because the folds are grouped.
+
+- N6. On a fresh grid with events redrawn, the Nadeau-Bengio interval on event folds covers 85% to 95% in all 12
+  designs, with a mean half-width at least 10% below the floor's in every design.
+- N7. On the same grid, the Nadeau-Bengio interval on random-row folds covers below 80% in every design. This is
+  Proposition 6's prediction: the correction alone does not fix clustering.
+- S2. Self-knowledge: across the six traits, the average cross-level coefficient gamma (stated weight x rating)
+  in the yes model is positive, with a 90% interval above 0. But stated weights explain less than 10% of the
+  variation in individual weights for every trait (R2_k < 0.10). Eastwick and Finkel (2008) found a weak link in
+  their own speed-dating data, so this is a replication with a different model.
+- C3. Chemistry: a rank-1 taste-by-trait term raises within-event AUC by less than 0.01 over the additive W1
+  model.
+- J1. Joint decisions: given each side's held-out pre-date yes prediction, the bivariate probit correlation rho is
+  positive, with a 90% interval above 0.
+- O1. Order: the chance of a yes falls with a date's relative position in the evening (gamma < 0, 90% interval
+  below 0).
+- M1. Matchmaker: one-to-one pairing by held-out pre-date match predictions yields fewer than 1.3 times the
+  matches of random pairing; pairing by pre+date predictions yields more than 2 times.
+
+Exploratory, no hypothesis: CR2 and precision-weighted variances in the grid; the training-set share of the
+Nadeau-Bengio variance; multiple-testing control; power and events needed; gender interactions in O1 and S2;
+d = 2 in C3; precision at k in M1.
+
+Settings, fixed now:
+
+- N6 and N7 (`scripts/sim_cv_confirm.py`). The A2 truth model. G in {10, 21, 40}, person SD in {0.5, 1.0}, event SD
+  in {0, 0.4}: 12 designs, 200 data sets each, events redrawn as in `sim_cv_repair.py`, R = 10, seeds 20263406 +
+  design index. Target: the error on 300 new events.
+  - Intervals: the Nadeau-Bengio t on event folds (as in Part 4); the same on random-row folds (R x K random-row
+    outer folds); the floor; the cluster-robust SE; CR2 (each event's residual sum divided by sqrt(1 - n_g/n),
+    t quantile on G - 1 degrees of freedom); the precision-weighted combination of the cluster-robust variance
+    and the cluster-nested MSE (lambda from the variances of the two estimates across the R repetitions,
+    nested MSE floored at 0).
+  - Also recorded: the ratio of the Nadeau-Bengio variance to (J + K - 1)/(J - 1) x the cluster-robust variance,
+    as the training-set share.
+- S2 (`scripts/self_knowledge.py`). By gender, dates with all six ratings and the rater's stated shares
+  (`*1_1_share`, standardized within survey format). Ratings standardized within gender.
+  - Model: logistic regression of the yes on rater indicators, the six ratings and the six products rating_k x
+    stated_k.
+  - Statistics: gamma_k and their mean with the event-clustered sandwich (`part1_models.coefficient_table`),
+    checked by a parametric bootstrap (200 replicates, seed 20263506).
+  - tau_k from a mixed logistic model with a random intercept and an independent random slope per trait for each
+    rater (statsmodels BinomialBayesMixedGLM), and R2_k = gamma_k^2 / (gamma_k^2 + tau_k^2).
+- C3 (`scripts/chemistry.py`). The W1 data and within-rater folds (seed 20262006).
+  - Model: logit P(yes) = mu + a_i + b_j + u_i'v_j with d in {0, 1} (d = 2 exploratory), fitted by alternating
+    ridge-logistic regressions (lambda in {1, 3, 10} for u and v, chosen on inner within-rater folds of the
+    training part; ridge 1 on a and b as in W1).
+  - Statistics: the AUC difference between d = 1 and d = 0 on the same held-out predictions, with the clustered
+    (Obuchowski) variance of the difference of the two models' placement values, by event; seed 20263606 for
+    the random starts.
+- J1 (`scripts/bivariate_probit.py`). The held-out pre-date yes predictions of `part2_models.py`
+  (`part2_models_yes_predictions.csv`, headline specification, `pre`, the better learner for each side as in D2),
+  converted to probit indices z = Phi^-1(p).
+  - Model: y_f = 1{alpha_f + theta_f z_f + e_f > 0}, y_m = 1{alpha_m + theta_m z_m + e_m > 0}, corr(e_f, e_m) = rho;
+    maximum likelihood.
+  - Statistics: event-clustered sandwich SEs, checked by a parametric bootstrap (200 replicates, seed 20263706).
+- O1 (`scripts/order_effects.py`). Every date with a decision.
+  - Model: a conditional logit within each rater, theta(t) = gamma x t / T_i, with t = `order` and T_i the rater's
+    number of dates; the denominator by the elementary-symmetric-polynomial recursion.
+  - Statistics: event-clustered sandwich SE; a permutation test shuffling positions within each rater (1,000
+    permutations, seed 20263806).
+  - Balance check: the partner's mean liking received from other raters, regressed on relative position.
+  - Gender interaction exploratory.
+- M1 (`scripts/matchmaker.py`). Held-out match predictions from `part1_models.cross_validate` (headline
+  specification, random forest, `pre` and `pre+date`, Part 1 seeds).
+  - Method: per event, the maximum-weight one-to-one assignment (scipy linear_sum_assignment) on the predicted
+    probabilities. Realized matches among the assigned pairs are compared with random pairing's expectation
+    (min(women, men) x the event's match rate).
+  - Statistics: the ratio of totals, with a 90% interval from 1,000 bootstrap resamples of events (seed 20263906).
+  - Precision at k for k in {1, 3} exploratory.
+- Multiple testing (`scripts/multiple_testing.py`). Benjamini-Hochberg and Benjamini-Yekutieli at q = 0.10, and
+  Storey's pi0 (lambda = 0.5), on the two-sided p-values of the headline coefficient tables (`pre`, `pre+date`) and
+  the yes models. No random operations.
+- Power (`scripts/power.py`). Paired AUC differences for P3 and P4 and the attractiveness gap of P5, with clustered
+  SEs as in C3. Events needed for 80% power at alpha = 0.05 for the observed difference and for 0.01 and 0.02,
+  checked for P4 by resampling G events with replacement (500 replicates, seed 20264006).
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -569,3 +650,5 @@ Settings, fixed now:
 - 2026-10-15 (new hypotheses P3d, N3, N4, N5, K3) Part 4: the team's race decision, the repair grid, A2 with
   redrawn events, the comparison intervals, reciprocity of the yes decisions and the matched two-person design,
   committed before any ran.
+- 2026-10-15 (new hypotheses N6, N7, S2, C3, J1, O1, M1) Part 5: the extensions document, a confirmatory test of the
+  Nadeau-Bengio interval and Proposition 6's prediction for random-row folds, committed before any ran.
