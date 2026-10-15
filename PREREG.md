@@ -376,6 +376,35 @@ Settings, fixed now:
   SEs as in C3. Events needed for 80% power at alpha = 0.05 for the observed difference and for 0.01 and 0.02,
   checked for P4 by resampling G events with replacement (500 replicates, seed 20264006).
 
+## Part 6 (committed 2026-10-15, after N6 and N7 ran and before any of this ran)
+
+Tests of the first-order theory, Proposition 8 in proposals/06 section 6e. They use balanced synthetic clusters,
+where the theory applies cleanly, over a wide range of cluster counts. Part 5's result is recorded unchanged: N6
+not supported (the event-fold Nadeau-Bengio interval covered 88% to 97.5%, above 95% in the four designs with 10
+events), N7 supported.
+
+- N8. For both evaluation losses (0-1 at the training positive rate, and log-loss), the ratio of
+  Var(CV - Err_new) to the mean cluster-robust variance lies in [0.85, 1.15] at G = 80, 160 and 320.
+- N9. With log-loss, the mean of the Nadeau-Bengio variance divided by (J+K-1)/(J-1) x the cluster-robust variance
+  lies in [0.9, 1.1] at G = 160 and 320. With 0-1 loss it is above 1.1 at every G.
+- N10. With log-loss, the correlation between the CV estimate and Err_new is below 0.2 at G = 80, 160 and 320.
+- N11. The cluster-robust interval with t quantiles on G - 1 degrees of freedom covers Err_new 85% to 95% of the
+  time at every G, for both losses.
+
+Exploratory: the correlation for 0-1 loss; coverage of the average error over training sets; Proposition 8's
+predicted Nadeau-Bengio limit, computed from the estimated variances of a and beta; the unbalanced real design.
+
+Settings (`scripts/sim_cv_firstorder.py`):
+
+- Data: G in {20, 40, 80, 160, 320} clusters of 40 rows each.
+  - Covariates: x = u_g + v_i with u_g and v_i independent N(0, I_3).
+  - Outcome: y ~ Bernoulli(logistic(b0 + x'(1, 0.5, 0) + a_g)), with a_g ~ N(0, 1) and b0 = -1.5.
+- Model: logistic regression on x (ridge 1e-6).
+- CV: one grouped 5-fold partition for the CV estimate and the cluster-robust variance, and R = 10 grouped
+  partitions for the Nadeau-Bengio variance.
+- Err_new: the full-data model's mean loss on 2,000 new clusters.
+- Replicates and seeds: 400 data sets per G, seeds 20264106 + G.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -652,3 +681,5 @@ Settings, fixed now:
   committed before any ran.
 - 2026-10-15 (new hypotheses N6, N7, S2, C3, J1, O1, M1) Part 5: the extensions document, a confirmatory test of the
   Nadeau-Bengio interval and Proposition 6's prediction for random-row folds, committed before any ran.
+- 2026-10-15 (new hypotheses N8, N9, N10, N11) Part 6: tests of Proposition 8 on balanced synthetic clusters,
+  committed after N6 and N7 ran (N6 not supported, N7 supported) and before any Part 6 run.

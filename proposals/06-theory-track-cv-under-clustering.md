@@ -199,6 +199,81 @@ Consequences.
    to be checked in N6's grid and then proved: the excess of $\hat\sigma^2_{\mathrm{NB}}$ over
    $\frac{J+K-1}{J-1}\hat V_{\mathrm{CR}}$ tracks $\bar c$.
 
+## 6d. Fixed against redrawn clusters in a coverage study (proved, 2026-10-15)
+
+Proposition 7. Hold the clusters fixed, in balanced clusters of $m$ rows. Cluster $g$ has expected loss
+$\mu_g$, which depends on its fixed composition. Losses are $\ell_i=\mu_{g(i)}+u_{g(i)}+v_i$, with independent
+mean-zero $u_g$ (variance $\sigma_u^2$) and $v_i$ (variance $\sigma_v^2$). Let $S_\mu^2=\frac{1}{G-1}\sum_g(\mu_g-\bar\mu)^2$. Then
+
+$$\operatorname{Var}(\bar y\mid\text{design})=\frac{\sigma_u^2}{G}+\frac{\sigma_v^2}{n},\qquad E\big[\hat V_{\mathrm{CR}}\mid\text{design}\big]=\operatorname{Var}(\bar y\mid\text{design})+\frac{S_\mu^2}{G}.$$
+
+If instead the clusters are redrawn, with $\mu_g$ i.i.d. of variance $\sigma_\mu^2$, then
+$E[\hat V_{\mathrm{CR}}]=\operatorname{Var}(\bar y)=(\sigma_\mu^2+\sigma_u^2)/G+\sigma_v^2/n$ exactly.
+
+Proof. The cluster means are $\bar c_g=\mu_g+u_g+\bar v_g$. With the design fixed,
+$E\sum_g(\bar c_g-\bar y)^2=\sum_g(\mu_g-\bar\mu)^2+(G-1)(\sigma_u^2+\sigma_v^2/m)$. Divide by $G(G-1)$. With the design random, add the
+expectation of $S_\mu^2$, which is $\sigma_\mu^2$. $\square$
+
+Reading. A coverage study that reuses the same clusters in every replicate measures the conditional variance.
+The cluster-robust SE, however, estimates the unconditional one, so it over-covers by an amount set by how
+different the clusters are. That is what happened in A2: 99.2% with the 21 real events fixed, against 87.4% with
+them redrawn (N4). In the 21-event designs, the mean cluster-robust SE was 0.017 against a true spread of 0.010 to
+0.017. The distinction is the classical one between design-based and model-based variance. The practical lesson
+is for simulation studies of CV error bars: redraw the clusters, or the cluster-robust SE will look better than it
+is.
+
+## 6e. First-order theory: what grouped CV estimates and which error bar fits it (derived 2026-10-15; to be tested in Part 6)
+
+Setup:
+
+- Clusters are i.i.d. and balanced. A model is fitted by an M-estimator on a set $T$ of clusters, with the usual
+  first-order expansion $\hat\theta_T-\theta^*\approx\frac{1}{|T|}\sum_{g\in T}\psi_g$; the influence functions $\psi_g$ are i.i.d.
+  across clusters with mean 0.
+- The evaluation loss may differ from the training criterion (here 0-1 loss with a threshold at the training
+  match rate, while the model is fitted by log-likelihood). Let $A_h(\theta)$ be cluster $h$'s mean evaluation
+  loss, $A(\theta)=E[A_h(\theta)]$, $a_h=A_h(\theta^*)$, $\mu=A(\theta^*)$, $d=\nabla A(\theta^*)$ and $\beta_g=d^\top\psi_g$.
+
+Proposition 8 (first order, balanced grouped $K$-fold CV). To first order, with remainders of order $1/G$:
+
+$$\widehat{\mathrm{Err}}_{\mathrm{CV}}=\bar a+\bar\beta,\qquad \mathrm{Err}_{\mathrm{new}}(\hat\theta_{\mathrm{all}})=\mu+\bar\beta,\qquad \widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}}=\bar a-\mu .$$
+
+So:
+
+- (i) $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})=\operatorname{Var}(a)/G$, which the cluster-robust variance estimates
+  consistently.
+- (ii) The fold errors of $R$ grouped partitions are fold means of $c_h=a_h-\beta_h/(K-1)$. By Proposition 6,
+  $E[\hat\sigma^2_{\mathrm{NB}}]\to\frac{J+K-1}{J-1}\operatorname{Var}(a-\beta/(K-1))/G$, so the Nadeau-Bengio interval is
+  conservative for $\mathrm{Err}_{\mathrm{new}}$ whenever $\operatorname{Var}(\beta)>2(K-1)\operatorname{Cov}(a,\beta)$.
+- (iii) $\operatorname{Corr}(\widehat{\mathrm{Err}}_{\mathrm{CV}},\mathrm{Err}_{\mathrm{new}})=\frac{\operatorname{Cov}(a,\beta)+\operatorname{Var}(\beta)}{\sqrt{\operatorname{Var}(a+\beta)\operatorname{Var}(\beta)}}$.
+- (iv) If the evaluation loss is the training criterion (log-loss here), then $d=0$ because $\theta^*$ minimizes $A$.
+  Then $\beta\equiv0$: the Nadeau-Bengio variance tends to $\frac{J+K-1}{J-1}\hat V_{\mathrm{CR}}$, and $\mathrm{Err}_{\mathrm{new}}$ varies only at
+  second order, so the correlation in (iii) vanishes. This is the setting in which Bates, Hastie and Tibshirani
+  found CV nearly uncorrelated with its conditional target.
+
+Derivation.
+
+1. Cluster $h$'s test loss under the model trained without its fold is
+   $A_h(\hat\theta_{T})\approx a_h+d^\top(\hat\theta_T-\theta^*)+(\nabla A_h-d)^\top(\hat\theta_T-\theta^*)$. The last term is the product of
+   a mean-zero term independent of $T$ and an $O_p(G^{-1/2})$ term; averaged over the fold's test clusters it is
+   $O_p(1/G)$.
+2. Fold $j$'s error is therefore $\bar a_{F_j}+\bar\beta_{T_j}$. Each cluster is in $K-1$ training sets of equal size, so
+   averaging over folds gives $\bar a+\bar\beta$.
+3. The full model's error is $A(\hat\theta_{\mathrm{all}})\approx\mu+\bar\beta$.
+4. Within a partition, $\bar\beta_{T_j}-\bar\beta=-\frac{1}{K-1}(\bar\beta_{F_j}-\bar\beta)$, which gives (ii) through Proposition 6. $\square$
+
+Relation to the literature. This is the first-order content of the CV central limit theorem of Bayle et al.
+(2020), applied with clusters as the units. The new pieces are the Nadeau-Bengio limit in (ii), the correlation in
+(iii), and the contrast in (iv) between an evaluation loss equal to the training criterion and one that differs.
+
+Caveats, seen in Part 5's grid:
+
+1. Real events are unbalanced (25 to 440 dyads), so the cancellation in step 2 is only approximate.
+2. Drawing 10 of 21 events without replacement adds a finite-population factor: the ratio of
+   $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})$ to $E[\hat V_{\mathrm{CR}}]$ was 0.75 at $G=10$.
+3. At $G=21$ and 40 that ratio was 1.11 and 1.28, so the remainders are not yet negligible.
+
+Part 6 tests the proposition on balanced synthetic clusters over a wide range of $G$.
+
 ## 7. First simulation (done; to be extended)
 
 Design. $G=40$ clusters of $m=20$ rows, $p=10$ covariates, logistic regression fitted by IRLS with a tiny ridge, 0-1 loss, $K=5$. Data: $x_i=u_{g(i)}+v_i$ with $u_g,v_i\sim N(0,I)$ (half the covariate variance is between clusters), $y_i\sim\mathrm{Bernoulli}(\sigma(x_i^\top\beta+a_{g(i)}))$ with $a_g\sim N(0,1)$ and $\beta=(1,1,0.5,0.5,0,\dots,0)$. The truth $\mathrm{Err}^{\mathrm{new}}(D)$ for the full-data model is computed on 300 fresh clusters. 300 replicates; nested procedures average over $R=20$ fold assignments. The Bates, Hastie and Tibshirani bias adjustment is omitted. Script: `sim_cv_cluster.py`.
