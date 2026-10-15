@@ -363,6 +363,27 @@ def auc_clustered_var(score, y, g):
     return S10 / M + S01 / N + 2 * S11 / (M * N)
 
 
+
+def auc_diff_clustered_var(score_a, score_b, y, g):
+    """Variance of AUC(score_a) - AUC(score_b) on the same rows, clusters g: the Obuchowski (1997) variance of
+    auc_clustered_var applied to the differences of the two models' placement values (the AUC difference is the
+    mean of those differences, so the same quadratic form gives its variance)."""
+    score_a, score_b, y, g = np.asarray(score_a, float), np.asarray(score_b, float), np.asarray(y), np.asarray(g)
+    a10, a01 = placement_values(score_a, y); b10, b01 = placement_values(score_b, y)
+    v10, v01 = a10 - b10, a01 - b01
+    A = v10.mean(); M, N = len(v10), len(v01)
+    cl = np.unique(g)
+    m_k = pd.Series(y == 1).groupby(g).sum().reindex(cl, fill_value=0).to_numpy(float)
+    n_k = pd.Series(y == 0).groupby(g).sum().reindex(cl, fill_value=0).to_numpy(float)
+    V10 = pd.Series(v10).groupby(g[y == 1]).sum().reindex(cl, fill_value=0).to_numpy()
+    V01 = pd.Series(v01).groupby(g[y == 0]).sum().reindex(cl, fill_value=0).to_numpy()
+    K = len(cl)
+    a, b = V10 - m_k * A, V01 - n_k * A
+    S10 = K / ((K - 1) * M) * np.sum(a ** 2)
+    S01 = K / ((K - 1) * N) * np.sum(b ** 2)
+    S11 = K / (K - 1) * np.sum(a * b)
+    return S10 / M + S01 / N + 2 * S11 / (M * N)
+
 def r_squared_and_rmse(y, pred, g):
     """Held-out R-squared and RMSE with cluster-robust SEs (clusters g = events). R-squared = 1 - A / B with A the
     mean squared error and B the mean squared deviation of y from its mean; each date contributes the linearized

@@ -186,12 +186,25 @@ Proof.
    $(1-q/G)\,s_c^2/q=(K-1)s_c^2/G$; for rows it is $(K-1)s^2/n$.
 3. Multiply by $\frac1J+\frac{1}{K-1}=\frac{K-1+J}{J(K-1)}$. $\square$
 
+Where this sits in the literature (literature check, 2026-10-15). The $J=K$ case is the random group method of
+survey sampling: Wolter (2007), *Introduction to Variance Estimation*, Theorem 2.4.4. There, averaged over random
+divisions of a fixed sample, the random-group variance equals the with-replacement variance, and in multistage
+samples the groups must be formed from whole clusters (his rule iii). Nadeau and Bengio derived their
+$\rho_0=n_2/n$ from the same fixed-loss approximation, but for random train/test splits. Bouckaert and Frank (2004)
+plugged it into repeated $K$-fold without a derivation. Markatou et al. (2005, Table 6) found empirically that the
+correction on a single $K$-fold run is about twice their variance approximation. We found no statement of three
+things: the factor for $R$ repeated partitions, the link between the corrected repeated $K$-fold variance and the
+random-group (cluster-robust) variance, or any analysis of the corrected t under grouped folds. The honest claim:
+Proposition 6 is the random-group estimator rewritten in cross-validation notation, with a small exact extension and
+a reading for grouped against row folds. The literature search did not cover Google Scholar or theses.
+
 Consequences.
 
 1. **Under clustering.** Under the two-level model, $E[s_c^2/G]\approx\operatorname{Var}(\bar y)$, while $E[s^2/n]\approx\sigma^2/n$
-   falls short of $\operatorname{Var}(\bar y)=\sigma^2(1+(m-1)\rho)/n$ by the Kish design effect. The correction therefore
-   handles clustering only because the folds are grouped. On row folds it inherits the naive variance's shortfall,
-   exactly $1+(m-1)\rho$. Registered prediction N7 tests this.
+   falls short of $\operatorname{Var}(\bar y)=\sigma^2(1+(m-1)\rho)/n$ by the Kish design effect. Strictly, the realized shortfall
+   is $m s_c^2/s^2$, which equals $\frac{n-1}{n-m}[1+(m-1)\rho]$ with Cochran's finite-population $\rho$. The correction therefore
+   handles clustering only because the folds are grouped; on row folds it inherits the naive variance's shortfall.
+   Registered prediction N7 tests this, and it held: row-fold coverage was 51% to 76%.
 2. **One CV run ($R=1$, $J=K$).** The factor is $(2K-1)/(K-1)$, which is 2.25 at $K=5$. Applied to a single $K$-fold
    run, the correction overstates the test-sampling variance by that much.
 3. **With refitting.** Fold errors also vary because the fitted model changes from fold to fold. That extra spread
@@ -273,6 +286,36 @@ Caveats, seen in Part 5's grid:
 3. At $G=21$ and 40 that ratio was 1.11 and 1.28, so the remainders are not yet negligible.
 
 Part 6 tests the proposition on balanced synthetic clusters over a wide range of $G$.
+
+**Results** (2026-10-15; `sim_cv_firstorder.py`, `firstorder_check.py`).
+
+- **Claim (ii), the Nadeau-Bengio limit, confirmed (N9).** The ratio of the Nadeau-Bengio variance to the scaled
+  cluster-robust variance tends to 1 under log-loss (1.005 and 0.994 at G = 160 and 320). Under 0-1 loss it stays
+  near 1.2 at every G (1.15 to 1.22). Quantitatively, the predicted ratio $\operatorname{Var}(a-\beta/4)/\operatorname{Var}(a)$, built from the
+  simulated variances and covariance, matched the observed ratio at all five G in the precise run (1.193 against
+  1.183, 1.196 against 1.187, 1.205 against 1.209, 1.203 against 1.206, 1.189 against 1.193), each inside the
+  prediction's 90% bootstrap interval. $\operatorname{Corr}(a,\beta)$ is about -0.5.
+- **Claim (iv), the correlation, confirmed (N10).** Under log-loss, $\operatorname{Corr}(\widehat{\mathrm{Err}}_{\mathrm{CV}},\mathrm{Err}_{\mathrm{new}})$ is between -0.11 and
+  -0.02. Under 0-1 loss it is positive, 0.08 to 0.21.
+- **Coverage confirmed (N11).** The cluster-robust interval with $t_{G-1}$ quantiles covered $\mathrm{Err}_{\mathrm{new}}$ 87.5% to 91.5% at every
+  G and for both losses.
+- **Claim (i), the variance ratio, not confirmed at the registered precision.** N8, with a band of [0.85, 1.15], and
+  N8b, with [0.9, 1.1] after removing the target's Monte Carlo variance, both failed: values ran from 0.91 to 1.17.
+  Pooled over G >= 80 and both losses, the corrected ratio is 1.05 (90% bootstrap interval 0.98 to 1.11). That is
+  consistent with 1. The registered bands were too tight for 400 data sets, where each ratio has about 7% sampling
+  error.
+- **A negative exploratory pilot.** Two fold counts (K = 5 and K = 2) were tried as a way to separate
+  $\operatorname{Var}(\beta)$ and $\operatorname{Cov}(a,\beta)$, which would also give an interval for the average error. It was too noisy and
+  biased to use: in 60 data sets at G = 80 (seed 999), the estimate of $\operatorname{Var}(\beta)$ had SD 2.6 times its
+  true value and came out negative 22% of the time. Halving the training set probably breaks the first-order
+  expansion. It was dropped and not registered.
+- **A caveat for every realistic-design simulation** (A2, the design grid, the repair grid, the confirmatory grid).
+  Their target was scored on 300 new events, whose own Monte Carlo SD is about 0.0045. That is 3% to 10% of
+  $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})$, so all reported coverages there are slightly understated, most at G = 40. With
+  it removed, the cluster-robust variance ratio in the confirmatory grid was 0.78 at G = 10 (a finite-population
+  effect, since those 10 events are drawn without replacement from 21), 1.05 at G = 21, and 1.18 and 1.46 in the
+  two G = 40 designs checked. The G = 40 excess in the realistic designs is not explained yet. Fold-size imbalance
+  is too small to account for it; this is an open question.
 
 ## 7. First simulation (done; to be extended)
 
