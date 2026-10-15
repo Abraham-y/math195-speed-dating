@@ -1,0 +1,104 @@
+# 07. Literature check: cross-validation error bars under clustering
+
+Date: 2026-10-15. Why: before claiming that the error-bar track (proposals/06) adds anything new. A background
+agent searched the literature and read papers and package source code. This note records what it found and what
+we can claim. Venues marked "unverified" were not confirmed from the paper itself.
+
+## Verdicts
+
+| Question | Verdict |
+| --- | --- |
+| (a) Nested CV with clusters held out at both levels, a cluster-robust outer variance and the Bates, Hastie and Tibshirani (BHT) bias adjustment | Partly done: every ingredient is published, but we found no paper that combines all three and tests coverage |
+| (b) CV error intervals for two-person (dyadic, cross-classified) data | Apparently open for prediction error; ingredients exist for structural parameters |
+| (c) Random-row CV and its intervals under-cover under clustering | Mostly done; our A1 and A2 confirm it |
+
+### (a) Cluster-aware nested CV
+
+- **Bates, Hastie and Tibshirani (2024, JASA 119(546); arXiv 2104.00673).** Assumes i.i.d. data. The discussion
+  lists adapting nested CV to dependent data as future work. Their R package `nestedcv` assigns folds by row with
+  no grouping option. Theorem 3 (the nested-CV MSE estimate is unbiased for the MSE of (K-1)-fold CV) carries over
+  directly when clusters are treated as the i.i.d. units. Our "cluster-nested MSE is unbiased" proposition is
+  therefore close to a corollary. What is new is unequal cluster sizes and ratio-type metrics.
+- **Cai, Luo, Guo et al. ("Bootstrapping the cross-validation estimate", arXiv 2307.00260v2).** i.i.d. Remark 4
+  suggests resampling whole subjects for longitudinal data but does not evaluate it.
+- **LeDell, Petersen and van der Laan (2015, EJS 9:1583-1607) and the `cvAUC` package.** `ci.pooled.cvAUC` does
+  grouped CV with influence curves summed within id and a variance over ids. This is essentially our
+  cluster-robust AUC estimator. It ignores the covariance between folds.
+- **Schulz-Kumpel et al. (2025, DMLR; arXiv 2409.18836) and the `mlr3inferr` package.** A benchmark of 13 CI
+  methods, i.i.d. only. Its nested-CV resampling inherits mlr3's group handling, so grouped folds at both levels
+  are possible, but its variance is computed row by row (read from the code, not run).
+- **Bayle, Bayle, Janson and Mackey (2020, NeurIPS).** A CV central limit theorem for independent, not identically
+  distributed points. With clusters as the points, it gives a grouped-CV Wald interval.
+- **Rabinowicz and Rosset (2022, JASA 117(538)).** Separate prediction for seen clusters from prediction for new
+  clusters, and correct the bias of CV under correlation. No variances or intervals.
+- **Internal-external CV (for example de Jong et al. 2021, Stat Med; `metamisc`).** Leave one cluster out and
+  pool the per-cluster results with a random-effects meta-analysis. Overlap between training sets is not modelled.
+
+### (b) The two-person (dyadic) case
+
+- **Cross-fitting.** Chiang, Kato, Ma and Sasaki (JBES 2022; arXiv 1909.03489) use K-squared-fold multiway
+  cross-fitting with a two-way cluster-robust SE. This is exactly a held-out-rater-and-ratee scheme, but for a
+  structural parameter, not prediction loss. Chiang, Ma, Rodrigue and Sasaki (arXiv 2110.04365) do dyadic
+  cross-fitting, again for a structural target.
+- **Variance theory:**
+  - Fafchamps and Gubert (2007, JDE) and Aronow, Samii and Assenova (2015, Political Analysis): dyadic-robust
+    variance.
+  - Tabord-Meehan: asymptotics of the dyadic-robust t (venue unverified).
+  - Cameron, Gelbach and Miller (2011, JBES): multiway clustering.
+  - MacKinnon, Nielsen and Webb (J. Econometrics): two-way cluster-robust variance often performs badly in finite
+    samples and can fail to be positive definite.
+  - Davezies, D'Haultfoeuille and Guyonvarch (2021, AoS 49(2)): central limit theorems and bootstrap for
+    exchangeable arrays.
+  - Menzel: non-Gaussian limits (venue unverified).
+  - Owen (2007, AoAS): pigeonhole bootstrap; Owen and Eckles (2012).
+- **Hold-out designs without intervals:**
+  - Park and Marcotte (2012, Nat Methods): C1, C2 and C3 test pairs.
+  - Pahikkala et al. (2015, Brief Bioinform) and Stock et al. (2020, Brief Bioinform).
+  - Network CV for model selection: Chen and Lei; Li, Levina and Zhu.
+- **This dataset.** Aronow, Samii and Assenova reanalysed this same speed-dating data and found dyadic-robust SEs
+  barely larger than SEs clustered on the subject. Everyone attends one wave, so all shared-person dependence sits
+  inside events, and holding out events with event clustering already covers it. The two-way problem appears only
+  for within-event targets (a new rater and a new ratee at an event already seen), which is our exploratory dyadic
+  design.
+
+### (c) Random-row CV is optimistic and naive error bars are too small
+
+- **Random-row CV is optimistic under grouping:** Roberts et al. (2017, Ecography; content not opened), Saeb et al.
+  (2017, GigaScience), Rabinowicz and Rosset (2022), Park and Marcotte (2012), Pahikkala et al. (2015).
+- **Naive CV standard errors are too small:** Varoquaux (2018, NeuroImage), Bengio and Grandvalet (2004, JMLR), and
+  Nadeau and Bengio (2003, Machine Learning; read through secondary sources).
+- **Not found:** a paper that runs BHT nested CV on clustered data and reports coverage. Our A2 demonstration is
+  new but small.
+- **Interpretation.** Most of the shortfall to 68-74% coverage of the new-event error is a centring failure: random
+  rows estimate the error for people already seen. It is not mainly a variance failure, so we should present it as
+  expected.
+
+## What we can claim
+
+"We adapt the Bates, Hastie and Tibshirani nested-CV interval to one-way clustered data: clusters are held out at
+both levels, the outer-fold term is cluster-robust, and the bias adjustment is kept. In a simulation calibrated to
+the data, with about 21 clusters, it gives near-nominal coverage of the new-cluster error, where the published
+version and grouped CV with a cluster-robust SE do not."
+
+How to frame the parts:
+
+- **Propositions in proposals/06.** Present them as clusters-as-units extensions of BHT Theorem 3, Bengio and
+  Grandvalet, and Bayle et al., not as new theory.
+- **Result (c).** Present it as a confirming demonstration.
+- **The dyadic case.** Claim nothing unless we implement a two-way scheme, for example the K-squared blocks of
+  Chiang et al. within events. Even then, state that in this dataset the problem is nested inside events.
+
+## Still to do
+
+1. **More comparisons in the simulation.** Add these intervals:
+   - the Nadeau-Bengio corrected t on grouped folds;
+   - Bayle et al.'s Wald interval with clusters as units;
+   - a cluster bootstrap of grouped CV (Cai et al., Remark 4);
+   - internal-external CV with a random-effects meta-analysis;
+   - grouped nested CV with a row-level variance (as `mlr3inferr` would compute it).
+2. **Over-coverage.** Explain why event CV with a cluster-robust SE covers 99% (A2). Possible causes are the
+   G/(G-1) factor, the choice of normal against t quantiles at G = 21, or a positive covariance between the CV
+   estimate and the target.
+3. **Citations in the write-up:** Bates et al.; Rabinowicz and Rosset; Bengio and Grandvalet; Nadeau and Bengio;
+   Bayle et al.; Austern and Zhou; LeDell et al.; Cai et al.; Schulz-Kumpel et al.; Roberts et al.; Saeb et al.;
+   Aronow et al.; Cameron, Gelbach and Miller; MacKinnon, Nielsen and Webb; Chiang et al. (2022); Owen (2007).

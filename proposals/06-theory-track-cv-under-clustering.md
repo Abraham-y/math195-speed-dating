@@ -129,9 +129,29 @@ Variance. With wave-grouped folds, Proposition 1 holds with waves as clusters, s
 
 Two-way estimator. Within a held-out fold, model the per-point errors conditional on the trained model as $e_{rc}=\mu+\alpha_r+\beta_c+\gamma_{\{r,c\}}+\varepsilon_{rc}$ with independent mean-zero components. Under this additive structure the multiway cluster-robust estimator of Cameron, Gelbach and Miller (2011), $\hat V_{R}+\hat V_{C}-\hat V_{R\cap C}$, with the dyad added as a third clustering by inclusion-exclusion, uses every row's information rather than four wave means.
 
-Proposition 4 (stated; proof to be written). Under the additive two-way model above with a balanced complete bipartite design within waves, the wave-cluster estimator is exactly unbiased for $\mathrm{Var}(e^{(k)}_{\mathrm{out}}\mid D_{-k})$ for any within-wave dependence, and the three-way Cameron-Gelbach-Miller estimator is unbiased for it up to a finite-sample term of order $1/n_k$ that can be computed exactly from the ANOVA decomposition because the design is balanced.
+Proposition 4 (proved 2026-10-15 for one direction; for Jenna's review). (i) With wave-grouped folds, the wave-cluster $b_k$ is unbiased for $\mathrm{Var}(e^{(k)}_{\mathrm{out}}\mid D_{-k})$ for any within-wave dependence. (ii) Take one balanced complete array of $R$ raters by $C$ ratees ($n=RC$ rows, one direction), with $e_{rc}=\mu+\alpha_r+\beta_c+\gamma_{rc}$ and independent mean-zero components of variances $\sigma_\alpha^2,\sigma_\beta^2,\sigma_\gamma^2$. Let $\hat V_{\mathrm{CGM}}=\hat V_R+\hat V_C-\hat V_{RC}$, each term the unbalanced cluster-robust variance of the mean with its own $G/(G-1)$ ($G=R$, $C$, and $n$). Then
 
-Open questions in this section, in order of value: (a) the exact finite-sample correction for the multiway estimator in the balanced bipartite design; (b) the relative variance of the wave-cluster and multiway $b_k$, which decides which one to use at 21 waves; (c) whether a wave-level effect (a good evening) breaks the additive model, testable from the data; (d) the extension of Proposition 3 with the multiway $b_k$.
+$$\mathrm{Var}(\bar e)=\frac{\sigma_\alpha^2}{R}+\frac{\sigma_\beta^2}{C}+\frac{\sigma_\gamma^2}{RC},\qquad E\big[\hat V_{\mathrm{CGM}}\big]-\mathrm{Var}(\bar e)=-\,\frac{C(R-1)\,\sigma_\alpha^2+R(C-1)\,\sigma_\beta^2}{n(n-1)} .$$
+
+So the two-way estimator is never conservative here. Its bias is of order $(\sigma_\alpha^2+\sigma_\beta^2)/n$, which is about $-2/(R+C)$ of the truth when $\sigma_\alpha=\sigma_\beta$ (about $-10\%$ at $R=C=10$). The bias is exactly computable, so it can be corrected with ANOVA estimates of $\sigma_\alpha^2,\sigma_\beta^2$.
+
+Proof. (i) As in Proposition 3: given $D_{-k}$, the held-out waves are i.i.d., so their mean errors are i.i.d. with a common variance, and $b_k$ is the unbiased sample-variance estimate of the variance of their mean. (ii) Write $\bar e_{r\cdot}$ for rater means. Since the design is complete, $\sum_c(e_{rc}-\bar e)=C(\bar e_{r\cdot}-\bar e)$ and $\bar e_{r\cdot}-\bar e=(\alpha_r-\bar\alpha)+(\bar\gamma_{r\cdot}-\bar\gamma)$ (the $\beta$ terms cancel). Hence $E\sum_r\big(\sum_c(e_{rc}-\bar e)\big)^2=C^2(R-1)(\sigma_\alpha^2+\sigma_\gamma^2/C)$, and with the factor $R/(R-1)$ and the divisor $n^2$, $E[\hat V_R]=\sigma_\alpha^2/R+\sigma_\gamma^2/n$. By symmetry $E[\hat V_C]=\sigma_\beta^2/C+\sigma_\gamma^2/n$. For the row-level term, $E\sum_{rc}(e_{rc}-\bar e)^2=C(R-1)\sigma_\alpha^2+R(C-1)\sigma_\beta^2+(n-1)\sigma_\gamma^2$, and $\hat V_{RC}$ divides this by $n(n-1)$. The $\sigma_\gamma^2$ terms combine to $\sigma_\gamma^2/n$ exactly; what is left is the display. $\square$
+
+Remark (two directions). In the real design each dyad gives two rows: $r\to c$ and $c\to r$. Two kinds of dependence remain outside the rater and ratee clusters. First, the two directions of a dyad share no rater and no ratee, but their pair terms correlate (dyadic reciprocity; 0.21 for liking, `scripts/srm.py`). Second, a person's rater effect and ratee effect can correlate (generalized reciprocity; about 0 here). The dyadic-robust estimator (Fafchamps and Gubert 2007; Aronow, Samii and Assenova 2015), which sums $r_ir_j$ over all pairs of rows sharing a person, includes both. Its finite-sample bias in the balanced bipartite design is not yet worked out. The exploratory dyadic design in `scripts/sim_cv_designs.py` compares all five SEs.
+
+Remark (what the literature says; proposals/07). For this dataset the problem is nested inside events, because every person attends one wave. Aronow et al. found dyadic-robust SEs barely larger than subject-clustered ones on these same data. The two-way question matters for within-event targets, such as a new rater and a new ratee at an event already seen, and for data where people appear in several clusters.
+
+Open questions in this section, in order of value: (a) the dyadic-robust analogue of Proposition 4(ii), with the cross-direction and actor-partner covariances; (b) the relative variance of the wave-cluster and multiway $b_k$, which decides which one to use at 21 waves; (c) whether a wave-level effect (a good evening) breaks the additive model, testable from the data; (d) the extension of Proposition 3 with the multiway $b_k$.
+
+## 6b. Generalized reciprocity in the social relations model (proved)
+
+This is used by `scripts/srm.py`. One event has $n$ women and $m$ men, all pairs observed. Women rating men: $x_{ij}=\mu+a_i+b_j+g_{ij}$. Men rating women: $y_{ji}=\mu'+a'_j+b'_i+g'_{ji}$. Here $\mathrm{Var}(g)=\sigma^2$, $\mathrm{Var}(g')=\sigma'^2$, $\mathrm{Cov}(g_{ij},g'_{ji})=c$ (dyadic reciprocity), and the pairs $(a_i,b'_i)$ are i.i.d. with covariance $\sigma_{ab}$ (generalized reciprocity, women's side). The estimated effects are the centred row and column means $\hat a_i=\bar x_{i\cdot}-\bar x_{\cdot\cdot}$ and $\hat b'_i=\bar y_{\cdot i}-\bar y_{\cdot\cdot}$.
+
+Proposition 5. $E\big[\sum_i\hat a_i\hat b'_i\big]=(n-1)\big(\sigma_{ab}+c/m\big)$ and $E\big[\sum_i\hat a_i^2\big]=(n-1)\big(\sigma_a^2+\sigma^2/m\big)$. With $\hat\sigma^2=\sum\hat g^2/((n-1)(m-1))$ and $\hat c=\sum\hat g\hat g'/((n-1)(m-1))$ from the double-centred residuals, both unbiased, the moments $\sum\hat a\hat b'/(n-1)-\hat c/m$ and $\sum\hat a^2/(n-1)-\hat\sigma^2/m$ are unbiased for $\sigma_{ab}$ and $\sigma_a^2$.
+
+Proof. $\hat a_i=(a_i-\bar a)+(\bar g_{i\cdot}-\bar g_{\cdot\cdot})$ and $\hat b'_i=(b'_i-\bar b')+(\bar g'_{\cdot i}-\bar g'_{\cdot\cdot})$, where $\bar g'_{\cdot i}$ averages the $m$ men's residuals for woman $i$. The noise pair $(\bar g_{i\cdot},\bar g'_{\cdot i})$ is independent across $i$ with covariance $m^{-2}\sum_j\mathrm{Cov}(g_{ij},g'_{ji})=c/m$. The centred cross-product of $n$ i.i.d. pairs has expectation $(n-1)$ times their covariance. For the residuals, with $H$ the centring matrix, $E\,\mathrm{tr}(H_nGH_m\,H_mG'^{\top}H_n)=\sum_{ij}c\,(1-1/n)(1-1/m)=c(n-1)(m-1)$, and the same for $\sigma^2$. $\square$
+
+Reading. The correlation of the raw estimated effects, which is the registered K2 estimator, therefore tends to $(\sigma_{ab}+c/m)/\sqrt{(\sigma_a^2+\sigma^2/m)(\sigma_b^2+\sigma'^2/m)}$, not to the generalized reciprocity. Put in the real estimates ($\sigma_a^2\approx0.98$, $\sigma_b^2\approx0.52$, $\sigma^2\approx1.89$, $c\approx0.21\times1.89$, $m\approx13$) and a true value near 0: this gives about 0.03, which matches the observed 0.036 and the simulated mean 0.031. With missing ratings, $c/m$ becomes $c\cdot n^{\mathrm{both}}_i/(n^{\mathrm{given}}_in^{\mathrm{received}}_i)$ per person, which is what the script uses (approximate). The ratio of corrected moments is consistent but can be unstable when a corrected variance is near zero (events of 3 or 4 a side; tested in `tests/test_part3.py`).
 
 ## 7. First simulation (done; to be extended)
 
@@ -179,6 +199,14 @@ Reading. The within-rater correlation of per-point errors is 0.09 with a median 
 6. Then run the whole procedure on the real data for the Part 1 models, which is Layer A of the proposal.
 
 Items 1 to 3 are a week for someone who likes this material, with the simulation harness already written. Items 4 and 5 are the part that would be new to the literature as far as we can tell.
+
+Status, 2026-10-15:
+
+- Item 1 is done. The bias adjustment runs in `sim_cv_matched.py` (A2: 92.6% coverage at nominal 90% with 21 events) and `errorbars_real.py`.
+- Item 4 is proved for one direction (Proposition 4(ii)); the two-direction case is open.
+- Item 5 runs in `sim_cv_designs.py`: the N1 and N2 grid of 18 designs, plus the exploratory dyadic design.
+- Item 6 is done for logistic regression and LDA (`errorbars_real.py`).
+- The literature check (proposals/07) changes the framing. Propositions 1 to 3 extend Bates, Hastie and Tibshirani, Bengio and Grandvalet, and Bayle et al. with clusters as the units; they are not new theory. The candidate contribution is the combined procedure and its coverage evidence at about 21 clusters.
 
 ## 9. References
 

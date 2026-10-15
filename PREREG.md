@@ -486,3 +486,14 @@ Settings, fixed now:
   Hastie and Tibshirani bias adjustment, added before either ran.
 - 2026-10-15 (new hypotheses R1, R2, K1, K2, N1, N2) Part 3: regression to the mean, stable matching, the social
   relations model and the error-bar design grid, committed before any ran.
+- 2026-10-15 (no hypothesis changed) The srm.py simulation check showed the registered generalized-reciprocity
+  estimator is biased upward (by about 0.03 at the real design): a person's actor and partner effects average the
+  residuals of the same dates, which the dyadic reciprocity correlates. K2 is decided on the registered estimator;
+  a corrected estimator (Kenny's round-robin covariance correction, adapted to the two-sided design) is reported
+  beside it as exploratory, with the same bootstrap, and the simulation now draws from the corrected value.
+- 2026-10-15 (no hypothesis changed) Details of sim_cv_designs.py fixed before its results were seen: for 10 and
+  40 events the events are drawn afresh in every replicate (without replacement for 10, with replacement and new
+  people for 40), and the intercept is calibrated once per (person SD, event SD) on the real design; N2 uses the
+  bias-adjusted Bates, Hastie and Tibshirani interval (the unadjusted one is reported too). Dyadic design: the
+  pair noise is a pair effect of SD 1 shared by both directions of a dyad (latent residual correlation 0.23, near
+  the 0.21 dyadic reciprocity of liking), with Bernoulli noise on top; the yes rate is calibrated to the real one.

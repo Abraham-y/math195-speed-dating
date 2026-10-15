@@ -1,7 +1,7 @@
-"""Write the methods manual: every step from the raw file to each model, metric and check, as a PDF.
+"""Write the methods manual: every step from the raw file to each model, metric and check (Parts 1 to 3), as a PDF.
 
-Input : data/feature_sets.json, data/pairs.csv, data/clean.csv, the constants in scripts/modeling.py and
-        scripts/part1_models.py, results/*_summary.csv and *_hypotheses.csv (for the tables of checks and verdicts)
+Input : data/feature_sets.json, data/pairs.csv, data/clean.csv, the constants and functions of the analysis scripts,
+        results/*_summary.csv and *_hypotheses.csv (for the tables of checks and verdicts)
 Output: results/methods_doc.tex and results/methods_doc.pdf (compiled with pdflatex, run twice for the contents)
 No random operations, so no seed. Every number in the document is read from those files or constants.
 Run from the repository root after the analysis scripts: python scripts/methods_doc.py
@@ -134,6 +134,154 @@ def table(header, rows, spec, caption=None, long=False, size=r"\small"):
     return "\n".join(out)
 
 
+def later_parts(add):
+    """Methods and results for Parts 2 and 3 (PREREG.md, Part 2, its error-bar addendum, and Part 3)."""
+    import re
+    import part2_models as P2
+    import ranking as RK
+    import forecasts as FC
+    import yes_extensions as YE
+    import sim_cv_matched as SM
+    import mean_reversion as MR
+    import stable_matching as SMT
+    import srm as SRM
+    import sim_cv_designs as SD
+    add(r"\section{Part 2: more models, leakage and the yes decisions}\label{sec:part2}")
+    add(r"""Part 2 uses the Part 1 machinery unchanged: the same event folds (seed """ + str(M.FOLD_SEED) + r"""), the same
+preparation inside each training fold (Section~\ref{sec:prep}; splines only for the logistic models), tuning by inner
+event folds on pooled AUC, and the same metrics and error bars. Its hypotheses were committed before any of it ran.""")
+    add(r"\subsection{Tree models (T1, T2)}")
+    add(r"""\begin{itemize}
+\item \textbf{Single classification tree}: Gini splits, cost-complexity pruning with $\alpha$ chosen by the inner folds from
+$\{""" + ", ".join(f"{a:g}" for a in P2.TREE_ALPHAS) + r"""\}$.
+\item \textbf{Bagging}: the random forest with every column available at every split (\texttt{max\_features=None}),
+""" + str(P1.RF_TREES) + r""" trees, minimum leaf size tuned from $\{""" + ", ".join(str(v) for v in P2.BAG_LEAVES) + r"""\}$.
+\item \textbf{Boosting}: histogram gradient boosting, learning rate 0.05, depth in $\{1, 2, 3\}$ and iterations in
+$\{100, 300, 600\}$ tuned jointly, no early stopping.
+\end{itemize}""")
+    add(snippet(P2.make_boost, "Boosting settings"))
+    add(r"\subsection{The leakage comparison (A1)}")
+    add(r"""Every model is rerun with \emph{random-row} 5-fold CV: each dyad is its own unit, dealt into folds by the same
+seed, with the inner tuning folds also random rows. The same people then appear in training and test folds. A1 compares
+the random-row AUC with the event AUC model by model. This is the only place random-row CV appears.""")
+    add(r"\subsection{The two-decision model (D1, D2)}")
+    add(r"""For each side, a full logistic regression and a random forest predict that side's yes from the same \texttt{pre}
+columns and preparation, fitted in each training fold. The match probability is the product
+$\hat P(\text{her yes})\,\hat P(\text{his yes})$. D1 uses the better product; D2 reports each side's yes AUC.""")
+    add(r"\subsection{Ensembles (E1, E2)}")
+    add(r"""Base models: """ + ", ".join(tx(b) for b in P2.STACK_BASE) + r""". The \textbf{mean ensemble} averages their
+predicted probabilities. The \textbf{stacked ensemble} is a logistic regression of the match on their logits (probabilities
+clipped to $[10^{-4}, 1 - 10^{-4}]$), fitted to inner event-CV predictions inside each training fold, so the stacking
+weights never see the test fold.""")
+    add(r"\subsection{Within-event prediction and strategic yes-saying (W1, S1)}")
+    add(r"""\textbf{W1.} One row per date from one side. Each rater's dates are dealt at random into 5 folds, so every rater and
+almost every ratee has dates in each training part. A logistic regression with one indicator per rater (how choosy)
+and one per ratee (how often chosen), ridge 1, predicts the held-out yes. The comparison is the pre-date yes AUC for
+people at new events (D2).
+
+\textbf{S1.} By gender, on dates with all six ratings, liking and the guess (\texttt{prob}), standardized within gender:
+a logistic regression of the yes on the eight; the guess's coefficient with a 90\% cluster-sandwich interval by event.""")
+    add(snippet(YE.within_rater_folds, "Within-rater folds"))
+    add(r"\subsection{Desirability rankings (B1, B2)}")
+    add(r"""Desirability is identified only within a wave and rater gender. In each such block a Rasch model
+$P(\text{yes}_{ij}) = \operatorname{logistic}(b_0 + \delta_j - \pi_i)$ is fitted with a ridge of """ + f"{RK.RIDGE:g}" + r""" on
+every person effect. 1,000 bootstrap resamples of the block's dates give the SE of every pairwise difference
+$\hat\delta_j - \hat\delta_k$; ratee $j$'s simultaneous 90\% rank range (Mogstad, Romano, Shaikh and Wilhelm 2024) counts
+the ratees significantly above and below $j$ at the 90\% quantile of the bootstrap max-$t$ over all pairs. B2 compares
+the rater and ratee SDs of a crossed random-effects logistic regression (variational Bayes, wave fixed effects).""")
+    add(snippet(RK.rank_ranges, "Simultaneous rank ranges"))
+    add(r"\subsection{People's own forecasts (C1, C2)}")
+    add(r"""The forecast is $p = \texttt{prob}/10$ clipped to $[0.025, 0.975]$; the outcome is the partner's decision. Reported:
+AUC (clustered SE), the calibration slope (the coefficient of $\operatorname{logit} p$ in a logistic regression of the
+outcome; below 1 means overconfident) and the Brier score split as reliability $-$ resolution $+$ uncertainty (Murphy
+1973). C2 compares each person's predicted number of matches (\texttt{match\_es}) with the number they got.""")
+    add(snippet(FC.murphy, "Brier score decomposition"))
+    add(r"\subsection{The error-bar study (A2 and the real-data comparison)}\label{sec:errorbars}")
+    add(r"""\textbf{Nested CV} (Bates, Hastie and Tibshirani 2024). For each of $R$ fold assignments and each outer fold $k$:
+an inner $(K-1)$-fold CV on the training part gives $\hat e^{(k)}_{\text{in}}$; the model trained on it gives the
+held-out errors with mean $e^{(k)}_{\text{out}}$; $a_k = (\hat e^{(k)}_{\text{in}} - e^{(k)}_{\text{out}})^2$ and $b_k$ estimates
+the variance of $e^{(k)}_{\text{out}}$. Then $\widehat{\text{MSE}} = \overline{a} - \overline{b}$. \textbf{Cluster-nested CV}
+(ours) deals whole events into folds at both levels and takes $b_k$ as the cluster-robust variance of the outer fold
+mean. Both are reported with the \textbf{bias adjustment} of Bates et al.:
+\[
+\text{centre} = \text{NCV} - \Big(1 + \frac{K-2}{K}\Big)(\text{NCV} - \text{CV}), \qquad
+\text{SE} = \sqrt{\tfrac{K-1}{K}}\,\sqrt{\widehat{\text{MSE}}},
+\]
+where NCV is the mean of the inner CV estimates. The \textbf{two-way cluster-robust} variance (Cameron, Gelbach and Miller
+2011) is $\hat V_{\text{woman}} + \hat V_{\text{man}} - \hat V_{\text{dyad}}$. \textbf{A2} simulates the real dyads, people and
+events from a logistic truth (four pre-date predictors plus woman, man and event effects, all from a crossed
+random-effects fit to the real matches), and scores every interval against the error of the replicate's model on
+300 new events. The proofs behind the cluster-nested estimate are in \texttt{proposals/06}; its standing in the
+literature is in \texttt{proposals/07}.""")
+    add(snippet(SM.nested_mse, "Nested and cluster-nested CV"))
+    add(snippet(SM.bht_interval, "The bias-adjusted interval"))
+
+    add(r"\section{Part 3: regression to the mean, reciprocity, stable matching and the design grid}\label{sec:part3}")
+    add(r"\subsection{Regression to the mean (R1, R2)}")
+    add(r"""Each participant's received ratings are split by the position of the date in the rater's evening (\texttt{order}
+odd or even); participants need at least two ratings in each half. R1 takes, in each of the 42 wave-and-gender blocks,
+the person with the best odd-half mean and measures their drop on the even half (cluster-robust SE by event). R2
+predicts each even-half mean by the empirical-Bayes shrunk odd-half mean
+\[
+\hat\mu_i = m + \frac{\tau^2}{\tau^2 + s_i^2}(\bar y_i - m), \qquad s_i^2 = \frac{\hat\sigma^2_{\text{within}}}{n_i}, \qquad
+\tau^2 = \max\big(0,\ \operatorname{var}(\bar y) - \overline{s^2}\big),
+\]
+within each block, against the raw mean, by RMSE.""")
+    add(snippet(MR.shrink, "Empirical-Bayes shrinkage"))
+    add(r"\subsection{Stable matching (exploratory)}")
+    add(r"""Each person's preferences over the opposite sex at their event follow the liking they gave (ties broken by the
+partner's mean liking received, then id; a missing rating ranks last). The men-proposing and women-proposing
+Gale--Shapley algorithms give the two extreme stable matchings; every result is checked to have no blocking pair.
+They are compared with the realized matches.""")
+    add(snippet(SMT.gale_shapley, "Gale--Shapley deferred acceptance"))
+    add(r"\subsection{The social relations model (K1, K2)}")
+    add(r"""Within each event and direction, liking $=$ mean $+$ actor $+$ partner $+$ residual, fitted by alternating means.
+\textbf{Dyadic reciprocity} (K1) is the correlation of the two directions' residuals over dyads rated both ways.
+\textbf{Generalized reciprocity} (K2, registered estimator) is the correlation over people of their actor and partner
+effects, each centred within event and direction. Variance shares come from two-way moment estimators pooled over
+events, and 90\% intervals from 1,000 bootstrap resamples of whole events.
+
+The simulation check showed the registered K2 estimator is biased upward: a person's actor and partner effects average
+residuals of the same dates, and those residuals correlate (the dyadic reciprocity). For $n$ women and $m$ men with
+residual covariance $c$ between directions,
+\[
+E\Big[\sum_i \hat a_i \hat b_i\Big] = (n-1)\big(\sigma_{ab} + c/m\big), \qquad E\Big[\sum_i \hat a_i^2\Big] = (n-1)\big(\sigma_a^2 + \sigma^2/m\big)
+\]
+(\texttt{proposals/06}, Proposition 5). The exploratory corrected estimate subtracts these terms before taking the
+correlation. K2 is decided on the registered estimator.""")
+    add(snippet(SRM.estimates, "Reciprocity estimates and the correction"))
+    add(r"\subsection{The design grid and the dyadic design (N1, N2)}")
+    add(r"""The A2 simulation is repeated over 18 designs: 10, 21 or 40 events (real events drawn afresh for 10 and 40);
+person-effect SD 0, 0.5 or 1; event-effect SD 0 or 0.4; 200 data sets each, the intercept calibrated to the real
+match rate. N1: the cluster-nested, bias-adjusted interval covers 85\% to 95\% in all 15 designs with person or event
+effects. N2: the published (random-row) bias-adjusted interval covers below 80\% in all 12 designs with person SD at
+least 0.5. The exploratory \textbf{dyadic design} uses the real events with every pair observed both ways, rater,
+ratee and pair effects (SD 1), within-rater CV of the W1 model, and compares the naive, rater-clustered,
+ratee-clustered, two-way and dyadic-robust (Aronow, Samii and Assenova 2015) SEs. The finite-sample bias of the
+two-way estimator in a balanced array is derived in \texttt{proposals/06}, Proposition 4.""")
+    add(snippet(SD.dyadic_var_of_mean, "Dyadic-robust variance of a mean"))
+
+    add(r"\section{Part 2 and Part 3 results}")
+    files = ["part2_models_hypotheses.csv", "sim_cv_matched_hypotheses.csv", "ranking_hypotheses.csv", "forecasts_hypotheses.csv",
+             "yes_extensions_hypotheses.csv", "mean_reversion_hypotheses.csv", "srm_hypotheses.csv", "sim_cv_designs_hypotheses.csv"]
+    rows = []
+    for f in files:
+        if not (RES / f).exists():
+            rows.append([tx(f.split("_hypotheses")[0]), "", "not yet run", ""])
+            continue
+        H = pd.read_csv(RES / f)
+        if "version" in H:
+            H = H[~H.version.astype(str).str.contains("complete-case")]
+        for r in H.itertuples():
+            stat = str(r.statistic)
+            if r.hypothesis == "A1":
+                gaps = [float(v) for v in re.findall(r"[+-]\d\.\d{4}", stat)]
+                stat = f"random-row minus event AUC from {min(gaps):+.3f} to {max(gaps):+.3f} over {len(gaps)} model and feature-set pairs"
+            rows.append([r.hypothesis, tx(getattr(r, "version", "") if isinstance(getattr(r, "version", ""), str) else ""), tx(stat),
+                         "supported" if str(r.supported) == "True" else "not supported"])
+    add(table(["", "Version", "Statistic", "Verdict"], rows, "lL{2.6cm}L{9.6cm}l", long=True, size=r"\footnotesize"))
+
+
 def main():
     sets = json.loads(pathlib.Path("data/feature_sets.json").read_text())
     pairs = pd.read_csv("data/pairs.csv")
@@ -183,9 +331,9 @@ def main():
 \setlist{itemsep=2pt,topsep=4pt}
 \setlength{\parskip}{0.5em}\setlength{\parindent}{0pt}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Part 1 methods: data, predictors, preparation, models, metrics and checks}
+\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 3: data, predictors, models, metrics, error bars and checks}
 \author{Math 195 capstone: Sophia Qin, Jenna Yang, Abraham Yeung}
-\date{8 October 2026 \quad (code at commit """ + tx(commit) + r""")}
+\date{15 October 2026 \quad (code at commit """ + tx(commit) + r""")}
 \begin{document}
 \maketitle
 \begin{abstract}
@@ -193,7 +341,9 @@ This manual records every step that turns the raw Columbia speed-dating file int
 were cleaned, every predictor (including the ones we constructed), how each training fold is prepared, exactly how
 each model (logistic regression, stepwise selection, LDA, QDA, random forest, lasso, the yes model and the liking
 model) is fitted and tuned, how AUC and the other metrics and their error bars are computed, and how each
-pre-registered hypothesis and robustness check is decided. It is generated by \texttt{scripts/methods\_doc.py}
+pre-registered hypothesis and robustness check is decided. Sections~\ref{sec:part2} and~\ref{sec:part3} add the Part 2
+and Part 3 methods: tree models, the leakage comparison, ensembles, the two-decision model, rankings, forecasts, the
+error-bar study, regression to the mean, stable matching and the social relations model. It is generated by \texttt{scripts/methods\_doc.py}
 from the code and data, so its lists and constants match what ran. The decisions themselves, with dates, are in
 \texttt{PREREG.md}.
 \end{abstract}
@@ -670,12 +820,17 @@ in ten bins, with $\pm 2$ SE bands, to spot curvature.
 SD 0.4 (\texttt{sim\_coef\_cluster.py}). With 21 events the match-model error bars run slightly narrow: read a 90\%
 interval as roughly an 83\% one.""")
 
+    later_parts(add)
+
     # ------------------------------------------------------------------ 13 reproduce
     add(r"\section{Reproducing the results}")
     add(r"""\begin{enumerate}
 \item Create the environment: \texttt{python3 -m venv .venv}, then \texttt{.venv/bin/pip install -r requirements.txt}.
 \item Run the scripts in the order of Section 1 from the repository root. \texttt{part1\_models.py} takes about 30
 minutes with \texttt{-{}-jobs 5}; set \texttt{OMP\_NUM\_THREADS=1} so parallel folds do not compete for threads.
+\item Parts 2 and 3, in order: \texttt{part2\_models.py}, \texttt{yes\_extensions.py}, \texttt{ranking.py},
+\texttt{forecasts.py}, \texttt{sim\_cv\_matched.py}, \texttt{errorbars\_real.py}, \texttt{mean\_reversion.py},
+\texttt{stable\_matching.py}, \texttt{srm.py}, \texttt{sim\_cv\_designs.py}.
 \item Run the tests: \texttt{for t in tests/test\_*.py; do .venv/bin/python \$t; done}.
 \item Regenerate this document: \texttt{python scripts/methods\_doc.py}.
 \end{enumerate}
@@ -700,7 +855,15 @@ The same code and seeds reproduce every number to the last digit (checked by two
             ["AUC simulation", "20261006 to 20261015 (five per design)"],
             ["Liking simulation", "20261506 to 20261515"],
             ["Coefficient bootstrap", "20261406 + 1000 x design + replicate"],
-            ["Fold and seed noise", "fold seeds 20261007 to 20261016; forest seeds 20261107 to 20261111"]]
+            ["Fold and seed noise", "fold seeds 20261007 to 20261016; forest seeds 20261107 to 20261111"],
+            ["Tree, bagging, boosting (Part 2)", "20261606, 20261706, 20261806 + outer fold"],
+            ["A2 simulation", "20261906"],
+            ["W1 within-rater folds; S1 bootstrap", "20262006; 20262406"],
+            ["Ranking bootstrap; coverage; dates needed", "20262106; 20262206 + block; 20262306 + 1"],
+            ["Forecast slope check", "20262306"],
+            ["Real-data error bars", "20262506"],
+            ["Social relations model: bootstrap; simulation", "20262606; 20262706"],
+            ["Design grid; dyadic design", "20262806 + design index; 20262906"]]
     add(table(["Random operation", "Seed"], rows, "L{5cm}L{9cm}"))
     add(r"\section{More code}")
     add("The rest of the code that decides the reported results, as it ran.")
