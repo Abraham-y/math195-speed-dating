@@ -258,7 +258,9 @@ effects. N2: the published (random-row) bias-adjusted interval covers below 80\%
 least 0.5. The exploratory \textbf{dyadic design} uses the real events with every pair observed both ways, rater,
 ratee and pair effects (SD 1), within-rater CV of the W1 model, and compares the naive, rater-clustered,
 ratee-clustered, two-way and dyadic-robust (Aronow, Samii and Assenova 2015) SEs. The finite-sample bias of the
-two-way estimator in a balanced array is derived in \texttt{proposals/06}, Proposition 4.""")
+two-way estimator in a balanced array is derived in \texttt{proposals/06}, Proposition 4. After N1 failed, post hoc
+diagnostics were added (\texttt{results/sim\_cv\_designs\_diagnostics.csv}): the share of zero-width intervals, coverage
+among the rest, and the floor $\max(\hat V_{\text{CR}}, \widehat{\text{MSE}}_{\text{CN}})$. No verdict rests on them.""")
     add(snippet(SD.dyadic_var_of_mean, "Dyadic-robust variance of a mean"))
 
     add(r"\section{Part 2 and Part 3 results}")

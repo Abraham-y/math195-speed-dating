@@ -2,7 +2,8 @@
 
 Input : data/pairs.csv (the A2 truth model and the real events), data/clean.csv (the dyadic design's events)
 Output: results/sim_cv_designs_rows.csv (one row per design and replicate), results/sim_cv_designs_coverage.csv,
-        results/sim_cv_designs_dyadic.csv, results/sim_cv_designs_dyadic_rows.csv, results/sim_cv_designs_hypotheses.csv
+        results/sim_cv_designs_dyadic.csv, results/sim_cv_designs_dyadic_rows.csv, results/sim_cv_designs_hypotheses.csv,
+        results/sim_cv_designs_diagnostics.csv (post hoc, added after the run: see below)
 Seeds : design d uses 20262806 + d (d = 0, ..., 17); the dyadic design 20262906.
 
 Design grid. The A2 truth model of sim_cv_matched.py (the four pre-date predictors, coefficients from the crossed
@@ -25,6 +26,11 @@ predicting yes when the probability exceeds the training yes rate. Target: the f
 fresh outcomes for the same pairs (same effects, fresh Bernoulli draws). SEs of the CV error: naive, clustered by
 rater, by ratee, two-way (Cameron, Gelbach and Miller: V_rater + V_ratee - V_row), and dyadic-robust (any two
 rows that share a person; Aronow, Samii and Assenova 2015).
+Diagnostics (post hoc, added 2026-10-15 after N1 failed; no hypothesis rests on them): per design, the share of data
+sets whose nested MSE estimate is zero or negative (a zero-width interval), the coverage of the bias-adjusted interval
+among the others, the correlation of the CV estimate with the target, and the coverage of the floor
+max(cluster-robust, cluster-nested) of proposals/06; for the dyadic design, the spread of the CV estimate across data
+sets against each mean SE. `--diagnostics` recomputes them from the saved rows without rerunning the simulation.
 Run from the repository root: python scripts/sim_cv_designs.py [replicates] [nested repetitions] [workers]
 """
 import os
@@ -176,11 +182,42 @@ def dyadic_design(clean, reps, rng):
     return D, C
 
 
+def diagnostics(D, DD):
+    """Post hoc diagnostics of the grid (one row per design) and of the dyadic design (one row)."""
+    rows = []
+    for (G, ps, es), d in D.groupby(["events", "person_sd", "event_sd"]):
+        pos = d.bht_event_se > 0
+        hit = np.abs(d.bht_event_centre - d.err_new) <= Z * d.bht_event_se
+        floor = np.maximum(d.se_event_cr, d.se_event_cluster_nested)
+        rows.append(dict(design=int(d.design.iloc[0]), events=G, person_sd=ps, event_sd=es, reps=len(d),
+                         share_zero_width=float((~pos).mean()), coverage_bias_adjusted=float(hit.mean()),
+                         coverage_bias_adjusted_given_positive=float(hit[pos].mean()),
+                         coverage_floor_cr_cluster_nested=float((np.abs(d.cv_event - d.err_new) <= Z * floor).mean()),
+                         corr_cv_target=float(np.corrcoef(d.cv_event, d.err_new)[0, 1]), sd_cv=float(d.cv_event.std(ddof=1)),
+                         sd_target=float(d.err_new.std(ddof=1)), sd_cv_minus_target=float((d.cv_event - d.err_new).std(ddof=1)),
+                         mean_se_cluster_robust=float(d.se_event_cr.mean()),
+                         design_redrawn=bool(G != 21), seed=int(d.seed.iloc[0])))
+    dy = dict(design="dyadic", reps=len(DD), sd_cv=float(DD.cv.std(ddof=1)), sd_target=float(DD.target.std(ddof=1)),
+              corr_cv_target=float(np.corrcoef(DD.cv, DD.target)[0, 1]), mean_bias=float((DD.cv - DD.target).mean()),
+              **{f"mean_{c}": float(DD[c].mean()) for c in ("se_naive", "se_rater", "se_ratee", "se_two_way", "se_dyadic")})
+    return pd.DataFrame(rows), pd.DataFrame([dy])
+
+
 def run_dyadic(reps):
     return dyadic_design(pd.read_csv("data/clean.csv", low_memory=False), reps, np.random.default_rng(DYADIC_SEED))
 
 
+def write_diagnostics():
+    DG, DY = diagnostics(pd.read_csv(RES / "sim_cv_designs_rows.csv"), pd.read_csv(RES / "sim_cv_designs_dyadic_rows.csv"))
+    pd.concat([DG, DY], ignore_index=True).assign(post_hoc=True).to_csv(RES / "sim_cv_designs_diagnostics.csv", index=False)
+    with pd.option_context("display.width", 250):
+        print(DG.drop(columns=["seed"]).to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+        print(DY.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+
+
 def main():
+    if "--diagnostics" in sys.argv:
+        return write_diagnostics()
     reps = int(sys.argv[1]) if len(sys.argv) > 1 else 200
     R = int(sys.argv[2]) if len(sys.argv) > 2 else 10
     workers = int(sys.argv[3]) if len(sys.argv) > 3 else max(1, (os.cpu_count() or 2) - 1)
@@ -205,6 +242,7 @@ def main():
         print(C.pivot_table(index=["events", "person_sd", "event_sd"], columns="procedure", values="coverage_90").round(3).to_string())
         print(DC.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
         print(hyp[["hypothesis", "statistic", "supported"]].to_string(index=False))
+    write_diagnostics()
 
 
 if __name__ == "__main__":

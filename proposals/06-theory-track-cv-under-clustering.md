@@ -204,7 +204,20 @@ Status, 2026-10-15:
 
 - Item 1 is done. The bias adjustment runs in `sim_cv_matched.py` (A2: 92.6% coverage at nominal 90% with 21 events) and `errorbars_real.py`.
 - Item 4 is proved for one direction (Proposition 4(ii)); the two-direction case is open.
-- Item 5 runs in `sim_cv_designs.py`: the N1 and N2 grid of 18 designs, plus the exploratory dyadic design.
+- Item 5 ran in `sim_cv_designs.py` (18 designs, plus the exploratory dyadic design). N2 is supported: the
+  published random-row interval covers 46% to 74%. N1 is not supported: the cluster-nested, bias-adjusted interval
+  covers 86.5% to 92% with the real 21 events, but 83% to 86% with 10 redrawn events and 73.5% to 82% with 40. The
+  main cause is the variance of the estimate (Section 5, last remark). In 4% to 15% of data sets the MSE estimate
+  is zero or negative, which gives a zero-width interval; among the rest the interval covers 84% to 98%. The floor
+  of Section 5 covered 92% to 100% in every design. That is a post hoc finding, to be registered before it is tested.
+- **Why the cluster-robust SE over-covers in A2 (99%).** The A2 design and the 21-event designs reuse the real events
+  in every replicate, so the variation from drawing new events is absent. The cluster-robust SE still counts it,
+  averaging 0.017 against a true spread of 0.010 to 0.017. With events redrawn it matches the spread, and its
+  coverage falls to 84% to 94.5%. This is Proposition 2 seen from the other side: $\hat V_{\mathrm{CR}}$ estimates
+  the random-design variance.
+- **The dyadic design.** Within-rater CV is biased by +0.024 for the full-data error (training-size effect), so
+  every interval missed. Against the spread of the CV estimate (0.0065), the rater-clustered and ratee-clustered
+  SEs fit (0.0064 and 0.0065), the two-way and dyadic-robust SEs are about 15% wide, and the naive SE is 20% narrow.
 - Item 6 is done for logistic regression and LDA (`errorbars_real.py`).
 - The literature check (proposals/07) changes the framing. Propositions 1 to 3 extend Bates, Hastie and Tibshirani, Bengio and Grandvalet, and Bayle et al. with clusters as the units; they are not new theory. The candidate contribution is the combined procedure and its coverage evidence at about 21 clusters.
 

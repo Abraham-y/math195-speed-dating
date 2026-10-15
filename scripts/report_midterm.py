@@ -151,14 +151,28 @@ def main():
         rows.append(f"| {p} | {r.coverage_90:.1%} | {r.mean_half_width:.4f} |")
     add("\n".join(rows) + "\n\nTable 2. 500 simulated data sets with the real design (`sim_cv_matched.py`).\n")
     add("The conventional interval and the published nested-CV interval of Bates, Hastie and Tibshirani (2024) both fall "
-        "well short. Holding out events fixes what is being estimated. The cluster-robust SE then over-covers, and our "
+        "well short. Holding out events fixes what is being estimated. In this design the cluster-robust SE over-covers, and our "
         "cluster-nested, bias-adjusted version is closest to 90%. A literature check (`proposals/07`) found no paper that "
         "combines grouped folds at both levels, a cluster-robust outer variance and the bias adjustment, and tests its "
         "coverage. That combination is the candidate contribution, framed as an extension of Bates et al. to clustered data.\n")
     if designs:
         dh = csv("sim_cv_designs_hypotheses").set_index("hypothesis")
+        dg = csv("sim_cv_designs_diagnostics")
+        dg = dg[dg.design != "dyadic"].astype({"events": float})
+        cv = csv("sim_cv_designs_coverage")
+        ours = cv[(cv.procedure == "event cluster-nested, bias-adjusted") & ((cv.person_sd > 0) | (cv.event_sd > 0))]
+        rng_ = lambda d: f"{d.coverage_90.min():.1%} to {d.coverage_90.max():.1%}"
+        cr = cv[(cv.procedure == "event CV, cluster-robust SE") & ((cv.person_sd > 0) | (cv.event_sd > 0))]
         add(f"Across 18 simulated designs: **N1** ({verdict(dh.loc['N1'])}): {dh.loc['N1'].statistic}. "
-            f"**N2** ({verdict(dh.loc['N2'])}): {dh.loc['N2'].statistic}.\n")
+            f"**N2** ({verdict(dh.loc['N2'])}): {dh.loc['N2'].statistic}. Our interval covers {rng_(ours[ours.events == 21])} with "
+            f"the real 21 events, but {rng_(ours[ours.events == 10])} with 10 redrawn events and {rng_(ours[ours.events == 40])} with 40. "
+            f"In {dg.share_zero_width.min():.0%} to {dg.share_zero_width.max():.0%} of data sets its MSE estimate is zero or "
+            f"negative, which gives a zero-width interval; among the rest it covers "
+            f"{dg.coverage_bias_adjusted_given_positive.min():.0%} to {dg.coverage_bias_adjusted_given_positive.max():.0%}. The "
+            f"cluster-robust SE covers {rng_(cr[cr.events == 21])} with the real events but {rng_(cr[cr.events != 21])} with "
+            f"redrawn ones, so the A2 figures are flattered by holding the events fixed. A post hoc repair, the larger of "
+            f"the cluster-robust and cluster-nested SEs, covered {dg.coverage_floor_cr_cluster_nested.min():.0%} to "
+            f"{dg.coverage_floor_cr_cluster_nested.max():.0%} in every design; it will be pre-registered before it is tested.\n")
     else:
         add("The design grid behind N1 and N2 is still running.\n")
     add("### 4.4 Part 3: luck, mutual liking and stable matches\n")

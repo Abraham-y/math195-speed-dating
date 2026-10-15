@@ -497,3 +497,8 @@ Settings, fixed now:
   bias-adjusted Bates, Hastie and Tibshirani interval (the unadjusted one is reported too). Dyadic design: the
   pair noise is a pair effect of SD 1 shared by both directions of a dyad (latent residual correlation 0.23, near
   the 0.21 dyadic reciprocity of liking), with Bernoulli noise on top; the yes rate is calibrated to the real one.
+- 2026-10-15 (no hypothesis changed) After the design grid ran (N1 not supported, N2 supported): post hoc
+  diagnostics added to sim_cv_designs.py (results/sim_cv_designs_diagnostics.csv): the share of zero-width
+  intervals, coverage among the rest, and the floor max(cluster-robust, cluster-nested). No verdict rests on them.
+  Any repair of the cluster-nested interval, and a rerun of A2 with events redrawn, will be registered here as new
+  numbered hypotheses before they run.
