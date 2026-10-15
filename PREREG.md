@@ -405,6 +405,24 @@ Settings (`scripts/sim_cv_firstorder.py`):
 - Err_new: the full-data model's mean loss on 2,000 new clusters.
 - Replicates and seeds: 400 data sets per G, seeds 20264106 + G.
 
+## Part 6b (committed 2026-10-15, after N8 to N11 ran and before any of this ran)
+
+N8 to N11 are recorded unchanged.
+
+- N8 was not supported. The variance ratio was 1.06 to 1.155, one value above 1.15.
+- N9, N10 and N11 were supported.
+
+A diagnosis after the run: Err_new was measured on only 2,000 new clusters. Its own Monte Carlo noise has SD
+about 0.0043 for log-loss, which is where the SD of Err_new stops shrinking. That noise adds to Var(CV - Err_new)
+and matters most at large G.
+
+- N8b. Rerun with fresh seeds. Measure Err_new on 20,000 new clusters, and subtract its Monte Carlo variance (the
+  cluster-robust variance of the new-sample mean loss, averaged over data sets) from Var(CV - Err_new). The
+  corrected ratio then lies in [0.9, 1.1] at G = 80, 160 and 320, for both losses.
+
+Settings: `scripts/sim_cv_firstorder.py --new-clusters 20000 --seed-base 20264506 --tag b`. Everything else is as in
+Part 6. N9 to N11 are recomputed there as exploratory replications.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -683,3 +701,5 @@ Settings (`scripts/sim_cv_firstorder.py`):
   Nadeau-Bengio interval and Proposition 6's prediction for random-row folds, committed before any ran.
 - 2026-10-15 (new hypotheses N8, N9, N10, N11) Part 6: tests of Proposition 8 on balanced synthetic clusters,
   committed after N6 and N7 ran (N6 not supported, N7 supported) and before any Part 6 run.
+- 2026-10-15 (new hypothesis N8b) Part 6b: after N8 failed narrowly, a rerun with Err_new on 20,000 new clusters
+  and its Monte Carlo variance subtracted, committed before it ran.
