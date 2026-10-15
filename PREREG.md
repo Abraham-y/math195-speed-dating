@@ -233,11 +233,75 @@ Settings, fixed now:
   pairs; SEs: naive, clustered by rater, by ratee, two-way (Cameron, Gelbach and Miller), and dyadic-robust (any
   shared person; Aronow, Samii and Assenova 2015); 200 replicates, seed 20262906.
 
+## Part 4 (committed 2026-10-15, after the Part 3 results and before any of this ran)
+
+The team's race decision (below, under Decisions), a repair of the error-bar method after N1 failed, a rerun of A2
+with the events redrawn, the comparison intervals named by the literature check (proposals/07), reciprocity of the
+yes decisions, and a two-person design whose target matches what within-rater CV estimates.
+
+- P3d. Race (agreed by the team on 2026-10-15): `samerace` (whether the two people share a race, as released) and
+  race-preference fit in both directions (`samerace` x each person's stated importance of dating someone of the
+  same race, `imprace`, 1 to 10) are added as a separate block on top of the P3c model. The block raises
+  event-held-out AUC by less than 0.02. Individual race codes are not used as predictors, race is never a response,
+  and results are reported in the framing of the original authors' 2008 paper on racial preferences in dating
+  (stated same-race preference against revealed choices).
+- N3. With the events redrawn in every replicate, the floor interval (the event CV estimate plus or minus 1.645 x
+  the larger of the cluster-robust SE and the cluster-nested root MSE; proposals/06, section 5) covers the
+  new-event error at least 85% of the time in every one of the 15 designs with person or event effects.
+- N4. With the A2 truth and the 21 events redrawn in every replicate, event CV with the cluster-robust SE covers
+  between 85% and 95% (the 99.2% of A2 came from holding the events fixed).
+- N5. In the design of N4, the cluster-nested, bias-adjusted interval covers less than its A2 coverage of 92.6%.
+- K3. Dyadic reciprocity of the yes decisions (the social relations model of `srm.py` on the 0/1 decision) is
+  positive: its 90% interval lies above 0.
+
+Exploratory, no hypothesis: the yes-model analysis in the 2008 framing; the comparison intervals; the fallback and
+bias-adjusted floor intervals; the two-person design with the matched target.
+
+Settings, fixed now:
+
+- P3d (`scripts/race_models.py`): the full logistic model of the P3b/P3c ladder on `pre_interactions` plus the
+  block `samerace`, `samerace` x `f_imprace`, `samerace` x `m_imprace` (feature set `pre_race`), against the same
+  model without the block, on the same rows and folds. Headline and complete-case versions; the complete-case dyads
+  are complete on every ladder column and the race columns. An `imprace` of 0 (one person, outside the 1 to 10
+  scale) is set to missing, as under the Part 1 out-of-range rule; `samerace` and `imprace` are carried in
+  `data/pairs.csv` but enter no other feature set. Exploratory, in the 2008 framing: by gender, on dates with all
+  six ratings, a logistic regression of the yes on the six ratings (standardized), `samerace`, and `samerace` x the
+  rater's own `imprace` (centred), with cluster-sandwich SEs by event; and the raw yes rates for same-race and
+  different-race dates by gender.
+- K3 (`scripts/srm.py dec`): the K1/K2 model and 1,000-resample event bootstrap (seed 20262606) on `dec` instead of
+  `like`. The simulation check draws a latent social relations model with the liking variance shares and a latent
+  pair correlation of 0.2, thresholded at the real yes rate (200 replicates, seed 20262706); because the 0/1
+  estimator's target differs from the latent value, coverage is checked for the mean estimate over replicates.
+- Repair grid (`scripts/sim_cv_repair.py`): the grid of `sim_cv_designs.py` (G in {10, 21, 40}, person SD in
+  {0, 0.5, 1}, event SD in {0, 0.4}; 200 replicates; R = 10), with the events redrawn in every replicate for every
+  G (10 without replacement; 21 and 40 with replacement, fresh people per draw); seeds 20263006 + design index.
+  Intervals: everything in A2 except the random-row nested runs, plus:
+  - the floor (N3);
+  - the fallback: the bias-adjusted interval, with the cluster-robust SE whenever the MSE estimate is not positive;
+  - the bias-adjusted floor: bias-adjusted centre, SE the larger of the cluster-robust and bias-adjusted SEs;
+  - the Nadeau-Bengio corrected t on grouped folds: the R x K outer-fold mean losses of the nested run, centred at
+    their mean, variance (1/(RK) + 1/(K-1)) x their sample variance, t quantile with RK - 1 degrees of freedom;
+  - a cluster bootstrap of grouped CV (Cai et al., Remark 4): B = 50 resamples of events with replacement, copies of
+    an event kept in one fold, SE = SD of the 50 CV estimates, centred at the event CV estimate;
+  - internal-external CV: leave one event out, per-event error rates with binomial variances (rates clipped to
+    [0.5/n_g, 1 - 0.5/n_g]), DerSimonian-Laird random-effects mean and its SE;
+  - grouped nested CV with a row-level variance (as `mlr3inferr` computes it), bias-adjusted.
+  The Wald interval of Bayle et al. with events as units is the cluster-robust interval without the G/(G-1) factor
+  and is not run separately.
+- N4 and N5 (`scripts/sim_cv_repair.py`): the A2 truth model (crossed random-effects fit, intercept recalibrated as
+  in A2), 21 events drawn with replacement in every replicate, 500 replicates in 10 chunks of 50, seeds 20263106 +
+  chunk; the same intervals.
+- Two-person design, matched target (`scripts/sim_cv_repair.py`): as in `sim_cv_designs.py`, but the target is the
+  expected loss of the CV fold models themselves on fresh outcomes for their held-out pairs (the quantity
+  within-rater CV estimates); the same five SEs; 200 replicates in 8 chunks of 25, seeds 20263206 + chunk.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
   sensitivity check excluding it, unless the team decides otherwise here.
 - Race and race-preference variables: excluded from the predictor sets unless the team decides otherwise here.
+  Decided 2026-10-15 by the team: used only in the P3d block of Part 4 (`samerace` and its products with each
+  person's `imprace`); individual race codes stay out of every model, and race is never a response.
 - Missing values: headline results use all 4,184 dyads for both feature sets, so `pre` and `pre+date` are
   compared on the same rows. Missing numeric features are filled with their training-fold median; a missing
   field, career or goal code becomes its own level. Four indicators mark whether each person has any missing
@@ -502,3 +566,6 @@ Settings, fixed now:
   intervals, coverage among the rest, and the floor max(cluster-robust, cluster-nested). No verdict rests on them.
   Any repair of the cluster-nested interval, and a rerun of A2 with events redrawn, will be registered here as new
   numbered hypotheses before they run.
+- 2026-10-15 (new hypotheses P3d, N3, N4, N5, K3) Part 4: the team's race decision, the repair grid, A2 with
+  redrawn events, the comparison intervals, reciprocity of the yes decisions and the matched two-person design,
+  committed before any ran.
