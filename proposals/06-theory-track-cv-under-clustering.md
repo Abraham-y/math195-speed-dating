@@ -316,6 +316,28 @@ Part 6 tests the proposition on balanced synthetic clusters over a wide range of
   effect, since those 10 events are drawn without replacement from 21), 1.05 at G = 21, and 1.18 and 1.46 in the
   two G = 40 designs checked. The G = 40 excess in the realistic designs is not explained yet. Fold-size imbalance
   is too small to account for it; this is an open question.
+- **Resolved by Part 7** (`sim_cv_sizes.py`). The realistic designs were rerun with G = 21 and 40 (events redrawn),
+  the target scored on 2,000 new events, and fresh seeds. The cluster-robust variance ratio, corrected for the
+  target's Monte Carlo variance, was 0.93 to 1.15, and coverage was:
+  - 82% to 90% for the plain cluster-robust interval with normal quantiles;
+  - 86% to 91% with t quantiles on G - 1 (CR2) or on G* - 1 (G* about 14 at G = 21 and 27 at G = 40);
+  - 85% to 91% for the wild cluster bootstrap-t (N12 supported).
+  The plain interval no longer fell below 85% at G = 40 (N13 not supported). So the earlier G = 40 shortfall was
+  mostly the imprecise target plus sampling variation, not unequal event sizes.
+
+**Where the error-bar track stands.**
+
+1. Hold out whole clusters. This fixes what is being estimated (Lemma 1).
+2. Use the cluster-robust SE with t quantiles on G - 1 (or on the effective number of clusters), or the wild
+   cluster bootstrap-t. To first order this is the right variance for the full model's new-cluster error
+   (Proposition 8, and Bayle et al. with clusters as units). It covered 86% to 91% in every design with a precise
+   target.
+3. The Nadeau-Bengio correction on grouped folds is conservative by a factor the theory predicts (Proposition 8 (ii);
+   predicted and observed within about 1%). On random-row folds it fails by the design effect (Proposition 6, N7).
+4. Bates, Hastie and Tibshirani's nested CV as published, with random-row folds, fails (N2). Our cluster-nested
+   version is unbiased in mean (Proposition 3) but noisy.
+5. For coverage studies: redraw the clusters (Proposition 7) and score the target precisely (Part 6b, Part 7).
+   Otherwise the coverage numbers are distorted.
 
 ## 7. First simulation (done; to be extended)
 

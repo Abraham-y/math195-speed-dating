@@ -57,6 +57,19 @@ def test_proposition_7_fixed_design_overstatement():
     assert abs(np.mean(vcr) / (var_fixed + mu.var(ddof=1) / G) - 1) < 0.03
 
 
+def test_wild_cluster_bootstrap_variance_known_answer():
+    """Rademacher signs on cluster residual sums: the bootstrap mean has variance sum R_g^2 / n^2 exactly, and with
+    balanced clusters the |t*| quantile is near the normal 1.645 when G is large."""
+    import sim_cv_sizes as SZ
+    rng = np.random.default_rng(4)
+    g = np.repeat(np.arange(200), 5); u = rng.normal(size=200)[g] + rng.normal(size=1000)
+    R = pd.Series(u - u.mean()).groupby(g).sum().to_numpy()
+    W = rng.choice([-1.0, 1.0], size=(20000, 200))
+    assert abs(np.var((W @ R) / 1000) / (np.sum(R ** 2) / 1000 ** 2) - 1) < 0.03
+    q = SZ.wild_cluster_t_quantile(u, g, 4000, rng)
+    assert abs(q - 1.645) < 0.08
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

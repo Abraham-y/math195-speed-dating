@@ -147,6 +147,7 @@ def later_parts(add):
     import srm as SRM
     import sim_cv_designs as SD
     import sim_cv_repair as SR
+    import sim_cv_sizes as SZ
     add(r"\section{Part 2: more models, leakage and the yes decisions}\label{sec:part2}")
     add(r"""Part 2 uses the Part 1 machinery unchanged: the same event folds (seed """ + str(M.FOLD_SEED) + r"""), the same
 preparation inside each training fold (Section~\ref{sec:prep}; splines only for the logistic models), tuning by inner
@@ -282,10 +283,37 @@ internal--external CV with a DerSimonian--Laird random-effects mean, and grouped
     add(snippet(SR.nadeau_bengio, "Nadeau--Bengio corrected resampled t"))
     add(snippet(SR.dersimonian_laird, "DerSimonian--Laird random-effects mean"))
 
-    add(r"\section{Part 2 to Part 4 results}")
+    add(r"\section{Parts 5 to 7: extensions and the theory of CV error bars under clustering}\label{sec:part5}")
+    add(r"""\textbf{Extensions} (Part 5). Self-knowledge (S2): a yes model with rater indicators and the products of each
+rating with the rater's stated weight for that trait, plus a mixed model for the spread of individual weights
+(\texttt{self\_knowledge.py}). Chemistry (C3): a rank-$d$ taste-by-trait term $\mathbf u_i^\top\mathbf v_j$ added to the within-event
+model, fitted by alternating ridge-logistic regressions (\texttt{chemistry.py}). Joint decisions (J1): a bivariate probit on
+the two sides' held-out yes predictions (\texttt{bivariate\_probit.py}). Order (O1): a conditional logit in the date's
+relative position within each rater (\texttt{order\_effects.py}). Matchmaker (M1): the maximum-weight one-to-one pairing on
+held-out match predictions (\texttt{matchmaker.py}). Also Benjamini--Hochberg and Benjamini--Yekutieli control
+(\texttt{multiple\_testing.py}) and events needed for 80\% power (\texttt{power.py}).
+
+\textbf{Theory} (\texttt{proposals/06}, sections 6c to 6e). \emph{Proposition 6}: with the per-row losses held fixed, the
+Nadeau--Bengio corrected variance from $R$ random partitions into $K$ folds averages $\frac{J+K-1}{J-1}$ times the cluster-robust
+variance when the folds are grouped, and $\frac{J+K-1}{J-1}$ times the naive variance when they are random rows ($J=RK$). This
+is the random-group estimator of survey sampling in CV notation. \emph{Proposition 7}: a coverage study that reuses the same
+clusters overstates the cluster-robust SE by the spread of the clusters' expected losses. \emph{Proposition 8}: to first
+order, grouped CV equals $\bar a+\bar\beta$ and the full model's new-cluster error equals $\mu+\bar\beta$, so their difference is
+$\bar a-\mu$. The cluster-robust SE fits that difference, while the Nadeau--Bengio variance tends to
+$\frac{J+K-1}{J-1}\operatorname{Var}(a-\beta/(K-1))/G$. When the evaluation loss is the training criterion, $\beta\equiv 0$.
+
+\textbf{Simulations.} \texttt{sim\_cv\_confirm.py} (N6, N7), \texttt{sim\_cv\_firstorder.py} and \texttt{firstorder\_check.py}
+(N8 to N11, N8b) and \texttt{sim\_cv\_sizes.py} (N12, N13: the wild cluster bootstrap-$t$ with Rademacher signs on each
+event's residual sum).""")
+    add(snippet(SZ.wild_cluster_t_quantile, "Wild cluster bootstrap-t quantile"))
+
+    add(r"\section{Part 2 to Part 7 results}")
     files = ["part2_models_hypotheses.csv", "sim_cv_matched_hypotheses.csv", "ranking_hypotheses.csv", "forecasts_hypotheses.csv",
              "yes_extensions_hypotheses.csv", "mean_reversion_hypotheses.csv", "srm_hypotheses.csv", "sim_cv_designs_hypotheses.csv",
-             "race_models_hypotheses.csv", "srm_dec_hypotheses.csv", "sim_cv_repair_hypotheses.csv"]
+             "race_models_hypotheses.csv", "srm_dec_hypotheses.csv", "sim_cv_repair_hypotheses.csv",
+             "sim_cv_confirm_hypotheses.csv", "self_knowledge_hypotheses.csv", "chemistry_hypotheses.csv", "bivariate_probit_hypotheses.csv",
+             "order_effects_hypotheses.csv", "matchmaker_hypotheses.csv", "sim_cv_firstorder_hypotheses.csv",
+             "sim_cv_firstorder_hypotheses_b.csv", "sim_cv_sizes_hypotheses.csv"]
     rows = []
     for f in files:
         if not (RES / f).exists():
@@ -353,7 +381,7 @@ def main():
 \setlist{itemsep=2pt,topsep=4pt}
 \setlength{\parskip}{0.5em}\setlength{\parindent}{0pt}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 4: data, predictors, models, metrics, error bars and checks}
+\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 7: data, predictors, models, metrics, error bars and checks}
 \author{Math 195 capstone: Sophia Qin, Jenna Yang, Abraham Yeung}
 \date{15 October 2026 \quad (code at commit """ + tx(commit) + r""")}
 \begin{document}
@@ -886,7 +914,9 @@ The same code and seeds reproduce every number to the last digit (checked by two
             ["Real-data error bars", "20262506"],
             ["Social relations model: bootstrap; simulation", "20262606; 20262706"],
             ["Design grid; dyadic design", "20262806 + design index; 20262906"],
-            ["Repair grid; A2 redrawn; matched dyadic design", "20263006 + design; 20263106 + chunk; 20263206 + chunk"]]
+            ["Repair grid; A2 redrawn; matched dyadic design", "20263006 + design; 20263106 + chunk; 20263206 + chunk"],
+            ["Part 5: confirm grid; S2; C3; J1; O1; M1; power", "20263406 + design; 20263506; 20263606; 20263706; 20263806; 20263906; 20264006"],
+            ["Part 6 and 6b; first-order check; Part 7", "20264106 + G; 20264506 + G; 20264606; 20264706 + design"]]
     add(table(["Random operation", "Seed"], rows, "L{5cm}L{9cm}"))
     add(r"\section{More code}")
     add("The rest of the code that decides the reported results, as it ran.")
