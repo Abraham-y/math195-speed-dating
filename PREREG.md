@@ -423,6 +423,32 @@ and matters most at large G.
 Settings: `scripts/sim_cv_firstorder.py --new-clusters 20000 --seed-base 20264506 --tag b`. Everything else is as in
 Part 6. N9 to N11 are recomputed there as exploratory replications.
 
+## Part 7 (committed 2026-10-15, after N8b ran and before any of this ran)
+
+N8b is recorded unchanged: not supported. The corrected ratios were 0.91 to 1.17; pooled over G >= 80 and both
+losses the ratio is 1.05, 90% bootstrap interval 0.98 to 1.11 (`firstorder_check.py`).
+
+In the realistic designs, the cluster-robust SE under-covered at G = 40 even after removing the target's Monte Carlo
+noise (proposals/06, 6e, results). A known cause in econometrics is very unequal cluster sizes (MacKinnon and Webb
+2017), and our events have 25 to 440 dyads. Their remedy is the wild cluster bootstrap.
+
+- N12. In the realistic designs below, the wild cluster bootstrap-t interval for the event-CV error covers Err_new
+  85% to 95% of the time in all 8 designs.
+- N13. With the target measured precisely, the plain cluster-robust interval (normal quantiles) still covers below
+  85% in at least one G = 40 design. This replicates the Part 5 shortfall.
+
+Exploratory: the CR2 interval with t quantiles on G - 1 degrees of freedom; the cluster-robust interval with t
+quantiles on G* - 1, where G* = (sum n_g)^2 / sum n_g^2 is the effective number of clusters; and the link between a
+data set's size heterogeneity and a miss.
+
+Settings (`scripts/sim_cv_sizes.py`):
+
+- Designs: the A2 truth with G in {21, 40} events drawn with replacement (fresh people per draw), person SD in
+  {0.5, 1.0} and event SD in {0, 0.4}: 8 designs, 300 data sets each, seeds 20264706 + design index.
+- Err_new: measured on 2,000 new events.
+- The wild cluster bootstrap-t: Rademacher weights on each event's residual sum, 999 draws, the cluster-robust t
+  statistic recomputed each time, and a symmetric interval from the 90% quantile of |t*|.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -703,3 +729,5 @@ Part 6. N9 to N11 are recomputed there as exploratory replications.
   committed after N6 and N7 ran (N6 not supported, N7 supported) and before any Part 6 run.
 - 2026-10-15 (new hypothesis N8b) Part 6b: after N8 failed narrowly, a rerun with Err_new on 20,000 new clusters
   and its Monte Carlo variance subtracted, committed before it ran.
+- 2026-10-15 (new hypotheses N12, N13) Part 7: the wild cluster bootstrap for CV error bars under unequal cluster
+  sizes, committed after N8b ran (not supported) and before any Part 7 run.
