@@ -178,6 +178,61 @@ Settings, fixed now:
     root of the nested MSE estimate, K = 5. It is reported for random-row nested CV and for event cluster-nested CV,
     in the A2 simulation and on the real data, next to the unadjusted intervals.
 
+## Part 3 (committed 2026-10-15, after the Part 2 results and before any of this ran)
+
+From proposals/05 (Layer D, renamed R because D1 and D2 are taken) and the error-bar track, plus two new analyses.
+
+- R1. Regression to the mean at the top: in each wave and gender, the participant with the highest mean liking
+  received on their odd-position dates is rated, on average over the 42 blocks, at least 0.5 points lower on
+  their even-position dates.
+- R2. Empirical-Bayes (James-Stein type) shrinkage of each participant's mean liking received on odd-position
+  dates predicts their even-position mean with a lower RMSE than the raw odd-position mean.
+- K1. Dyadic reciprocity of liking is positive: after removing each person's actor effect (how much they like
+  their dates in general) and partner effect (how much their dates like them in general), the two people's
+  residual liking of each other correlates at least 0.10.
+- K2. Generalized reciprocity of liking is negative: across people, the actor effect (liking others) and the
+  partner effect (being liked) correlate below 0.
+- N1. Across a grid of simulated designs (below), the cluster-nested, bias-adjusted CV interval covers the
+  new-event error between 85% and 95% in every design that has person or event effects.
+- N2. In every design with person effects of SD at least 0.5, the nested interval of Bates, Hastie and
+  Tibshirani as published (random-row folds) covers below 80%.
+
+Exploratory, no hypothesis: stable matching within each event; the variance shares of the social relations
+model; coverage of error bars for within-event (two-person, dyadic) cross-validation.
+
+Settings, fixed now:
+
+- R1 and R2 (`scripts/mean_reversion.py`): the ratings each participant received from the opposite sex at their
+  event, split by the position of that date in the rater's evening (`order`: odd or even); participants with at
+  least two ratings in each half. Liking is primary; attractiveness is reported alongside. R1: the mean over the
+  wave-and-gender blocks of (odd mean - even mean) for each block's odd-half leader (ties to the lower iid), with a
+  cluster-robust SE by event. R2: within each block, shrunk_i = m + tau2 / (tau2 + s2_i)(raw_i - m), where m is the
+  block's mean of raw odd-half means, s2_i the participant's within-person rating variance over the odd half divided
+  by their number of odd ratings (pooled within block), and tau2 = max(0, variance of the raw means - mean s2_i);
+  RMSE over all participants of predicting the even-half mean. The reverse split (even to odd) is reported.
+- Stable matching (`scripts/stable_matching.py`): within each event, each person's preferences over the
+  opposite sex follow their liking ratings (ties broken by the partner's mean liking received, then iid; a missing
+  rating ranks last). The men-proposing and women-proposing Gale-Shapley matchings (one-to-one; the larger side
+  leaves some unmatched) are compared with the realized matches (mutual yeses): the share of stable pairs that were
+  mutual yeses, the share of realized matches that are stable pairs, and each side's mean preference rank of its
+  partner under each matching (the proposing side's advantage). No random operations.
+- Social relations model (`scripts/srm.py`): liking within each event and direction (women rating men, men
+  rating women), additive model liking = mean + actor + partner + residual fitted by alternating means; dyadic
+  reciprocity = correlation of the two directions' residuals over dyads with both ratings; generalized reciprocity =
+  correlation over people of their actor effect and their partner effect (each centred within event and
+  direction); variance shares by two-way random-effects moment estimators, pooled over events. 90% intervals from
+  1,000 cluster-bootstrap resamples of events (seed 20262606), checked by simulating a social relations model with
+  known variances and correlations on the real design (200 replicates, seed 20262706).
+- Design grid (`scripts/sim_cv_designs.py`): the A2 truth model (four predictors, coefficients from the real data)
+  with events G in {10, 21, 40} (real events resampled for 10 and 40; the real 21 for 21), person-effect SD (women
+  and men alike) in {0, 0.5, 1.0} and event-effect SD in {0, 0.4}: 18 designs, 200 replicates each, nested
+  repetitions R = 10, intercept recalibrated to the real match rate in each design, seeds 20262806 + design index.
+  Intervals and target as in A2. Dyadic design (exploratory): the real events with every pair observed; a rater
+  effect, a ratee effect (SD 1 each) and pair noise; within-rater random 5-fold CV of a logistic regression with
+  rater and ratee indicators (as W1); target = the full-data model's expected loss on fresh outcomes for the same
+  pairs; SEs: naive, clustered by rater, by ratee, two-way (Cameron, Gelbach and Miller), and dyadic-robust (any
+  shared person; Aronow, Samii and Assenova 2015); 200 replicates, seed 20262906.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -429,3 +484,5 @@ Settings, fixed now:
   two-decision model, ensembles, within-event prediction and strategic yes-saying, committed before any ran.
 - 2026-10-08 (no hypothesis changed) Error-bar study: the real-data comparison with the final models and the Bates,
   Hastie and Tibshirani bias adjustment, added before either ran.
+- 2026-10-15 (new hypotheses R1, R2, K1, K2, N1, N2) Part 3: regression to the mean, stable matching, the social
+  relations model and the error-bar design grid, committed before any ran.
