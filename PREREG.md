@@ -838,3 +838,6 @@ Settings (`scripts/sim_cv_auc.py`):
 - 2026-10-15 (new hypotheses N16 to N21) Part 9: the cross-validated AUC under clustering (Proposition 9), committed
   after Part 8, S2 and O1 ran, after two labelled exploratory pilots and the population constants, and before any
   confirmatory run.
+- 2026-10-15 (rounding note; no hypothesis changed) Part 9's N17 and N18 predictions were rounded half up from the
+  components file, which holds -0.8465 (sa 2, su 0, K = 5) and -0.7945 (sa 2, K = 10). The entry prints -0.847 and
+  -0.795; the hypotheses file prints -0.846 and -0.794. Neither verdict depends on the third decimal.

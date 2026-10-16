@@ -49,6 +49,10 @@
 \newcommand{\VCR}{\hat V_{\mathrm{CR}}}
 \newcommand{\VNB}{\hat\sigma^2_{\mathrm{NB}}}
 \newcommand{\fac}{\tfrac{J+K-1}{J-1}}
+\newcommand{\Cmix}{C_{\mathrm{mix}}}
+\newtheorem*{prop9}{Proposition 9}
+\newtheorem*{prop10}{Proposition 10}
+\newtheorem*{conj}{Conjecture}
 
 \title[CV error bars under clustering]{Cross-validation error bars when rows are clustered:\\ what grouped CV estimates and which error bars cover it}
 \author{Sophia Qin}
@@ -61,18 +65,18 @@
 \begin{document}
 
 \begin{abstract}
-In the Columbia speed-dating data (21 events, 4,184 woman--man pairs) every row shares people and an evening with other rows, so cross-validation (CV) error bars that treat rows as independent are too narrow, and random-row folds estimate the wrong quantity. We collect what the team has established about CV error bars when rows are clustered. Holding out whole clusters makes CV estimate the error on new clusters (Lemma~1). On grouped folds, the Nadeau--Bengio variance equals the random-group, or cluster-robust, variance times $(J+K-1)/(J-1)$ (Proposition~6). A coverage study that keeps the clusters fixed overstates the coverage of the cluster-robust interval (Proposition~7). A first-order expansion (Proposition~8) shows that the cluster-robust variance is first-order right for the full model's new-cluster error, and that the Nadeau--Bengio variance exceeds it by the factor $\Var(a-\beta/(K-1))/\Var(a)$. Of 17 pre-registered simulation hypotheses, 12 were supported and 5 were not; we report all of them. Cluster-robust intervals with $t$ quantiles, and the wild cluster bootstrap-$t$, covered the new-cluster error 0.853 to 0.915 of the time at nominal $0.90$ in every design with a precisely scored target. The Nadeau--Bengio limit was predicted out of sample at $K=3$ and $10$ to within 0.053. The nested CV of Bates, Hastie and Tibshirani, as published with random-row folds, covered 0.460 to 0.735. Most ingredients are known, and we say which parts may be new.
+In the Columbia speed-dating data (21 events, 4,184 woman--man pairs) every row shares people and an evening with other rows, so cross-validation (CV) error bars that treat rows as independent are too narrow, and random-row folds estimate the wrong quantity. We collect what the team has established about CV error bars when rows are clustered. Holding out whole clusters makes CV estimate the error on new clusters (Lemma~1). On grouped folds, the Nadeau--Bengio variance equals the random-group, or cluster-robust, variance times $(J+K-1)/(J-1)$ (Proposition~6). A coverage study that keeps the clusters fixed overstates the coverage of the cluster-robust interval (Proposition~7). A first-order expansion (Proposition~8) shows that the cluster-robust variance is first-order right for the full model's new-cluster error, and that the Nadeau--Bengio variance differs from it by the factor $\Var(a-\beta/(K-1))/\Var(a)$, near 1.14 to 1.22 for the 0--1 error rate and near 1 for the AUC in our designs. Of 23 pre-registered simulation hypotheses, 17 were supported and 6 were not; we report all of them. Cluster-robust intervals with $t$ quantiles, and the wild cluster bootstrap-$t$, covered the new-cluster error 0.853 to 0.915 of the time at nominal $0.90$ in every design with a precisely scored target. The Nadeau--Bengio limit was predicted out of sample at $K=3$ and $10$ to within 0.053. The nested CV of Bates, Hastie and Tibshirani, as published with random-row folds, covered 0.460 to 0.735. For the AUC, pooling held-out scores across fold models biases the CV estimate downward by order $1/G$ when clusters differ in outcome rate (Proposition~9); a second-order expansion predicted that bias to within 5.1\% at $K=5$ but missed by 18.6\% at $K=2$ under strong clustering, and an estimate that uses only pairs from different clusters within a fold removed it, its interval covering 0.848 to 0.938 for $G\ge40$. Most ingredients are known, and we say which parts may be new.
 \end{abstract}
 
 \maketitle
 
 \section{Introduction}
 
-The data come from the Columbia speed-dating experiment (Fisman, Iyengar, Kamenica and Simonson, 2002 to 2004), in its public release. At each of 21 events (waves), every woman met every man for four minutes, and each said yes or no; a match is a mutual yes. The team's main analysis predicts a match from information available before the date, with one row per woman--man pair (a \emph{dyad}): 4,184 dyads, with a match rate of 0.165. Events range from 25 to 484 dyads.\footnote{Computed from \texttt{data/pairs.csv}. The theory note (\S6e, caveat 1) and \texttt{PREREG.md} (Part~7) give the range as 25 to 440 dyads; two events have 441 and 484.}
+The data come from the Columbia speed-dating experiment (Fisman, Iyengar, Kamenica and Simonson, 2002 to 2004), in its public release. At each of 21 events (waves), every woman met every man for four minutes, and each said yes or no; a match is a mutual yes. The team's main analysis predicts a match from information available before the date, with one row per woman--man pair (a \emph{dyad}): 4,184 dyads, with a match rate of 0.165. Events range from 25 to 484 dyads.\footnote{Computed from \texttt{data/pairs.csv}; two events have 441 and 484 dyads. \texttt{PREREG.md} Part~7 says 25 to 440, corrected in its change log.}
 
 The rows are not independent: a woman at an event with ten men appears in ten dyads, and her pickiness and desirability enter all ten. Every person attends one event, so all dependence through shared people sits inside events, together with whatever is common to an evening. We treat rows from different events as independent. This has two consequences for CV. First, if rows are dealt into folds one at a time (\emph{random-row} folds), a held-out dyad's two people have other dyads in the training set, so CV measures the error for people already seen rather than for new people. Second, the usual standard error of a CV estimate, $s/\sqrt n$ with $s$ the standard deviation of the per-row losses, ignores the covariance between rows of the same event and is too small even when the folds are grouped.
 
-The question of this note is therefore: when rows are clustered, what does CV estimate, and which error bar gives an interval that covers the fitted model's error on rows from new clusters? The project's headline numbers use event-held-out 5-fold CV with a cluster-robust standard error. Sections~\ref{sec:setup} and~\ref{sec:theory} give the setup and theory, Section~\ref{sec:sim} the simulation evidence, organized around hypotheses registered in \texttt{PREREG.md} before each test ran, and Section~\ref{sec:real} the real-data error bars. Sections~\ref{sec:rec} to~\ref{sec:lim} give recommendations, what is known and what may be new, and limitations.
+The question of this note is therefore: when rows are clustered, what does CV estimate, and which error bar gives an interval that covers the fitted model's error on rows from new clusters? The project's headline numbers use event-held-out 5-fold CV with a cluster-robust standard error. Sections~\ref{sec:setup} and~\ref{sec:theory} give the setup and theory, Section~\ref{sec:sim} the simulation evidence, organized around hypotheses registered in \texttt{PREREG.md} before each test ran, Section~\ref{sec:real} the real-data error bars, and Section~\ref{sec:auc} the cross-validated AUC. Sections~\ref{sec:rec} to~\ref{sec:lim} give recommendations, what is known and what may be new, and limitations.
 
 \section{Setup and the two targets}\label{sec:setup}
 
@@ -223,7 +227,7 @@ With unbalanced events and a misspecified marginal model (for example an omitted
 
 \section{Simulation evidence}\label{sec:sim}
 
-Every hypothesis below was committed to \texttt{PREREG.md} before its test ran, and none was edited afterwards. Table~\ref{tab:verdicts} lists all of them. Unless stated otherwise, intervals are nominal 90\%, the procedure is a logistic regression with 0--1 loss at the training match rate, and CV uses 5 folds. The realistic designs (Parts 2 to 5 and 7) use the \emph{A2 truth}: the real dyads and events, a logistic model for the match on four pre-date predictors, and woman, man and event random effects with SDs and coefficients from a crossed random-effects fit to the real matches; the target is the full-data model's error on new events.
+Every hypothesis below was committed to \texttt{PREREG.md} before its test ran, and none was edited afterwards. Table~\ref{tab:verdicts} lists all of them; Part~9 (N16 to N21) is discussed in Section~\ref{sec:auc}. Unless stated otherwise, intervals are nominal 90\%, the procedure is a logistic regression with 0--1 loss at the training match rate, and CV uses 5 folds. The realistic designs (Parts 2 to 5 and 7) use the \emph{A2 truth}: the real dyads and events, a logistic model for the match on four pre-date predictors, and woman, man and event random effects with SDs and coefficients from a crossed random-effects fit to the real matches; the target is the full-data model's error on new events.
 
 \begin{table}[tbp]
 \centering\footnotesize
@@ -249,6 +253,12 @@ N12 & 7 & Wild cluster bootstrap-$t$ covers 0.85--0.95 in all 8 designs & 0.853-
 N13 & 7 & Cluster-robust (normal) $<0.85$ in some $G=40$ design & 0.867--0.883 & \textbf{not supported} \\
 N14 & 8 & 0--1 loss: NB ratio within 0.07 of prediction, $K=3,10$ & max.\ $|\text{diff}|$ 0.053 & supported \\
 N15 & 8 & Log-loss: NB ratio within 0.05 of 1, $K=3,10$ & max.\ $|\text{diff}|$ 0.032 & supported \\
+N16 & 9 & Pooled CV AUC biased down (90\% interval $<0$), outcome clustering, $G\le80$ & $-$0.004 to $-$0.040 & supported \\
+N17 & 9 & Mixing bias at $K=5$ within 15\% of $C_{\rm mix}+c_2/4$, four designs & off by 1.3\%--5.1\% & supported \\
+N18 & 9 & Mixing bias at $K=2,10$ within 15\% of $C_{\rm mix}+c_2/(K-1)$ & 3 of 4; one off by 18.6\% & \textbf{not supported} \\
+N19 & 9 & BCWF-pooled $|$bias$|\le0.25$ SE for $G\ge40$; pooled $>0.25$ SE when $s_a=2$ & max.\ 0.11; 0.48--0.87 & supported \\
+N20 & 9 & BCWF-pooled mean coverage 0.87--0.93; pooled $<0.85$ when $s_a=2$ & 0.899; 0.841 & supported \\
+N21 & 9 & NB ratio for fold AUCs within 0.07 of prediction (about 1) & 0.978--0.999 & supported \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -430,7 +440,7 @@ $G$ & person SD & event SD & mean $G^*$ & CR, normal (N13) & CR2, $t_{G-1}$ & CR
 
 \subsection{The Monte Carlo caveat for the target}\label{sec:mc}
 
-In a coverage study the target $\Errnew$ is itself a Monte Carlo average over new clusters. Its Monte Carlo variance adds to the empirical $\Var(\CV-\Errnew)$, lowering measured coverage and raising measured variance ratios; since $\Var(\CV-\Errnew)$ shrinks like $1/G$ and the Monte Carlo variance does not, the distortion grows with $G$. Its share of $\Var(\CV-\Errnew)$ was 0.001 to 0.017 with 20,000 new clusters (Part~6b) and 0.008 to 0.019 with 2,000 new events (Part~7). The realistic grids of Parts~2 to~5 scored the target on only 300 new events. The theory note puts that target's Monte Carlo SD at about 0.0045, a variance of 3\% to 10\% of $\Var(\CV-\Errnew)$, so the coverages of those grids are slightly understated, most at $G=40$. With it removed, the theory note reports corrected cluster-robust variance ratios in the confirmatory grid of 0.78 at $G=10$ (a finite-population effect: 10 events drawn without replacement from 21), 1.05 at $G=21$, and 1.18 and 1.46 in the two $G=40$ designs checked; Part~7's precise rerun resolved most of that $G=40$ excess.
+In a coverage study the target $\Errnew$ is itself a Monte Carlo average over new clusters. Its Monte Carlo variance adds to the empirical $\Var(\CV-\Errnew)$, lowering measured coverage and raising measured variance ratios; since $\Var(\CV-\Errnew)$ shrinks like $1/G$ and the Monte Carlo variance does not, the distortion grows with $G$. Its share of $\Var(\CV-\Errnew)$ was 0.001 to 0.017 with 20,000 new clusters (Part~6b) and 0.008 to 0.019 with 2,000 new events (Part~7). The realistic grids of Parts~2 to~5 scored the target on only 300 new events. The theory note puts that target's Monte Carlo SD at about 0.0045, a variance of 3\% to 10\% of $\Var(\CV-\Errnew)$, so the coverages of those grids are slightly understated, most at $G=40$. With it removed, the theory note reports corrected cluster-robust variance ratios over the four confirmatory designs at each $G$ of 0.55 to 0.84 at $G=10$ (mean 0.72; a finite-population effect, since 10 events are drawn without replacement from 21), 0.96 to 1.20 at $G=21$ (mean 1.04) and 0.89 to 1.46 at $G=40$ (mean 1.16); Part~7's precise rerun resolved most of that $G=40$ excess.
 
 \section{Real-data error bars}\label{sec:real}
 
@@ -453,7 +463,149 @@ Set & Model & Error & CR, $z$ & CR, $t_{20}$ & Wild & NB & NB ratio & AUC & 90\%
 \end{tabular}
 \end{table}
 
-For the pre-date logistic model the error rate is 0.418 with a cluster-robust $t_{20}$ half-width of 0.0300, and the AUC is 0.542 (0.507 to 0.578), against 0.780 on \texttt{pre+date}. In all four models the wild bootstrap-$t$ interval is the widest of the three cluster-robust ones, and the Nadeau--Bengio ratio is 1.054 to 1.539. By Proposition~8(ii) the ratio estimates $\Var(a-\beta/4)/\Var(a)$, so values above $1$ mean the Nadeau--Bengio interval is conservative by about that factor. Each is one draw from $R=10$ partitions on unbalanced events, so we do not interpret their differences. The AUC intervals are provisional. The clustered (Obuchowski) variance was checked by simulation for a fixed score, but not for cross-validated scores pooled across fold models. A pilot for the next pre-registered part shows that the pooled event-CV AUC runs low when clusters differ in their outcome rates, by about one standard error at 20 clusters with a cluster SD of 2 on the logit scale, so its interval can under-cover.
+For the pre-date logistic model the error rate is 0.418 with a cluster-robust $t_{20}$ half-width of 0.0300, and the AUC is 0.542 (0.507 to 0.578), against 0.780 on \texttt{pre+date}. In all four models the wild bootstrap-$t$ interval is the widest of the three cluster-robust ones, and the Nadeau--Bengio ratio is 1.054 to 1.539. By Proposition~8(ii) the ratio estimates $\Var(a-\beta/4)/\Var(a)$, so values above $1$ mean the Nadeau--Bengio interval is conservative by about that factor. Each is one draw from $R=10$ partitions on unbalanced events, so we do not interpret their differences. The AUC intervals in Table~\ref{tab:real} use the pooled estimate. Part~9 (Section~\ref{sec:auc}) shows that this estimate runs low by order $1/G$ when clusters differ in outcome rate. On the real data, averaged over 20 random event partitions, the pooled AUC minus BCWF-pooled (the estimate Part~9 found close to unbiased) is $-$0.004 to $+$0.002 (Table~\ref{tab:aucreal}), so the headline AUCs are not materially biased on average.
+
+\section{The cross-validated AUC under clustering (Part 9)}\label{sec:auc}
+
+The project reports a pooled event-CV AUC: one AUC over all held-out scores, which come from $K$ different fold models, with the clustered (Obuchowski) SE. That interval had been checked by simulation only for a fixed score. The target here is the full model's AUC on new clusters, pooled over clusters: $A(\theta)=P\{s_\theta(X_1)>s_\theta(X_0)\}$ for a match and a non-match from different clusters, with $s_\theta(x)=\tilde x^\top\theta$. We compare four CV estimates: the \emph{pooled} AUC; the \emph{fold-averaged} AUC, the mean of the $K$ within-fold AUCs; the \emph{between-cluster within-fold} (BCWF) AUC, which in each fold uses only match--non-match pairs from different clusters and averages over folds; and \emph{BCWF-pooled}, the same pairs' concordances summed over folds and divided by their count. The \emph{pooled between-cluster} AUC (the pooled AUC without same-cluster pairs) separates two of the biases below.
+
+\subsection{Theory}
+The setup is Proposition~8's, with $H$ the per-row Fisher information of the logistic fit and $\pi$ the match rate. $F_0$ and $S_1$ are the population distribution function of non-match scores and survival function of match scores at $\theta^*$, and $A^*=A(\theta^*)$. Cluster $h$'s H\'ajek projection is $a_h=\frac{1}{m\pi}\sum_{i\in h,\,y_i=1}\{F_0(s^*_i)-A^*\}+\frac{1}{m(1-\pi)}\sum_{i\in h,\,y_i=0}\{S_1(s^*_i)-A^*\}$; $d=\nabla A(\theta^*)$ and $\beta_h=d^\top\psi_h$. Write $s_h=\sum_{i\in h}\tilde x_i(y_i-p^*_i)$ for the cluster's score sum and $D=s^*_i-s^*_j$ for a match $i$ and a non-match $j$ from different clusters; $\delta$ is the Dirac delta, so $\E[\delta(D)\,\cdot\,]$ weights the event $D=0$ by the density of $D$. $A_w$ and $A_b$ are the AUCs over match--non-match pairs from the same cluster and from different clusters, and $\kappa=\E[m_{1h}m_{0h}]/(m^2\pi(1-\pi))$, with $m_{1h}$ and $m_{0h}$ the numbers of matches and non-matches in cluster $h$.
+
+\begin{prop9}
+\begin{enumerate}[label=(\roman*)]
+\item \emph{First order.} For the pooled, fold-averaged and BCWF estimates $\hat A$, $\hat A-A(\hat\theta_{\mathrm{all}})=\bar a+o_p(G^{-1/2})$, and the Obuchowski variance $\hat V$ of the pooled scores satisfies $G\hat V\to_p\Var(a)$.
+\item \emph{Nadeau--Bengio.} As in Proposition~8(ii), $G\,\E[\VNB]\to\fac\Var(a-\beta/(K-1))$ for the fold AUCs. Since $A$ does not depend on location or scale, $d$ has no intercept part and $d\perp\theta^*$. When the model's index direction maximizes the pooled AUC among linear scores, $d=0$; this holds under correct specification (Neyman--Pearson) and for monotone single-index truths with elliptical $x$ \cite{LiDuan}. Otherwise $d$ is first order in the misspecification angle.
+\item \emph{Second order: three biases of order $1/G$.}
+\begin{enumerate}[label=(\alph*),leftmargin=1.5em]
+\item \emph{Same-cluster pairs.} A within-fold AUC puts weight about $(K/G)\kappa$ on same-cluster pairs, so the fold-averaged estimate carries $K\kappa(A_w-A_b)/G$ and the pooled estimate $\kappa(A_w-A_b)/G$, with the sign of $A_w-A_b$.
+\item \emph{Mixing.} With $\Cmix=\frac1m\E[\delta(D)\{\tilde x_i^\top H^{-1}s_{h(j)}-\tilde x_j^\top H^{-1}s_{h(i)}\}]$, $c_2=-g'(0)$ and $g(t)=\E[\tilde x_i^\top\Var(\psi)\tilde x_j\,\delta(D-t)]$,
+\[
+\E[\text{pooled between-cluster}-\text{BCWF-pooled}]=\frac1G\Bigl(\Cmix+\frac{c_2}{K-1}\Bigr)+o(1/G),
+\]
+and $\Cmix<0$ under outcome clustering.
+\item \emph{Training size.} All CV estimates carry the bias $\operatorname{tr}(H_A\Var\psi)/(2(K-1)G)$, where $H_A$ is the AUC Hessian in the slopes.
+\end{enumerate}
+\end{enumerate}
+\end{prop9}
+
+\begin{proof}[Sketch]
+(i) A cross-fold pair compares two models, but the AUC $A(\theta_k,\theta_{k'})$ expanded to first order sums, over the folds, to $\nabla A^\top(\hat\theta_{\mathrm{all}}-\theta^*)$; the intercept parts cancel because the AUC does not depend on location. (ii) follows from Proposition~6 as in Proposition~8(ii). (iii)(b) In a cross-fold pair ($i$ in fold $k$, $j$ in fold $k'$), model $k$ was fitted on $j$'s cluster and model $k'$ on $i$'s, so the score difference is shifted by $\{\tilde x_i^\top H^{-1}s_{h(j)}-\tilde x_j^\top H^{-1}s_{h(i)}\}/n'$ with $n'=n(K-1)/K$; a within-fold pair from different clusters has no shift, and cross-fold pairs are $(K-1)/K$ of the between-cluster pairs, which gives $\Cmix/G$, free of $K$. The two fold models also differ by noise $\xi=-\tilde x_j^\top(\theta_{k'}-\theta_k)$ correlated with the common error, and a second-order Taylor step in the Heaviside function gives $c_2/((K-1)G)$.
+\end{proof}
+
+Parts (i) and (ii) are derived as in Proposition~8. Part (iii) is a \emph{heuristic second-order expansion}, not a proved result; its constants are computed numerically from the population. The mixing bias is the pooling bias of \cite{Parker,Forman} seen through clustering: with independent rows it is of order $1/n$, with clusters of order $1/G$. Its leading term does not shrink with more folds; only the $c_2$ part does. In all nine designs computed, $c_2/\Cmix$ is 0.49 to 0.53.
+
+\begin{prop10}[proved for independent rows]
+Suppose the rows are independent, the covariates are Gaussian, and the logistic model is correctly specified. Then $c_2=\Cmix/2$ exactly, and the pooling bias of $K$-fold CV is
+\[
+-\frac{2K-1}{2(K-1)}\cdot\frac1n\,\E\bigl[\delta(D)\,(1-p_i+p_j)\,\tilde x_i^\top H^{-1}\tilde x_j\bigr]
+\]
+plus the training-size term.
+\end{prop10}
+
+\begin{proof}
+(1) With independent rows, $\E[s_{h(j)}\mid j]=-p_j\tilde x_j$ for a non-match and $(1-p_i)\tilde x_i$ for a match, and $\Var\psi=H^{-1}/m$. So $\Cmix=-\frac1m\E[\delta(D)(1-p_i+p_j)q]$ with $q=\tilde x_i^\top H^{-1}\tilde x_j$, and $c_2=-\frac1mI'(0)$ with $I(t)=\E[q\,\delta(D-t)]$. (2) Take a direction $v$ with $v^\top\theta=1$. Integrate $I'(t)=-\E[q\,\delta'(D-t)]$ by parts along $v$ in $x_i$, and separately in $x_j$, and average the two:
+\[
+I'(0)=\tfrac12\E\bigl[\delta(D)\{\partial_{v,i}q-\partial_{v,j}q+q(\partial_v\log f_1(x_i)-\partial_v\log f_0(x_j))\}\bigr].
+\]
+(3) The logistic link gives $\partial_v\log f_1=(1-p)+\partial_v\log f$ and $\partial_v\log f_0=-p+\partial_v\log f$, with $f$ the covariate density. (4) For Gaussian $x$, choose $v=\Sigma\theta/\theta^\top\Sigma\theta$; then $\partial_v\log f(x)=-(s-\bar s)/\sigma_s^2$, which takes the same value for $x_i$ and $x_j$ when $D=0$, so those terms cancel. (5) What is left of the first two terms is $\tfrac12\tilde v^\top H^{-1}\E[\delta(D)(\tilde x_j-\tilde x_i)]=-\tfrac12\tilde v^\top H^{-1}\nabla A(\theta^*)$, which is $0$ under correct specification. (6) So $I'(0)=\tfrac12\E[\delta(D)(1-p_i+p_j)q]$ and $c_2=\Cmix/2$. With $Gm=n$, the bias $(\Cmix+c_2/(K-1))/G$ is the display.
+\end{proof}
+
+In design~0 (no clustering, correct model) the computed ratio is 0.4985. Under misspecification the identity is off by $-\tilde v^\top H^{-1}\nabla A/(2m)$, which is small because $\nabla A$ is small.
+
+\begin{conj}
+With clustered rows, $c_2=\Cmix/2$, so that $G$ times the mixing bias is $\Cmix(2K-1)/(2(K-1))$. With clustering, $\E[s_{h(j)}\mid j]$ picks up the cluster mates' residuals and step (1) no longer holds pointwise, yet the computed ratios are 0.49 to 0.53. A proof or a counterexample is open.
+\end{conj}
+
+Which target matters depends on the use: for ranking pairs across events (an app) it is the pooled between-cluster AUC, which BCWF estimates without the mixing and same-cluster biases; for ranking within an event (a matchmaker) it is $A_w$, estimated by a within-cluster AUC.
+
+\subsection{Simulation evidence (N16 to N21)}
+Part~9 used clusters of 40 rows with $x=s_uu_g+v_i$ and $y\sim\mathrm{Bernoulli}(\mathrm{logistic}(-1.5+x^\top(1,0.5,0)+s_aa_g))$; designs 0 to 5 cross $s_a\in\{0,1,2\}$ with $s_u\in\{0,1\}$, and the Nadeau--Bengio designs ($s_a=s_u=1$) are linear, hinge ($+1.5\max(x_3,0)-1$) and random slope ($x_1$ slope $1+b_g$). The model is a logistic regression on $x$, and $\mathrm{AUC}_{\mathrm{new}}$ is scored on 20,000 new clusters (Monte Carlo share of the variance at most 0.008). The constants and predictions were computed before any CV run, and every test used fresh seeds. \texttt{PREREG.md} records two labelled pilots run before registration (scratch outputs, not in \texttt{results/}).
+
+N16 was supported: in the 12 cells with outcome clustering ($s_a\in\{1,2\}$, $G\le80$) the pooled bias was $-$0.004 to $-$0.040, with the largest 90\% upper limit $-$0.0022. $G$ times the bias averaged $-$0.81 with $s_a=2$ and $-$0.29 with $s_a=1$, so the bias is of order $1/G$; at $G=20$ with $s_a=2$, $s_u=0$ it was 1.07 SE. With no clustering at all (design 0) $|$bias$|$ was at most 0.0028, but covariate clustering alone ($s_a=0$, $s_u=1$) gave $-$0.0064 at $G=20$. N17 was supported: at $K=5$ the observed mixing bias was within 1.3\% to 5.1\% of $\Cmix+c_2/4$ in all four designs (Table~\ref{tab:aucmix}). N18 was \emph{not} supported: at $G=80$ three of the four cells at $K=2$ and $10$ were within 1.4\% of $\Cmix+c_2/(K-1)$, but at $K=2$ with $s_a=2$ the prediction was $-$1.127 against an observed $-$0.917 (SE 0.060), off by 18.6\% against a 15\% band. The theory note reads this as the expansion needing a third term when half the clusters are held out under strong clustering; $K=2$ was also the weakest fold count in Part~8.
+
+\begin{table}[tbp]
+\centering\footnotesize
+\caption{Part 9, mixing bias: $G\times$(pooled between-cluster AUC $-$ BCWF-pooled) predicted by Proposition~9(iii)(b), $\Cmix+c_2/(K-1)$, against the observed mean (SE). $K=5$: mean over $G=40,80,160$ (N17); $K=2$ and $10$: $G=80$ (N18). Constants from \texttt{sim\_cv\_auc\_components.csv}; 400 data sets per cell. $^{\dagger}$Outside the registered 15\% band.}\label{tab:aucmix}
+\begin{tabular}{@{}r c c c c c r@{}}
+\toprule
+$K$ & $(s_a,s_u)$ & $\Cmix$ & $c_2$ & Predicted & Observed (SE) & Rel.\ error\\
+\midrule
+5 & 1, 0 & $-$0.267 & $-$0.133 & $-$0.300 & $-$0.304 (0.008) & $+$1.3\% \\
+5 & 1, 1 & $-$0.210 & $-$0.103 & $-$0.236 & $-$0.242 (0.011) & $+$2.5\% \\
+5 & 2, 0 & $-$0.753 & $-$0.374 & $-$0.846 & $-$0.865 (0.021) & $+$2.2\% \\
+5 & 2, 1 & $-$0.629 & $-$0.315 & $-$0.708 & $-$0.745 (0.022) & $+$5.1\% \\
+\addlinespace
+2 & 1, 0 & $-$0.267 & $-$0.133 & $-$0.400 & $-$0.397 (0.024) & $-$0.8\% \\
+2 & 2, 0 & $-$0.753 & $-$0.374 & $-$1.127 & $-$0.917 (0.060) & $-$18.6\%$^{\dagger}$ \\
+\addlinespace
+10 & 1, 0 & $-$0.267 & $-$0.133 & $-$0.282 & $-$0.281 (0.014) & $-$0.3\% \\
+10 & 2, 0 & $-$0.753 & $-$0.374 & $-$0.794 & $-$0.783 (0.030) & $-$1.4\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+N19 was supported: over the 18 cells with $G\ge40$, BCWF-pooled had $|$bias$|$ at most 0.11 SE, while the pooled estimate's bias was 0.48 to 0.87 SE in the $s_a=2$ cells at $G=40$ and $80$. N20 was supported (Table~\ref{tab:auccov}): the BCWF-pooled interval ($t_{G-1}$, Obuchowski SE) covered 0.899 on average over the 18 cells with $G\ge40$ (0.848 to 0.938), and the pooled interval 0.841 on average in the $s_a=2$ cells with $G\ge40$, down to 0.705 at $G=20$. The wild cluster bootstrap does not rescue the pooled interval (0.695 in that cell), because the problem is bias, not variance. N21 was supported: the Nadeau--Bengio ratio for fold AUCs was 0.978 to 0.999, within 0.013 of its predictions of 0.991 to 1.003 (Table~\ref{tab:aucnb}). In every design computed $|d|\le0.014$, so unlike the error rate's ratio of about 1.2 the AUC's Nadeau--Bengio correction is not conservative.
+
+Exploratory results. Where the same-cluster term dominates ($s_a=0$, $s_u=1$) the fold-averaged bias followed $(c_{\mathrm{train}}+K\kappa(A_w-A_b))/G$: $-$0.0150 against $-$0.0137 at $G=20$ and $-$0.0015 against $-$0.0017 at $G=160$. With $s_a=2$, $s_u=0$ at $G=20$, per-fold BCWF was biased by 0.0079 against 0.0011 for BCWF-pooled, the per-fold ratio bias that pooling the counts removes. In the realistic A2 design with 21 redrawn events (300 data sets per design), the pooled interval covered 0.770 to 0.873 and BCWF-pooled 0.847 to 0.870, with biases of $-$0.004 to $-$0.015 against at most 0.002 in absolute value.
+
+\begin{table}[tbp]
+\centering\footnotesize
+\caption{Part 9, coverage of nominal 90\% intervals for $\mathrm{AUC}_{\mathrm{new}}$ ($t_{G-1}$, Obuchowski SE of the pooled scores; 400 data sets per cell; event 5-fold CV; seeds 20265106 + 10 $\times$ design + $G$ index). Second column: $G\times$ the pooled estimate's bias, averaged over $G$.}\label{tab:auccov}
+\begin{tabular}{@{}c c c c c c c c c c@{}}
+\toprule
+ & & \multicolumn{4}{c}{Pooled} & \multicolumn{4}{c}{BCWF-pooled}\\
+\cmidrule(lr){3-6}\cmidrule(l){7-10}
+$(s_a,s_u)$ & $G\times$bias & $G=20$ & $40$ & $80$ & $160$ & $G=20$ & $40$ & $80$ & $160$\\
+\midrule
+0, 0 & $-$0.08 & 0.890 & 0.910 & 0.912 & 0.868 & 0.890 & 0.910 & 0.912 & 0.885 \\
+0, 1 & $-$0.10 & 0.890 & 0.877 & 0.885 & 0.907 & 0.853 & 0.882 & 0.875 & 0.910 \\
+1, 0 & $-$0.25 & 0.825 & 0.870 & 0.858 & 0.907 & 0.877 & 0.920 & 0.887 & 0.915 \\
+1, 1 & $-$0.32 & 0.868 & 0.855 & 0.895 & 0.892 & 0.863 & 0.848 & 0.882 & 0.890 \\
+2, 0 & $-$0.80 & 0.705 & 0.782 & 0.830 & 0.860 & 0.910 & 0.915 & 0.938 & 0.917 \\
+2, 1 & $-$0.81 & 0.797 & 0.828 & 0.873 & 0.873 & 0.823 & 0.887 & 0.927 & 0.880 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[tbp]
+\centering\footnotesize
+\caption{Part 9, Nadeau--Bengio ratio $\VNB/(\fac\,\hat V_{\mathrm{Obu}})$ for within-fold AUCs ($R=12$, $J=60$; 400 data sets per cell; $s_a=s_u=1$), mean (SE), against Proposition~9(ii)'s prediction (N21). Last two columns: the same ratio for per-fold BCWF AUCs (exploratory).}\label{tab:aucnb}
+\begin{tabular}{@{}l c c c c c@{}}
+\toprule
+Design & Predicted & $G=80$ & $G=160$ & BCWF, $G=80$ & BCWF, $G=160$\\
+\midrule
+Linear & 1.000 & 0.988 (0.010) & 0.991 (0.010) & 1.059 & 1.025 \\
+Hinge & 1.003 & 0.999 (0.010) & 0.994 (0.010) & 1.056 & 1.021 \\
+Random slope & 0.991 & 0.979 (0.010) & 0.978 (0.009) & 1.021 & 0.999 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Real data}
+Table~\ref{tab:aucreal} gives the four estimates for the real headline models, on the headline folds and averaged over 20 random event partitions (seed 20265406), with the within-event AUC, the matchmaker's target, for reference. On the headline folds the pooled AUC minus BCWF-pooled is $-$0.003 to $-$0.012; averaged over the random partitions it is $-$0.004 to $+$0.002, with an SD across partitions of 0.005 to 0.009. So the reported AUCs are not materially biased on average, but the gap on any one partition varies by more than its mean.
+
+\begin{table}[tbp]
+\centering\footnotesize
+\caption{Real data, event 5-fold CV: the four CV AUC estimates on the headline folds and their mean over 20 random event partitions (seed 20265406; exploratory). Gap: pooled $-$ BCWF-pooled, with its SD over partitions. Within: AUC over pairs from the same event.}\label{tab:aucreal}
+\begin{tabular}{@{}l l l c c c c c c@{}}
+\toprule
+Set & Model & Folds & Pooled & Fold-avg. & BCWF & BCWF-pooled & Gap (SD) & Within\\
+\midrule
+\texttt{pre} & Logistic & headline & 0.542 & 0.544 & 0.542 & 0.546 & $-$0.003 & 0.539 \\
+ & & mean of 20 & 0.544 & 0.553 & 0.555 & 0.545 & $-$0.001 (0.009) & 0.532 \\
+\addlinespace
+\texttt{pre} & LDA & headline & 0.553 & 0.558 & 0.559 & 0.559 & $-$0.006 & 0.544 \\
+ & & mean of 20 & 0.555 & 0.562 & 0.568 & 0.558 & $-$0.004 (0.007) & 0.540 \\
+\addlinespace
+\texttt{pre+date} & Logistic & headline & 0.780 & 0.781 & 0.775 & 0.793 & $-$0.012 & 0.800 \\
+ & & mean of 20 & 0.790 & 0.794 & 0.788 & 0.788 & 0.002 (0.005) & 0.801 \\
+\addlinespace
+\texttt{pre+date} & LDA & headline & 0.790 & 0.799 & 0.798 & 0.797 & $-$0.007 & 0.794 \\
+ & & mean of 20 & 0.794 & 0.799 & 0.799 & 0.795 & $-$0.001 (0.005) & 0.795 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Recommendations}\label{sec:rec}
 
@@ -463,6 +615,7 @@ For the pre-date logistic model the error rate is 0.418 with a cluster-robust $t
 \item \emph{Treat the Nadeau--Bengio correction on grouped folds as conservative by a predictable factor}, $\fac\Var(a-\beta/(K-1))/\Var(a)$ relative to $\VCR$ (Proposition~8(ii)), predicted out of sample to within 0.053; on random-row folds it fails by the design effect (Proposition~6; N7).
 \item \emph{Do not use the published nested CV with random-row folds on clustered data} (N2). The cluster-nested version is unbiased in mean (Proposition~3) but too noisy at $K=5$ (N1, N5); the floor covers (N3) but is conservative by construction.
 \item \emph{In coverage studies, redraw the clusters in every replicate and score the target precisely}, subtracting its Monte Carlo variance (Proposition~7; A2's 0.992 against 0.874 with events redrawn; Parts~6b and~7), and state whether the target is $\Errnew$ or the average error.
+\item \emph{For the AUC, do not pool held-out scores across fold models when clusters differ in outcome rate.} Use BCWF-pooled with the Obuchowski SE and $t_{G-1}$ quantiles (mean coverage 0.899 for $G\ge40$ in Part~9, but down to 0.823 at $G=20$), and choose the target to match the use (Section~\ref{sec:auc}). For the AUC the Nadeau--Bengio correction is not conservative (ratio about 1).
 \end{enumerate}
 
 \section{What is new and what is known}\label{sec:new}
@@ -476,6 +629,7 @@ The team's literature check (\texttt{proposals/07}) searched papers and package 
 \item Wager \cite{Wager} overlaps Proposition~8(i) and~(iv): CV's leading error term does not depend on the model, and the conditional risk moves at lower order.
 \item Random-row CV is optimistic under grouping \cite{Roberts,Saeb,RR,PM}, and naive CV standard errors are too small \cite{Varoquaux,BG,NB}; the seen-against-new-cluster distinction of Lemma~1 is in \cite{RR}, without intervals. We found no paper that runs the nested CV of \cite{BHT} on clustered data and reports coverage, so A2 and N2 are a small confirming demonstration.
 \item Propositions~1 to~3 are clusters-as-units extensions of Theorem~3 of \cite{BHT}, of \cite{BG} and of \cite{BBJM}, not new theory; the design effect is Kish's \cite{Kish}. Grouped CV with influence curves summed within clusters \cite{LeDell}, resampling whole subjects \cite{Cai} and internal--external CV \cite{deJong} are published. Proposition~7 is the classical design-based against model-based distinction.
+\item For the AUC, the pooling bias of pooled $K$-fold and leave-one-out estimates is known \cite{Parker,Forman,Airola2010,Airola2011}, as are the remedies: averaging over folds, and leave-pair-out CV \cite{Airola2010,Airola2011,Montoya}. The closest work on dependent data, spatial leave-pair-out CV \cite{Airola2019}, corrects both the pooling bias and a spatial bias; BCWF is its grouped analogue.
 \end{itemize}
 
 \emph{Plausibly new.}
@@ -483,8 +637,9 @@ The team's literature check (\texttt{proposals/07}) searched papers and package 
 \item The factor $(J+K-1)/(J-1)$ linking the corrected repeated $K$-fold variance to the random-group (cluster-robust) variance for $R$ repeated partitions, and the reading of Proposition~6 for grouped against row folds: the corrected $t$ handles clustering only on grouped folds (confirmed by N7). We found no statement of either.
 \item The Nadeau--Bengio limit $\fac\Var(a-\beta/(K-1))$ of Proposition~8(ii), and its quantitative check: predicted and observed ratios agreed within the bootstrap interval at all five $G$ in Part~6b, and out of sample at $K=3$ and $10$ (N14, N15).
 \item The cautions for coverage studies of CV error bars: redraw the clusters (Proposition~7, A2 against N4), and score the target precisely (Parts~6b and~7).
+\item For the AUC, the clustered-data expansion of the pooling bias (Proposition~9(iii)): order $1/G$ rather than $1/n$, a leading term $\Cmix/G$ that does not depend on $K$ with a next term $c_2/((K-1)G)$, computable constants, and its test (N16 to N21); the same-cluster-pair bias of the fold-averaged AUC; and $c_2=\Cmix/2$ (Proposition~10 for independent rows; a conjecture with clustering). The literature check found none of these, but its Part~9 search was brief, and it asks for a further search (for example on leave-site-out AUC pooling) and a full reading of \cite{Airola2019} before any novelty is claimed.
 \end{itemize}
-We do not claim the cluster-nested, bias-adjusted interval that the literature check proposed as the contribution: N1 failed, and N5 showed its under-coverage once events were redrawn.
+We do not claim the cluster-nested, bias-adjusted interval that the literature check first proposed as the contribution: N1 failed, and N5 showed its under-coverage once events were redrawn.
 
 \section{Limitations and open questions}\label{sec:lim}
 
@@ -494,12 +649,20 @@ We do not claim the cluster-nested, bias-adjusted interval that the literature c
 
 \emph{Unexplained parts.} (a) Proposition~7 is consistent with A2's over-coverage but does not explain it quantitatively. (b) The finite-population effect at $G=10$ does not match the factor $1-10/21$. (c) The $K=2$ predictions miss by 3.4\% to 6.6\%. (d) Proposition~8(i) is not confirmed at the registered precision (N8, N8b). (e) $\bar c$ cannot be estimated from one CV run, since the cross-fold products are determined by the cluster-robust sum; a direct estimate needs variation across fold assignments. Separating $\Var(\beta)$ and $\Cov(a,\beta)$ with $K=5$ and $K=2$ was tried and was too noisy to use. (f) We have no first-order prediction for the real, unbalanced events, so the real-data ratios of Section~\ref{sec:real} are descriptive.
 
+\emph{The AUC.} Proposition~9(iii) is a heuristic expansion; it failed its out-of-sample test at $K=2$ under strong clustering (N18), and the constant in Proposition~10 is proved only for independent rows with Gaussian covariates and a correct model. Part~9 used balanced synthetic clusters; the real events are unbalanced.
+
 \emph{Scope.} All simulations fit logistic regression; the real-data error bars cover logistic regression and LDA.
 
-\emph{Review.} The readings of Proposition~2 and Propositions~6 to~8 were reviewed adversarially once, with the corrections folded in above, but none of the theory has yet been checked by the team's mathematical lead, Jenna Yang; until then it is the team's working result.
+\emph{Review.} The readings of Proposition~2 and Propositions~6 to~8 were reviewed adversarially once, with the corrections folded in above; the theory note records no such review of Propositions~9 and~10. None of the theory has yet been checked by the team's mathematical lead, Jenna Yang; until then it is the team's working result.
 
 \begin{thebibliography}{99}
 \footnotesize
+\bibitem{Airola2010} Airola et al., JMLR W\&CP \textbf{8}, 2010. [Pooling bias; leave-pair-out CV.]
+
+\bibitem{Airola2011} Airola et al., Comput.\ Statist.\ Data Anal., 2011. [Leave-pair-out CV.]
+
+\bibitem{Airola2019} Airola, Pohjankukka, Torppa, Middleton, Nykanen, Heikkonen and Pahikkala, Data Mining and Knowledge Discovery, 2019. [Spatial leave-pair-out CV.]
+
 \bibitem{ASA} Aronow, Samii and Assenova, \emph{Political Analysis}, 2015.
 
 \bibitem{BHT} Bates, Hastie and Tibshirani, \emph{Cross-validation: what does it estimate and how well does it do it?}, J.\ Amer.\ Statist.\ Assoc.\ \textbf{119} (2024), no.~546; arXiv:2104.00673.
@@ -518,19 +681,27 @@ We do not claim the cluster-nested, bias-adjusted interval that the literature c
 
 \bibitem{FG} Fafchamps and Gubert, J.\ Development Economics, 2007. [Dyadic-robust variance.]
 
+\bibitem{Forman} Forman and Scholz, SIGKDD Explorations \textbf{12} (2010), no.~1. [Pooling bias of CV AUC.]
+
 \bibitem{Kish} Kish, \emph{Survey Sampling}, Wiley, 1965.
 
 \bibitem{LeDell} LeDell, Petersen and van der Laan, Electron.\ J.\ Statist.\ \textbf{9} (2015), 1583--1607.
 
+\bibitem{LiDuan} Li and Duan, 1989. [Single-index models with elliptical covariates.]
+
 \bibitem{MW} MacKinnon and Webb, 2017. [Cluster-robust inference with unequal cluster sizes.]
 
 \bibitem{Markatou} Markatou et al., 2005, Table~6. [Variance of CV estimates.]
+
+\bibitem{Montoya} Montoya Perez et al., Statistical Methods in Medical Research, 2019. [Tournament leave-pair-out CV.]
 
 \bibitem{NB} Nadeau and Bengio, Machine Learning, 2003. [Corrected resampled $t$.]
 
 \bibitem{Obuchowski} Obuchowski, 1997. [Clustered placement-value variance of the AUC.]
 
 \bibitem{PM} Park and Marcotte, Nature Methods, 2012.
+
+\bibitem{Parker} Parker, Gunter and Bedo, BMC Bioinformatics \textbf{8} (2007), 326. [``Stratification bias'' of pooled CV AUC.]
 
 \bibitem{RR} Rabinowicz and Rosset, J.\ Amer.\ Statist.\ Assoc.\ \textbf{117} (2022), no.~538.
 

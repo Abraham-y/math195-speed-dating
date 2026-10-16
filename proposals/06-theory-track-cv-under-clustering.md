@@ -410,7 +410,8 @@ Part 6 tests the proposition on balanced synthetic clusters over a wide range of
    Otherwise the coverage numbers are distorted.
 6. For the AUC, do not pool held-out scores across fold models when clusters differ in outcome rate. The pooled CV
    AUC is biased downward by a predictable amount of order 1/G (Proposition 9, Part 9). Use the between-cluster
-   within-fold AUC, pooled over folds, with the Obuchowski SE and t quantiles; it covered 85% to 94%. For AUC the
+   within-fold AUC, pooled over folds, with the Obuchowski SE and t quantiles; it covered 85% to 94% with 40 or more
+   clusters (82% to 91% at 20). For AUC the
    Nadeau-Bengio correction is not conservative (ratio about 1).
 
 ## 6f. The cross-validated AUC under clustering (derived 2026-10-15; tested in Part 9)
@@ -520,8 +521,10 @@ mixing bias to within about 5%.
 **Results** (Part 9, 2026-10-15; `sim_cv_auc.py`, 400 data sets per cell; five of six hypotheses supported).
 
 - **The pooled CV AUC is biased downward under outcome clustering (N16 supported).** The bias was -0.004 to -0.040
-  in all 12 cells, with every 90% interval below 0. Times G it is roughly constant, so it is of order $1/G$: about
-  -0.75 with a cluster SD of 2 and -0.27 with 1. Without outcome clustering it is under 0.003.
+  in all 12 cells, with every 90% interval below 0. Times G it is roughly constant, so it is of order $1/G$: on
+  average -0.81 with a cluster SD of 2 (range -0.72 to -0.99) and -0.29 with 1 (range -0.18 to -0.47). With no
+  clustering at all it is under 0.003. With covariate clustering alone it is -0.006 at G = 20 and -0.003 at G = 40,
+  mostly the same-cluster-pair term.
 - **The mixing term is predicted quantitatively (N17 supported).** The observed G x (pooled between-cluster minus
   BCWF-pooled) was within 1.3% to 5.1% of $C_{\rm mix}+c_2/4$ in all four designs:
 
@@ -554,8 +557,8 @@ mixing bias to within about 5%.
   - In the realistic A2 design at 21 real events (`auc_estimators_real.py`), the pooled interval covered 77% to 87%
     and BCWF-pooled 85% to 87%, with biases of -0.004 to -0.015 against at most 0.002.
   - On the real data the four estimates agree on average over 20 event partitions: pooled minus BCWF-pooled is
-    -0.004 to +0.002. So the project's headline AUCs are not materially biased, though a single partition moves the
-    gap by about 0.005.
+    -0.004 to +0.002. So the project's headline AUCs are not materially biased on average. The gap's SD across
+    partitions is 0.005 to 0.009, and on the headline folds the gap is -0.003 to -0.012.
   - **The theory, applied to our data.** Proposition 9's constants can be estimated from a single data set: the
     full-data fit, its event score sums, and the cluster-robust $\operatorname{Var}\hat\theta$ (`auc_estimators_real.py --plugin`). For
     the full logistic model the predicted mixing bias at $K=5$ is -0.0010 on `pre` and +0.0003 on `pre+date`. The
