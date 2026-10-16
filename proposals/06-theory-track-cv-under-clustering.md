@@ -325,6 +325,12 @@ Caveats, seen in Part 5's grid:
    removed), so this explanation is qualitative only.
 3. At $G=21$ and 40 the mean ratio was 1.11 and 1.28 (1.04 and 1.16 corrected); Part 7 later traced most of that to
    the imprecise target.
+4. Unequal fold sizes (negative exploratory pilot, seed 777, 30 partitions, real data). With fixed losses, dividing
+   each fold's residual total by $n/K$ rather than by its own size restores Proposition 6 exactly for any cluster
+   sizes, because the derivation only samples cluster totals without replacement. On the real models, though, that
+   changed the Nadeau-Bengio ratio by at most 0.05: 1.31 to 1.35, 0.97 to 0.95, 1.48 to 1.46 and 1.45 to 1.41, with
+   fold sizes varying by a CV of 0.31 to 0.35. Size imbalance is not what makes the correction conservative here,
+   so this was not registered.
 
 The review's own Monte Carlo (balanced, G = 20 to 640, 3,000 replicates each) confirmed (i) to (iii):
 
