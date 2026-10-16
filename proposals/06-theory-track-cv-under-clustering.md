@@ -329,6 +329,21 @@ The review's own Monte Carlo (balanced, G = 20 to 640, 3,000 replicates each) co
 - (ii): $G\,E[\hat\sigma^2_{\mathrm{NB}}]/(\text{factor}\cdot\operatorname{Var}(c))$ went 1.03 to 1.00.
 - (iii): the correlation was 0.14 to 0.20 for 0-1 loss, against 0.17 predicted.
 
+**Out-of-sample test of (ii)** (Part 8, `sim_cv_kfold.py`; N14 and N15 supported). Before running, the variance
+components were estimated from Part 6b's K = 5 runs and used to predict the Nadeau-Bengio ratio at other fold
+counts.
+
+| Fold count | Predicted (0-1 loss) | Observed at G = 80, 160, 320 |
+| --- | --- | --- |
+| K = 10 | 1.082 | 1.071, 1.082, 1.084 |
+| K = 3 | 1.452 | 1.505, 1.474, 1.463 (converging as G grows) |
+| K = 2 (exploratory) | 2.112 | 2.18 to 2.25 |
+
+Under log-loss the ratio stayed within 0.03 of 1 at every K. The K = 2 miss is 3% to 7%, as expected when half the
+data is held out, where the first-order expansion is least accurate. Proposition 8 (ii) is therefore a quantitative
+theory: it predicts how conservative the Nadeau-Bengio correction is at any fold count, from three variance
+components.
+
 Part 6 tests the proposition on balanced synthetic clusters over a wide range of $G$.
 
 **Results** (2026-10-15; `sim_cv_firstorder.py`, `firstorder_check.py`).
