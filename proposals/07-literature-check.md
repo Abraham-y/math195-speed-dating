@@ -75,6 +75,13 @@ we can claim. Venues marked "unverified" were not confirmed from the paper itsel
 
 ## What we can claim
 
+**Superseded on 2026-10-15 by Parts 4 to 8.** The adapted nested-CV interval below under-covers once the events are
+redrawn in every data set (N1; 83.6% in N5), while existing intervals applied at the event level reach the target:
+the cluster-robust SE with t quantiles (N4, N11), the wild cluster bootstrap-t (N12) and the Nadeau-Bengio correction
+on event folds (conservative, N6). What we now claim is in proposals/06, "Where the error-bar track stands": the
+evidence for those intervals at the event level, and Proposition 8 (ii), which predicts how conservative the
+Nadeau-Bengio correction is at any fold count (checked out of sample, N14). The original wording is kept for the record:
+
 "We adapt the Bates, Hastie and Tibshirani nested-CV interval to one-way clustered data: clusters are held out at
 both levels, the outer-fold term is cluster-robust, and the bias adjustment is kept. In a simulation calibrated to
 the data, with about 21 clusters, it gives near-nominal coverage of the new-cluster error, where the published
@@ -90,13 +97,13 @@ How to frame the parts:
 
 ## Still to do
 
-1. **More comparisons in the simulation.** Add these intervals:
+1. **More comparisons in the simulation.** (Done in Parts 4, 5 and 7: `sim_cv_repair.py`, `sim_cv_confirm.py`, `sim_cv_sizes.py`.) Add these intervals:
    - the Nadeau-Bengio corrected t on grouped folds;
    - Bayle et al.'s Wald interval with clusters as units;
    - a cluster bootstrap of grouped CV (Cai et al., Remark 4);
    - internal-external CV with a random-effects meta-analysis;
    - grouped nested CV with a row-level variance (as `mlr3inferr` would compute it).
-2. **Over-coverage.** Explain why event CV with a cluster-robust SE covers 99% (A2). Possible causes are the
+2. **Over-coverage.** (Explained: the events were fixed across replicates; Proposition 7 and N4.) Explain why event CV with a cluster-robust SE covers 99% (A2). Possible causes are the
    G/(G-1) factor, the choice of normal against t quantiles at G = 21, or a positive covariance between the CV
    estimate and the target.
 3. **Citations in the write-up:** Bates et al.; Rabinowicz and Rosset; Bengio and Grandvalet; Nadeau and Bengio;

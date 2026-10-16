@@ -244,8 +244,9 @@ while the cluster-robust variance includes the spread of the clusters' expected 
 over-covers by an amount set by how different the clusters are. The proposition has no refitting: with shared
 fitted models, $\bar c$ adds to the comparison (Proposition 2), and A2's events are also unbalanced. So A2's 99.2% with
 the 21 real events fixed, against 87.4% with them redrawn (N4), is consistent with Proposition 7 but not
-quantitatively explained by it. A fixed-design study must also state its target. In the 21-event designs, the mean cluster-robust SE was 0.017 against a true spread of 0.010 to
-0.017. The distinction is the classical one between design-based and model-based variance. The practical lesson
+quantitatively explained by it. A fixed-design study must also state its target. In the 21-event designs, the mean cluster-robust SE was 0.017,
+against an SD of the CV estimate of 0.010 to 0.017 and an SD of CV minus Err_new (the relevant target) of 0.008 to
+0.013. The distinction is the classical one between design-based and model-based variance. The practical lesson
 is for simulation studies of CV error bars: redraw the clusters, or the cluster-robust SE will look better than it
 is.
 
@@ -318,10 +319,12 @@ Relation to the literature.
 
 Caveats, seen in Part 5's grid:
 
-1. Real events are unbalanced (25 to 440 dyads), so the cancellation in step 3 is only approximate.
+1. Real events are unbalanced (25 to 484 dyads), so the cancellation in step 3 is only approximate.
 2. Drawing 10 of 21 events without replacement adds a finite-population effect. The simple factor
-   $1-10/21=0.52$ does not match the observed 0.75, so this explanation is qualitative only.
-3. At $G=21$ and 40 the ratio was 1.11 and 1.28; Part 7 later traced most of that to the imprecise target.
+   $1-10/21=0.52$ does not match the observed mean ratio of 0.75 (0.72 with the target's Monte Carlo variance
+   removed), so this explanation is qualitative only.
+3. At $G=21$ and 40 the mean ratio was 1.11 and 1.28 (1.04 and 1.16 corrected); Part 7 later traced most of that to
+   the imprecise target.
 
 The review's own Monte Carlo (balanced, G = 20 to 640, 3,000 replicates each) confirmed (i) to (iii):
 
@@ -339,7 +342,8 @@ counts.
 | K = 3 | 1.452 | 1.505, 1.474, 1.463 (converging as G grows) |
 | K = 2 (exploratory) | 2.112 | 2.18 to 2.25 |
 
-Under log-loss the ratio stayed within 0.03 of 1 at every K. The K = 2 miss is 3% to 7%, as expected when half the
+Under log-loss the ratio stayed within 0.035 of 1 at K = 3, 5 and 10 (0.984 to 1.032), and was 1.03 to 1.06 at
+K = 2. The K = 2 miss is 3% to 7%, as expected when half the
 data is held out, where the first-order expansion is least accurate. Proposition 8 (ii) is therefore a quantitative
 theory: it predicts how conservative the Nadeau-Bengio correction is at any fold count, from three variance
 components.
@@ -356,8 +360,8 @@ Part 6 tests the proposition on balanced synthetic clusters over a wide range of
   prediction's 90% bootstrap interval. $\operatorname{Corr}(a,\beta)$ is about -0.5.
 - **Claim (iv), the correlation, confirmed (N10).** Under log-loss, $\operatorname{Corr}(\widehat{\mathrm{Err}}_{\mathrm{CV}},\mathrm{Err}_{\mathrm{new}})$ is between -0.11 and
   -0.02. Under 0-1 loss it is positive, 0.08 to 0.21.
-- **Coverage confirmed (N11).** The cluster-robust interval with $t_{G-1}$ quantiles covered $\mathrm{Err}_{\mathrm{new}}$ 87.5% to 91.5% at every
-  G and for both losses.
+- **Coverage confirmed (N11).** The cluster-robust interval with $t_{G-1}$ quantiles covered $\mathrm{Err}_{\mathrm{new}}$ 87.5% to 90.2% at every
+  G and for both losses in the registered run, and 87.5% to 91.5% in the Part 6b replication.
 - **Claim (i), the variance ratio, not confirmed at the registered precision.** N8, with a band of [0.85, 1.15], and
   N8b, with [0.9, 1.1] after removing the target's Monte Carlo variance, both failed: values ran from 0.91 to 1.17.
   Pooled over G >= 80 and both losses, the corrected ratio is 1.05 (90% bootstrap interval 0.98 to 1.11). That is
@@ -371,9 +375,10 @@ Part 6 tests the proposition on balanced synthetic clusters over a wide range of
 - **A caveat for every realistic-design simulation** (A2, the design grid, the repair grid, the confirmatory grid).
   Their target was scored on 300 new events, whose own Monte Carlo SD is about 0.0045. That is 3% to 10% of
   $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})$, so all reported coverages there are slightly understated, most at G = 40. With
-  it removed, the cluster-robust variance ratio in the confirmatory grid was 0.78 at G = 10 (a finite-population
-  effect, since those 10 events are drawn without replacement from 21), 1.05 at G = 21, and 1.18 and 1.46 in the
-  two G = 40 designs checked. The G = 40 excess in the realistic designs is not explained yet. Fold-size imbalance
+  it removed, the cluster-robust variance ratio in the confirmatory grid was 0.55 to 0.84 at G = 10 (mean 0.72; a
+  finite-population effect, since those 10 events are drawn without replacement from 21), 0.96 to 1.20 at G = 21
+  (mean 1.04), and 0.89 to 1.46 at G = 40 (mean 1.16), over the four designs at each G. (An earlier version of this
+  bullet quoted single designs: 0.78, 1.05, and 1.18 and 1.46.) The G = 40 excess in the realistic designs is not explained yet. Fold-size imbalance
   is too small to account for it; this is an open question.
 - **Resolved by Part 7** (`sim_cv_sizes.py`). The realistic designs were rerun with G = 21 and 40 (events redrawn),
   the target scored on 2,000 new events, and fresh seeds. The cluster-robust variance ratio, corrected for the
@@ -389,7 +394,7 @@ Part 6 tests the proposition on balanced synthetic clusters over a wide range of
 1. Hold out whole clusters. This fixes what is being estimated (Lemma 1).
 2. Use the cluster-robust SE with t quantiles on G - 1 (or on the effective number of clusters), or the wild
    cluster bootstrap-t. To first order this is the right variance for the full model's new-cluster error
-   (Proposition 8, and Bayle et al. with clusters as units). It covered 86% to 91% in every design with a precise
+   (Proposition 8, and Bayle et al. with clusters as units). It covered 85% to 92% in every design with a precise
    target.
 3. The Nadeau-Bengio correction on grouped folds is conservative by a factor the theory predicts (Proposition 8 (ii);
    predicted and observed within about 1%). On random-row folds it fails by the design effect (Proposition 6, N7).
@@ -457,7 +462,8 @@ Status, 2026-10-15:
   of Section 5 covered 92% to 100% in every design. That is a post hoc finding, to be registered before it is tested.
 - **Why the cluster-robust SE over-covers in A2 (99%).** The A2 design and the 21-event designs reuse the real events
   in every replicate, so the variation from drawing new events is absent. The cluster-robust SE still counts it,
-  averaging 0.017 against a true spread of 0.010 to 0.017. With events redrawn it matches the spread, and its
+  averaging 0.017 against an SD of CV minus Err_new of 0.008 to 0.013 (the SD of the CV estimate alone is 0.010 to
+  0.017). With events redrawn it matches the spread, and its
   coverage falls to 84% to 94.5%. This is Proposition 2 seen from the other side: $\hat V_{\mathrm{CR}}$ estimates
   the random-design variance.
 - **Part 4 results (`sim_cv_repair.py`, events redrawn in every data set).** The floor covered 89% to 96.5% in all
@@ -479,7 +485,7 @@ Status, 2026-10-15:
   every interval missed. Against the spread of the CV estimate (0.0065), the rater-clustered and ratee-clustered
   SEs fit (0.0064 and 0.0065), the two-way and dyadic-robust SEs are about 15% wide, and the naive SE is 20% narrow.
 - Item 6 is done for logistic regression and LDA (`errorbars_real.py`).
-- The literature check (proposals/07) changes the framing. Propositions 1 to 3 extend Bates, Hastie and Tibshirani, Bengio and Grandvalet, and Bayle et al. with clusters as the units; they are not new theory. The candidate contribution is the combined procedure and its coverage evidence at about 21 clusters.
+- The literature check (proposals/07) changes the framing. Propositions 1 to 3 extend Bates, Hastie and Tibshirani, Bengio and Grandvalet, and Bayle et al. with clusters as the units; they are not new theory. The candidate contribution was then the combined procedure and its coverage evidence at about 21 clusters. That is superseded (2026-10-15): the procedure under-covers with events redrawn (N1, and 83.6% in N5), while existing intervals applied at the event level reach the target (N4, N11, N12). The plausibly new piece is now Proposition 8 (ii) and its out-of-sample check (N14); see "Where the error-bar track stands" in Section 6e.
 
 ## 9. References
 

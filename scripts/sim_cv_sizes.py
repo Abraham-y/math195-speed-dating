@@ -1,6 +1,6 @@
 """N12 and N13 (PREREG.md, Part 7): CV error bars when cluster sizes are very unequal; the wild cluster bootstrap-t.
 
-Input : data/pairs.csv (the A2 truth model and the real events, 25 to 440 dyads each)
+Input : data/pairs.csv (the A2 truth model and the real events, 25 to 484 dyads each)
 Output: results/sim_cv_sizes_rows.csv (one row per data set), results/sim_cv_sizes_coverage.csv,
         results/sim_cv_sizes_hypotheses.csv
 Seeds : design d (0 to 7): 20264706 + d.

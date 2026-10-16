@@ -760,3 +760,6 @@ Settings (`scripts/sim_cv_kfold.py`):
 - 2026-10-15 (new hypotheses N14, N15) Part 8: an out-of-sample quantitative test of Proposition 8 (ii) at K = 3
   and 10, with predictions computed from Part 6b's K = 5 runs; committed after Part 7 ran (N12 supported, N13 not)
   and before any Part 8 run.
+- 2026-10-15 (correction of a description; no hypothesis changed) Part 7 describes the real events as 25 to 440
+  dyads. The data have 25 to 484 (two events have 441 and 484 dyads). The designs resampled the real events as they
+  are, so no result changes. Found by the drafting of proposals/08.
