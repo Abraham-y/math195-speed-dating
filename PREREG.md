@@ -475,6 +475,78 @@ Settings (`scripts/sim_cv_kfold.py`):
 - The Nadeau-Bengio variance for each K in {2, 3, 5, 10} comes from R grouped partitions with J = R x K = 60
   (R = 30, 20, 12, 6).
 
+## Part 9 (committed 2026-10-15, after Part 8 and S2 and O1 ran and before any of this ran)
+
+Part 8 is recorded unchanged: N14 supported (0-1 loss, observed minus predicted -0.012 to +0.053 at K = 3 and 10);
+N15 supported (log-loss, observed minus 1 between -0.016 and +0.032). The last two Part 5 hypotheses are recorded
+unchanged: S2 not supported (mean gamma 0.136 for women and 0.183 for men, both with 90% intervals above 0, but
+R2_k above 0.10 for most traits in both genders); O1 not supported (gamma -0.139, 90% interval -0.307 to 0.029).
+
+This part is about the AUC under grouped CV. The project reports a pooled event-CV AUC with the Obuchowski clustered
+SE, and that interval has been checked by simulation only for a fixed score (`sim_auc_cluster.py`), never for
+cross-validated scores. Proposition 9 (proposals/06, section 6f) gives:
+
+- (i) To first order the pooled CV AUC minus the full model's AUC on new clusters is the Hajek projection, so the
+  Obuchowski variance is first-order right.
+- (ii) The Nadeau-Bengio ratio for fold AUCs tends to Var(a - beta/(K-1)) / Var(a), and beta is near 0 because
+  logistic regression nearly maximizes the AUC.
+- (iii) At order 1/G, the pooled estimate carries a mixing bias. In a cross-fold pair each side's model was fitted
+  on the other side's cluster. The leading term is C_mix / G, free of K, and the next is c2 / ((K-1) G). Same-cluster
+  pairs add kappa (A_w - A_b) / G to the pooled estimate, and K kappa (A_w - A_b) / G to the fold-averaged one. An
+  estimate that uses only pairs from different clusters within a fold (BCWF) avoids both.
+
+Before this entry, and labelled exploratory, I ran:
+
+- two pilots (seeds 999000 + 10 i and 998000 + 10 d + cell; 200 and 150 data sets per cell; scratch outputs, not
+  in results/);
+- the population constants (`sim_cv_auc.py --components`, seeds 20265006 + design; results/sim_cv_auc_components.csv).
+
+The pilots showed a pooled bias of about -0.8 / G with cluster SD 2, which the first-order mixing constant explains
+to within about 15% and the two-term expression to within about 5%. The constants and predictions below are those
+in the components file. Every test below uses fresh seeds.
+
+- N16. In the four designs with outcome clustering (sa in {1, 2}, su in {0, 1}), the pooled event-CV AUC is biased
+  downward: mean(pooled - AUC_new) < 0, with its 90% interval below 0, at each of G = 20, 40 and 80 (12 cells).
+- N17. The mixing bias at K = 5. In those four designs, the mean of G x (pooled between-cluster AUC - BCWF-pooled),
+  pooled over G = 40, 80 and 160, lies within 15% of C_mix + c2 / 4. The predictions are -0.300 (sa 1, su 0), -0.236
+  (sa 1, su 1), -0.847 (sa 2, su 0) and -0.708 (sa 2, su 1).
+- N18. The fold-count structure, out of sample. In the designs with sa 1 and sa 2 (su 0), at G = 80, the same mean
+  lies within 15% of C_mix + c2 / (K - 1):
+  - K = 2: -0.400 and -1.127;
+  - K = 10: -0.282 and -0.795.
+- N19. BCWF-pooled is close to unbiased. |mean(BCWF-pooled - AUC_new)| is at most 0.25 times the mean Obuchowski SE
+  in all 18 cells with G >= 40. The pooled estimate's |bias| exceeds 0.25 times the mean SE in the four sa = 2 cells
+  at G = 40 and 80.
+- N20. Coverage. With t quantiles on G - 1 and the Obuchowski SE of the pooled scores:
+  - the BCWF-pooled interval's mean coverage of AUC_new over the 18 cells with G >= 40 is between 0.87 and 0.93;
+  - the pooled interval's mean coverage over the six sa = 2 cells with G >= 40 is below 0.85.
+- N21. The Nadeau-Bengio ratio for within-fold AUCs, NB / ((J+K-1)/(J-1) x Obuchowski variance), lies within 0.07 of
+  its prediction at G = 80 and 160 in the three designs of the Nadeau-Bengio runs. The predictions are 0.9995
+  (linear), 1.0034 (hinge) and 0.9913 (random slope); all are about 1, because beta is near 0.
+
+Exploratory:
+
+- the fold-averaged and per-fold BCWF estimates;
+- normal quantiles and the wild cluster bootstrap-t for the pooled interval;
+- the c_train and c_within predictions against observation;
+- variance ratios;
+- the observation that c2 / C_mix is close to 1/2 in all nine designs (0.49 to 0.53). If exact, G x mixing bias
+  would equal C_mix (2K - 1) / (2(K - 1));
+- the realistic A2 design at G = 21 and the four estimates on the real data (a separate script, written after this
+  entry).
+
+Settings (`scripts/sim_cv_auc.py`):
+
+- Data: G clusters of 40 rows; x = su u_g + v_i; y ~ Bernoulli(logistic(-1.5 + x'(1, 0.5, 0) + sa a_g)). Designs 0 to 5
+  are sa in {0, 1, 2} x su in {0, 1}. The Nadeau-Bengio designs have sa = su = 1 and are linear, hinge
+  (+ 1.5 max(x3, 0) - 1) and random slope (x1 slope 1 + b_g). The model is a logistic regression on x.
+- AUC_new is the full-data model's pooled AUC on 20,000 new clusters, with its Monte Carlo variance recorded.
+- Coverage cells: G in {20, 40, 80, 160}, 400 data sets each, seeds 20265106 + 10 x design + G index, event 5-fold.
+- Other fold counts: designs 2 and 4, G = 80, K in {2, 10}, 400 data sets each, seeds 20265206 + 10 x design + K
+  index.
+- Nadeau-Bengio: G in {80, 160}, 400 data sets each, R = 12 partitions (J = 60), seeds 20265306 + 10 x design +
+  G index.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -763,3 +835,6 @@ Settings (`scripts/sim_cv_kfold.py`):
 - 2026-10-15 (correction of a description; no hypothesis changed) Part 7 describes the real events as 25 to 440
   dyads. The data have 25 to 484 (two events have 441 and 484 dyads). The designs resampled the real events as they
   are, so no result changes. Found by the drafting of proposals/08.
+- 2026-10-15 (new hypotheses N16 to N21) Part 9: the cross-validated AUC under clustering (Proposition 9), committed
+  after Part 8, S2 and O1 ran, after two labelled exploratory pilots and the population constants, and before any
+  confirmatory run.

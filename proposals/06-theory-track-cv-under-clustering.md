@@ -403,6 +403,79 @@ Part 6 tests the proposition on balanced synthetic clusters over a wide range of
 5. For coverage studies: redraw the clusters (Proposition 7) and score the target precisely (Part 6b, Part 7).
    Otherwise the coverage numbers are distorted.
 
+## 6f. The cross-validated AUC under clustering (derived 2026-10-15; tested in Part 9)
+
+The project reports a pooled event-CV AUC: one AUC over all held-out scores, which come from $K$ different fold
+models. Its target here is the full model's AUC on new clusters, pooled over clusters. That is
+$A(\theta)=P\{s_\theta(X_1)>s_\theta(X_0)\}$ for a match and a non-match from different clusters, with
+$s_\theta(x)=\tilde x^\top\theta$.
+
+Setup: Proposition 8's (balanced clusters of size $m$, $G$ clusters, $n=Gm$, uniform balanced grouped folds,
+$\hat\theta_T-\theta^*\approx\frac1{|T|}\sum_{g\in T}\psi_g$, $H$ the per-row Fisher information of the logistic fit, match
+rate $\pi$). Further notation:
+
+- $F_0$ and $S_1$ are the population distribution of non-match scores and survival function of match scores at
+  $\theta^*$.
+- Cluster $h$'s Hajek projection is
+  $a_h=\frac{1}{m\pi}\sum_{i\in h,\,y_i=1}\{F_0(s^*_i)-A^*\}+\frac{1}{m(1-\pi)}\sum_{i\in h,\,y_i=0}\{S_1(s^*_i)-A^*\}$.
+- $d=\nabla A(\theta^*)$ and $\beta_h=d^\top\psi_h$.
+- $s_h=\sum_{i\in h}\tilde x_i(y_i-p^*_i)$ is the cluster's score sum, and $D=s^*_i-s^*_j$ for a match–non-match pair from
+  different clusters.
+
+**Proposition 9.**
+
+- **(i) First order.** For the pooled, fold-averaged and between-cluster within-fold (BCWF) estimates $\hat A$,
+  $\hat A-A(\hat\theta_{\rm all})=\bar a+o_p(G^{-1/2})$. The Obuchowski variance of the pooled scores satisfies $G\hat V\to_p\operatorname{Var}(a)$.
+  The reason: a cross-fold pair compares two models, but $A(\theta_k,\theta_{k'})$ expanded to first order sums,
+  over the folds, to $\nabla A^\top(\hat\theta_{\rm all}-\theta^*)$. The intercept parts cancel because the AUC does not
+  depend on location.
+- **(ii) Nadeau–Bengio.** As in Proposition 8 (ii), $G\,E[\hat\sigma^2_{\rm NB}]\to\frac{J+K-1}{J-1}\operatorname{Var}(a-\beta/(K-1))$. Since $A$ does not
+  depend on location or scale, $d$ has no intercept part and $d\perp\theta^*$. When the model's index direction
+  maximizes the pooled AUC among linear scores, $d=0$. That holds under correct specification (Neyman–Pearson)
+  and for monotone single-index truths with elliptical $x$ (Li and Duan 1989). Otherwise $d$ is first order in the
+  misspecification angle. In every design computed (Part 9's components, including a hinge and a random slope),
+  $|d|\le0.014$, and the predicted ratio is 0.99 to 1.003. Unlike the error rate, whose ratio is about 1.2, the
+  AUC's Nadeau–Bengio correction is not conservative.
+- **(iii) Second order: three biases of order $1/G$.**
+  1. *Same-cluster pairs.* A within-fold AUC puts weight $f\approx(K/G)\kappa$ on match–non-match pairs from the same
+     cluster, with $\kappa=E[m_{1h}m_{0h}]/(m^2\pi(1-\pi))$. Their AUC $A_w$ differs from the between-cluster $A_b$. So the
+     fold-averaged estimate carries $K\kappa(A_w-A_b)/G$, and the pooled estimate $\kappa(A_w-A_b)/G$. The sign is that of
+     $A_w-A_b$: positive when clusters share outcome noise, negative when they share signal.
+  2. *Mixing.* In a cross-fold pair ($i$ in fold $k$, $j$ in fold $k'$), model $k$ was fitted on $j$'s cluster and model
+     $k'$ on $i$'s. So the score difference is shifted by
+     $\{\tilde x_i^\top H^{-1}s_{h(j)}-\tilde x_j^\top H^{-1}s_{h(i)}\}/n'$, with $n'=n(K-1)/K$. A within-fold pair from different
+     clusters has no such shift. Cross-fold pairs are $(K-1)/K$ of the between-cluster pairs, so the leading bias is
+     $$\frac{C_{\rm mix}}{G},\qquad C_{\rm mix}=\frac1m E\big[\delta(D)\{\tilde x_i^\top H^{-1}s_{h(j)}-\tilde x_j^\top H^{-1}s_{h(i)}\}\big],$$
+     and it does not depend on $K$. With outcome clustering, $s_{h(j)}$ given a non-match $j$ points toward a lower
+     intercept, and the reverse for a match, so $C_{\rm mix}<0$. Next, the two fold models of a cross-fold pair differ
+     by noise $\xi=-\tilde x_j^\top(\theta_{k'}-\theta_k)$, correlated with the common error. A second-order Taylor step in the
+     Heaviside function gives $E[\delta'(D)\{\operatorname{Cov}(\varepsilon_0,\xi)+\tfrac12\operatorname{Var}\xi\}]=E[\delta'(D)\,\tilde x_i^\top\operatorname{Var}(\psi)\tilde x_j]/((K-1)G)$, which is
+     $c_2/((K-1)G)$ with $c_2=-g'(0)$ and $g(t)=E[\tilde x_i^\top\operatorname{Var}(\psi)\tilde x_j\,\delta(D-t)]$. In total,
+     $$E[\text{pooled between-cluster}-\text{BCWF-pooled}]=\frac1G\Big(C_{\rm mix}+\frac{c_2}{K-1}\Big)+o(1/G).$$
+     The ratio biases of the two estimates (random pair counts in the denominator) are equal to leading order. Both
+     sum over cluster pairs whose projections have the same covariance, so the difference isolates the mixing.
+  3. *Training size.* Every CV model sees $(K-1)/K$ of the clusters, so all CV estimates carry
+     $\operatorname{tr}(H_A\operatorname{Var}\psi)/(2(K-1)G)$, with $H_A$ the AUC Hessian in the slopes. This term is small because $A$ is
+     flat near its maximum.
+
+Remarks.
+
+- The mixing bias is the pooling bias of Forman and Scholz (2010) and of Parker et al. (2007), seen through
+  clustering. With independent rows it is of order $1/n$ and negligible. With clusters it is of order $1/G$, larger
+  by about the design effect of the residuals. At $G=20$ with a cluster SD of 2 on the logit scale it is about one
+  standard error.
+- The leading term does not shrink with more folds. Only the $c_2$ part does.
+- In all nine designs computed, $c_2/C_{\rm mix}$ is 0.49 to 0.53. If $c_2=C_{\rm mix}/2$ exactly, which is a conjecture, the
+  mixing bias is $C_{\rm mix}(2K-1)/(2(K-1))/G$.
+- Which target? For ranking pairs across events (an app), the pooled between-cluster AUC is right, and BCWF
+  estimates it without the mixing and same-cluster biases. For ranking within an event (a matchmaker), the target is
+  $A_w$, and a within-cluster AUC estimates it.
+
+Status: (i) and (ii) are derived as in Proposition 8. (iii) is a heuristic second-order expansion, with constants
+computed numerically from the population (`sim_cv_auc.py --components`, tested in `tests/test_part9.py`). It is
+tested in Part 9 (N16 to N21) on fresh seeds, after two labelled pilots in which the two-term expression matched the
+mixing bias to within about 5%.
+
 ## 7. First simulation (done; to be extended)
 
 Design. $G=40$ clusters of $m=20$ rows, $p=10$ covariates, logistic regression fitted by IRLS with a tiny ridge, 0-1 loss, $K=5$. Data: $x_i=u_{g(i)}+v_i$ with $u_g,v_i\sim N(0,I)$ (half the covariate variance is between clusters), $y_i\sim\mathrm{Bernoulli}(\sigma(x_i^\top\beta+a_{g(i)}))$ with $a_g\sim N(0,1)$ and $\beta=(1,1,0.5,0.5,0,\dots,0)$. The truth $\mathrm{Err}^{\mathrm{new}}(D)$ for the full-data model is computed on 300 fresh clusters. 300 replicates; nested procedures average over $R=20$ fold assignments. The Bates, Hastie and Tibshirani bias adjustment is omitted. Script: `sim_cv_cluster.py`.
