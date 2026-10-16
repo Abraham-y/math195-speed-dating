@@ -5,6 +5,7 @@ import numpy as np, pandas as pd
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 import modeling as M
 import sim_cv_auc as A
+import auc_ratio_quadrature as Q
 
 
 def brute(score, y, g, same):
@@ -88,6 +89,21 @@ def test_pair_density_estimators_known_answers():
     assert abs(A.pair_density_slope(s, y, F, F, np.array([[1.5]])) / (6 * 0.5 * f0) - 1) < 0.05
     # a weight that depends on the match's score: E[delta(D) s_i] = E[s_i | D = 0] f_D(0) = (1/2) f_D(0)
     assert abs(A.pair_density_term(s, y, s[:, None], np.ones((n, 1))) / (0.5 * f0) - 1) < 0.02
+
+
+def test_quadrature_gives_one_half_for_independent_rows():
+    # Proposition 10: with independent rows and a correct logistic model, c2 = C_mix / 2 exactly
+    for b0, beta in ((-1.5, (1.0, 0.5, 0.0)), (-0.5, (2.0, 0.0, 0.0))):
+        r = Q.compute(b0=b0, beta=beta, su=0.0, akind="gauss", apar=0.0)
+        assert abs(r["ratio"] - 0.5) < 1e-5, r["ratio"]
+
+
+def test_quadrature_agrees_with_the_binned_constants():
+    # an independent method: the binned estimator of sim_cv_auc.components for design 2 (sa 1, su 0)
+    r = Q.compute(su=0.0, akind="gauss", apar=1.0)
+    c = A.components(2)
+    assert abs(c["c_mix"] / r["C_mix"] - 1) < 0.03, (c["c_mix"], r["C_mix"])
+    assert abs(c["c_mix2"] / r["c2"] - 1) < 0.05, (c["c_mix2"], r["c2"])
 
 
 if __name__ == "__main__":

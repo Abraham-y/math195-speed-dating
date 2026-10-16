@@ -1,8 +1,13 @@
 # Adversarial review of Propositions 9 (iii) and 10 (proposals/06, section 6f)
 
 Written 2026-10-16 by an automated reviewer (a Claude subagent), which was told to find errors and to settle the
-clustered case of c2 = C_mix / 2. Its scripts and logs are in the session scratchpad, not in this repository, so the
-numbers below are its own unless marked "verified". Jenna's review is still to come.
+clustered case of c2 = C_mix / 2. Jenna's review is still to come.
+
+Reproducibility: the exact-quadrature values are reproduced by `scripts/auc_ratio_quadrature.py`
+(`results/auc_ratio_quadrature.csv`), which is the reviewer's code adopted with tests in `tests/test_part9.py`: the
+ratio is 1/2 for independent rows, and C_mix and c2 agree with the binned constants. The K = 2 rerun is
+`scripts/sim_cv_auc_k2check.py`. The kernel Monte Carlo, bin sweeps and kappa-expansion runs remain the reviewer's
+own (scratch); their numbers are marked as the review's.
 
 Two claims were checked independently on fresh seeds:
 
