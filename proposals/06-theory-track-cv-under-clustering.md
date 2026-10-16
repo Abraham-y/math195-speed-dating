@@ -455,16 +455,24 @@ rate $\pi$). Further notation:
   2. *Mixing.* In a cross-fold pair ($i$ in fold $k$, $j$ in fold $k'$), model $k$ was fitted on $j$'s cluster and model
      $k'$ on $i$'s. So the score difference is shifted by
      $\{\tilde x_i^\top H^{-1}s_{h(j)}-\tilde x_j^\top H^{-1}s_{h(i)}\}/n'$, with $n'=n(K-1)/K$. A within-fold pair from different
-     clusters has no such shift. Cross-fold pairs are $(K-1)/K$ of the between-cluster pairs, so the leading bias is
-     $$\frac{C_{\rm mix}}{G},\qquad C_{\rm mix}=\frac1m E\big[\delta(D)\{\tilde x_i^\top H^{-1}s_{h(j)}-\tilde x_j^\top H^{-1}s_{h(i)}\}\big],$$
-     and it does not depend on $K$. With outcome clustering, $s_{h(j)}$ given a non-match $j$ points toward a lower
+     clusters has no such shift. Given a match in fold $k$, a non-match from another cluster lies in another fold with
+     probability $G(K-1)/(K(G-1))$. Times $1/n'$ that is $1/(m(G-1))$, so the leading bias is
+     $$\frac{C_{\rm mix}}{G-1},\qquad C_{\rm mix}=\frac1m E\big[\delta(D)\{\tilde x_i^\top H^{-1}s_{h(j)}-\tilde x_j^\top H^{-1}s_{h(i)}\}\big],$$
+     and it does not depend on $K$. (The first version wrote $C_{\rm mix}/G$, using a cross-fold share of $(K-1)/K$. The
+     difference is $o(1/G)$ but 1% to 2.6% at the G used; review, proposals/09, E1.) With outcome clustering, $s_{h(j)}$ given a non-match $j$ points toward a lower
      intercept, and the reverse for a match, so $C_{\rm mix}<0$. Next, the two fold models of a cross-fold pair differ
      by noise $\xi=-\tilde x_j^\top(\theta_{k'}-\theta_k)$, correlated with the common error. A second-order Taylor step in the
-     Heaviside function gives $E[\delta'(D)\{\operatorname{Cov}(\varepsilon_0,\xi)+\tfrac12\operatorname{Var}\xi\}]=E[\delta'(D)\,\tilde x_i^\top\operatorname{Var}(\psi)\tilde x_j]/((K-1)G)$, which is
-     $c_2/((K-1)G)$ with $c_2=-g'(0)$ and $g(t)=E[\tilde x_i^\top\operatorname{Var}(\psi)\tilde x_j\,\delta(D-t)]$. In total,
-     $$E[\text{pooled between-cluster}-\text{BCWF-pooled}]=\frac1G\Big(C_{\rm mix}+\frac{c_2}{K-1}\Big)+o(1/G).$$
-     The ratio biases of the two estimates (random pair counts in the denominator) are equal to leading order. Both
-     sum over cluster pairs whose projections have the same covariance, so the difference isolates the mixing.
+     Heaviside function gives, per cross-fold pair,
+     $E[\delta'(D)\{\operatorname{Cov}(\varepsilon_0,\xi)+\tfrac12\operatorname{Var}\xi\}]=\frac{K}{K-1}E[\delta'(D)\,\tilde x_i^\top\operatorname{Var}(\psi)\tilde x_j]/((K-1)G)$.
+     Times the cross-fold share this is $c_2/((K-1)(G-1))$, with $c_2=-g'(0)$ and
+     $g(t)=E[\tilde x_i^\top\operatorname{Var}(\psi)\tilde x_j\,\delta(D-t)]$. (The first version dropped the factor $K/(K-1)$ in the per-pair identity,
+     although its final term was right; review E3.) In total,
+     $$E[\text{pooled between-cluster}-\text{BCWF-pooled}]=\frac1{G-1}\Big(C_{\rm mix}+\frac{c_2}{K-1}\Big)+o(1/G).$$
+     The next term is $\tfrac12E[\delta''(D)\,m_{ij}\operatorname{Var}_{{\rm cross},ij}]$, the mixing shift times the cross-fold noise
+     variance. It scales with $K/(K-1)^2$ and is of order $1/G^2$ (review E2). The ratio biases of the two estimates
+     (random pair counts in the denominator) are equal to leading order: both are $4c'/(G\mu^2)$, and they first differ
+     at $O(K/G^2)$. So the difference isolates the mixing. The per-fold average carries $K$ times that ratio bias
+     (confirmed by the review).
   3. *Training size.* Every CV model sees $(K-1)/K$ of the clusters, so all CV estimates carry
      $\operatorname{tr}(H_A\operatorname{Var}\psi)/(2(K-1)G)$, with $H_A$ the AUC Hessian in the slopes. This term is small because $A$ is
      flat near its maximum.
@@ -476,17 +484,31 @@ Remarks.
   by about the design effect of the residuals. At $G=20$ with a cluster SD of 2 on the logit scale it is about one
   standard error.
 - The leading term does not shrink with more folds. Only the $c_2$ part does.
-- In all nine designs computed, $c_2/C_{\rm mix}$ is 0.49 to 0.53. If $c_2=C_{\rm mix}/2$ exactly, the mixing bias is
-  $C_{\rm mix}(2K-1)/(2(K-1))/G$. Proposition 10 proves this in one case; with clustering it is a conjecture.
+- In the linear designs $c_2/C_{\rm mix}$ is close to 1/2: by exact quadrature (review E4) it is 0.50000, 0.50000, 0.50183,
+  0.50027, 0.50104 and 0.50316. The binned estimates' spread of 0.49 to 0.50 was numerical noise; that estimator
+  cannot resolve deviations below about 1%. With random slopes the ratio is genuinely higher, 0.52 to 0.53. Where
+  $c_2=C_{\rm mix}/2$, the mixing bias is $C_{\rm mix}(2K-1)/(2(K-1))/(G-1)$. Proposition 10 proves this for independent rows; with
+  clustering it is false in general (below).
 
-**Proposition 10 (the factor 1/2; proved for independent rows, 2026-10-15).** Suppose the rows are independent, the
-covariates are Gaussian, and the logistic model is correctly specified. Then $c_2=C_{\rm mix}/2$ exactly, and the pooling
-bias of $K$-fold CV is
-$$-\frac{2K-1}{2(K-1)}\cdot\frac1n\,E\big[\delta(D)\,(1-p_i+p_j)\,\tilde x_i^\top H^{-1}\tilde x_j\big]$$
-plus the training-size term. This is a closed form for the pessimistic bias of pooled CV AUC that Airola et al. and
-Parker et al. report.
+**Proposition 10 (the factor 1/2; proved for independent rows, 2026-10-15; generalized 2026-10-16).** Suppose the
+rows are independent, the logistic model is correctly specified, and the score densities are smooth. The covariates
+need not be Gaussian. Then $c_2=C_{\rm mix}/2$ exactly, and the pooling bias of $K$-fold CV is
+$$-\frac{2K-1}{2(K-1)}\cdot\frac1n\,E\big[\delta(D)\,\tilde x_i^\top H^{-1}\tilde x_j\big]$$
+to leading order, plus the training-size term. (On $D=0$ the two scores are equal, so $p_i=p_j$; the factor $(1-p_i+p_j)$ in
+the first version is identically 1 there.) This is a closed form for the pessimistic bias of pooled CV AUC that
+Airola et al. and Parker et al. report.
 
-*Proof.*
+*Proof* (the shorter, general version from the review, proposals/09).
+
+1. As in step 1 below, $C_{\rm mix}=-\frac1mE[\delta(D)\,q]$ with $q=\tilde x_i^\top H^{-1}\tilde x_j$, and $c_2=-\frac1mI'(0)$ with $I(t)=E[q\,\delta(D-t)]$.
+2. Under correct specification $P(y=1\mid x)$ depends on $x$ only through $s$, so $x$ is independent of $y$ given $s$. Let
+   $\tilde\mu(s)=E[\tilde x\mid s]$ and $Q(a,b)=\tilde\mu(a)^\top H^{-1}\tilde\mu(b)$, which is symmetric. Then
+   $I(t)=\int f_1(s+t)f_0(s)Q(s+t,s)\,ds=\int f_1(u)f_0(u-t)Q(u,u-t)\,du$.
+3. Average the derivatives of the two forms at $t=0$. Because $Q$ is symmetric, the $\partial Q$ terms cancel, which leaves
+   $I'(0)=\tfrac12\int(f_1'f_0-f_1f_0')Q(s,s)\,ds=\tfrac12\int f_1f_0\,(\operatorname{logit}P(y=1\mid s))'\,Q(s,s)\,ds$.
+4. Under a correct logistic model $(\operatorname{logit}P)'=1$, so $I'(0)=\tfrac12E[\delta(D)q]$ and $c_2=C_{\rm mix}/2$. $\square$
+
+*First proof* (Gaussian covariates, 2026-10-15).
 
 1. With independent rows, $E[s_{h(j)}\mid j]=-p_j\tilde x_j$ for a non-match and $(1-p_i)\tilde x_i$ for a match, and
    $\operatorname{Var}\psi=H^{-1}/m$. So $C_{\rm mix}=-\frac1mE[\delta(D)(1-p_i+p_j)q]$, with $q=\tilde x_i^\top H^{-1}\tilde x_j$, and $c_2=-\frac1mI'(0)$, with
@@ -504,11 +526,22 @@ Parker et al. report.
 
 Notes on Proposition 10:
 
-- The numbers agree: in design 0 (no clustering, correct model) the computed ratio is 0.4985.
+- The numbers agree. In design 0 (no clustering, correct model) exact quadrature gives 0.500000 and the binned estimate
+  0.4985. With logistic, t5, Laplace, bimodal and chi-square covariates the ratio was 0.49993 to 0.49999 (review).
 - Under misspecification the identity is off by $-\tilde v^\top H^{-1}\nabla A/(2m)$, which is small because $\nabla A$ is small.
-- With clustering, $E[s_{h(j)}\mid j]$ picks up the cluster mates' residuals, and step 1 no longer matches pointwise. Yet the
-  clustered designs give 0.49 to 0.50 (0.53 with random slopes). A general proof, or a counterexample, is an open
-  problem for the team.
+- **With clustering the identity is false in general** (review, proposals/09).
+  - Let $B(x)=E[s_h\mid x,y=1]-E[s_h\mid x,y=0]$. Under a single index and a correct marginal logistic model,
+    $c_2=C_{\rm mix}/2$ holds whenever $B$ is affine in $\tilde x$. Independent rows give $B=\tilde x$.
+  - With clusters, $B$ also carries the cluster mates' conditional score difference, which is not affine in general.
+  - With a Gaussian random intercept it is nearly affine, so the ratio minus 1/2 is only $O(s_a^2)$ with a tiny
+    coefficient ($1.4\times10^{-3}$ at $s_a=0.8$). That is why the project's designs give about 1/2.
+  - Counterexamples:
+    - a two-point intercept of $\pm3$: 0.454 by quadrature, and 0.452 to 0.456 with the project's binned code on fresh
+      seeds (checked independently);
+    - a Gaussian intercept with strongly shared covariates: 0.475 to 0.563;
+    - a bridge-distributed intercept, whose marginal model is exactly logistic: 0.507.
+  - The closed form $C_{\rm mix}(2K-1)/(2(K-1))$ is therefore an approximation under clustering. Its error is under 0.4% in
+    the project's designs.
 - Which target? For ranking pairs across events (an app), the pooled between-cluster AUC is right, and BCWF
   estimates it without the mixing and same-cluster biases. For ranking within an event (a matchmaker), the target is
   $A_w$, and a within-cluster AUC estimates it.
@@ -516,7 +549,9 @@ Notes on Proposition 10:
 Status: (i) and (ii) are derived as in Proposition 8. (iii) is a heuristic second-order expansion, with constants
 computed numerically from the population (`sim_cv_auc.py --components`, tested in `tests/test_part9.py`). It is
 tested in Part 9 (N16 to N21) on fresh seeds, after two labelled pilots in which the two-term expression matched the
-mixing bias to within about 5%.
+mixing bias to within about 5%. An adversarial review (proposals/09, 2026-10-16) confirmed the first- and
+second-order terms order by order. It corrected $G$ to $G-1$ and one displayed identity, generalized Proposition 10,
+and refuted the clustered conjecture. Jenna's review is still to come.
 
 **Results** (Part 9, 2026-10-15; `sim_cv_auc.py`, 400 data sets per cell; five of six hypotheses supported).
 
@@ -537,10 +572,14 @@ mixing bias to within about 5%.
 
 - **The fold-count structure held in three of four out-of-sample cells (N18 not supported).** At $K=10$ the
   predictions held (-0.282 against -0.281, and -0.794 against -0.783), and at $K=2$ with cluster SD 1 (-0.400 against
-  -0.397). At $K=2$ with cluster SD 2 the second-order term over-predicted: -1.127 against -0.917, off by 18.6% against a
-  15% band. When half the clusters are held out under strong clustering, the expansion needs a third term. That
-  matches Part 8, where $K=2$ was also the weakest fold count. The leading term's independence of $K$ is confirmed
-  wherever the expansion applies.
+  -0.397). At $K=2$ with cluster SD 2 the registered run gave -0.917 against -1.127, off by 18.6% against a 15% band.
+  That verdict stands. The review (proposals/09, E2) traced most of the miss to sampling error:
+  - At $K=2$ the statistic is roughly minus a squared difference of two fold means, so it is heavily skewed (skewness
+    -2.4). 400 data sets understate its SE.
+  - A 10,000-data-set rerun on fresh seeds (exploratory, seeds 20265906 + chunk) gives -1.075 (SE 0.014) against
+    -1.142 with the $G/(G-1)$ factor. That is a 5.8% shortfall; the reviewer's own rerun gives 7%.
+  - The rest is the third-order term, which scales with $K/(K-1)^2$ and decays with G.
+  - With exact constants and the $G/(G-1)$ factor, N17's K = 5 gaps become -1.0%, -0.8%, +0.5% and +3.7%.
 - **BCWF-pooled removes the bias (N19 supported).** Its absolute bias was at most 0.11 SE in all 18 cells with
   $G\ge40$. In the cluster SD 2 cells at G = 40 and 80, the pooled bias was 0.49 to 0.87 SE.
 - **Coverage (N20 supported).** The BCWF-pooled interval ($t_{G-1}$, Obuchowski SE) covered 89.9% on average over the

@@ -130,7 +130,8 @@ A quick search (one extended and one standard web search) found the following.
   - its leading term C_mix / G does not depend on K, with the next term c2 / ((K - 1) G);
   - the constants are computable from the population.
   It also turned up nothing on the separate same-cluster-pair bias of fold-averaged AUC (K kappa (A_w - A_b) / G).
-  The observation c2 = C_mix / 2 (a conjecture) is also not in these sources.
+  The identity c2 = C_mix / 2 is also not in these sources. It is now proved for independent rows (Proposition 10)
+  and shown false in general under clustering (proposals/09).
 
 Framing for the write-up: the phenomenon and the remedy family are known. What may be new is the clustered-data
 theory that predicts the bias's size and its dependence on K, and the test of those predictions (Part 9). Before
