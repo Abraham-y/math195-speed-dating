@@ -109,3 +109,30 @@ How to frame the parts:
 3. **Citations in the write-up:** Bates et al.; Rabinowicz and Rosset; Bengio and Grandvalet; Nadeau and Bengio;
    Bayle et al.; Austern and Zhou; LeDell et al.; Cai et al.; Schulz-Kumpel et al.; Roberts et al.; Saeb et al.;
    Aronow et al.; Cameron, Gelbach and Miller; MacKinnon, Nielsen and Webb; Chiang et al. (2022); Owen (2007).
+
+## Part 9: the cross-validated AUC (added 2026-10-15)
+
+A quick search (one extended and one standard web search) found the following.
+
+- **Known: the pooling bias.** Pooled K-fold and leave-one-out AUC estimates are negatively biased because they
+  compare scores from different fold models. See Parker, Gunter and Bedo (2007, BMC Bioinformatics 8:326,
+  "stratification bias"), Forman and Scholz (2010, SIGKDD Explorations 12(1)), and Airola et al. (2010, JMLR W&CP 8;
+  2011, Computational Statistics and Data Analysis).
+- **Known: the remedies.** Averaging over folds removes the pooling bias at a cost in variance. Leave-pair-out CV is
+  nearly unbiased (Airola et al.; Montoya Perez et al. 2019, Statistical Methods in Medical Research, the tournament
+  version).
+- **Closest work on dependent data.** Spatial leave-pair-out CV (Airola, Pohjankukka, Torppa, Middleton, Nykanen,
+  Heikkonen and Pahikkala, 2019, Data Mining and Knowledge Discovery) corrects both the pooling bias and a spatial
+  bias for spatial classifiers. BCWF is the grouped analogue: within a fold, only pairs from different clusters.
+- **Not found: anything like Proposition 9 (iii).** The search turned up no closed-form expansion of the pooled
+  bias under clustering. That covers three points:
+  - its order is 1/G rather than 1/n, larger by about the residuals' design effect;
+  - its leading term C_mix / G does not depend on K, with the next term c2 / ((K - 1) G);
+  - the constants are computable from the population.
+  It also turned up nothing on the separate same-cluster-pair bias of fold-averaged AUC (K kappa (A_w - A_b) / G).
+  The observation c2 = C_mix / 2 (a conjecture) is also not in these sources.
+
+Framing for the write-up: the phenomenon and the remedy family are known. What may be new is the clustered-data
+theory that predicts the bias's size and its dependence on K, and the test of those predictions (Part 9). Before
+claiming novelty, search further for clustered or multi-site AUC pooling (for example "leave-site-out AUC pooling"
+and "grouped cross-validation ROC"). The Airola et al. spatial paper should be read in full.

@@ -217,7 +217,43 @@ def main():
         add(f"- Exploratory comparison: the Nadeau-Bengio corrected t on event folds covered {nb.coverage_90.min():.1%} to "
             f"{nb.coverage_90.max():.1%} over the same designs, with a mean half-width of {nb.mean_half_width.mean():.3f} against "
             f"{fl.mean_half_width.mean():.3f} for the floor. An existing correction, applied to whole events, does as well as our "
-            f"repair; a confirmatory test is the next pre-registration.")
+            f"repair; Part 5 tested it on fresh seeds (N6, below).")
+    add("")
+    add("### 4.6 Part 5: self-knowledge, chemistry, joint decisions, order and a matchmaker\n")
+    first = lambda name, h: csv(f"{name}_hypotheses").query("hypothesis == @h").iloc[0]
+    if (RES / "self_knowledge_hypotheses.csv").exists():
+        sk = csv("self_knowledge_hypotheses").query("hypothesis == 'S2'").set_index("version")
+        add(f"- **S2** ({verdict(sk.iloc[2])}): women {sk.loc['women'].statistic.split('; parts')[0]}; men "
+            f"{sk.loc['men'].statistic.split('; parts')[0]}. Stated weights predict revealed weights on average, but explain more of "
+            f"their variation than the registered 10%.")
+    for name, h in (("chemistry", "C3"), ("bivariate_probit", "J1"), ("order_effects", "O1"), ("matchmaker", "M1"),
+                    ("sim_cv_confirm", "N6"), ("sim_cv_confirm", "N7")):
+        if (RES / f"{name}_hypotheses.csv").exists():
+            r = first(name, h); add(f"- **{h}** ({verdict(r)}): {r.statistic}.")
+    add("")
+    add("### 4.7 Parts 6 to 9: a tested theory of CV error bars under clustering\n")
+    add("Proposition 8 (`proposals/06`, section 6e) says what grouped CV estimates to first order and which error bar fits it; "
+        "Proposition 9 (section 6f) does the same for the cross-validated AUC and adds a second-order bias expansion. "
+        "Each prediction was registered before its run, with fresh seeds.\n")
+    for name in ("sim_cv_firstorder", "sim_cv_firstorder_hypotheses_b", "sim_cv_sizes", "sim_cv_kfold", "sim_cv_auc"):
+        f = RES / (f"{name}.csv" if name.endswith("_b") else f"{name}_hypotheses.csv")
+        if f.exists():
+            for r in pd.read_csv(f).itertuples():
+                if "exploratory" not in str(r.hypothesis):
+                    add(f"- **{r.hypothesis}** ({verdict(r)}): {r.statistic}.")
+    if (RES / "errorbars_final.csv").exists():
+        eb = csv("errorbars_final"); x = eb[(eb.feature_set == "pre") & (eb.model == "logistic")]
+        hw = x.set_index("interval").half_width
+        add(f"- Real data, full logistic `pre` (event 5-fold): error rate {x.error_rate.iloc[0]:.3f}, 90% half-widths "
+            f"{hw['cluster-robust, t(20)']:.3f} (cluster-robust t), {hw['wild cluster bootstrap-t']:.3f} (wild cluster bootstrap-t) and "
+            f"{hw['Nadeau-Bengio, event folds']:.3f} (Nadeau-Bengio on event folds).")
+    if (RES / "auc_estimators_real.csv").exists():
+        ar = csv("auc_estimators_real"); h = ar[ar.partition == "headline"].set_index(["feature_set", "model"])
+        rr = ar[ar.partition != "headline"]; gap = (rr.pooled - rr.bcwf_pooled).groupby([rr.feature_set, rr.model]).mean()
+        add("- Real data, the four AUC estimates (exploratory): " + "; ".join(
+            f"{fs} {m}: pooled {h.loc[(fs, m)].pooled:.3f}, BCWF-pooled {h.loc[(fs, m)].bcwf_pooled:.3f}, within-event "
+            f"{h.loc[(fs, m)].within_event:.3f} (mean pooled minus BCWF-pooled over 20 partitions {gap.loc[(fs, m)]:+.4f})"
+            for fs, m in h.index) + ".")
     add("")
     add("## 5. What it means\n")
     add("What is known before the date carries a small, real signal. It mostly reflects who tends to like others and who "
@@ -226,10 +262,11 @@ def main():
         "and events repeat; holding out whole events and using event-aware error bars is necessary, not optional.\n")
     add("## 6. Limitations and next steps\n")
     add("- One experiment, 21 events, one city and one population; the P1 result sits within fold-to-fold noise.\n"
-        "- Race variables are excluded until the team records a decision.\n"
-        "- Next: the comparison intervals named by the literature check (Nadeau-Bengio, Bayle et al., cluster bootstrap, "
-        "internal-external CV); why the cluster-robust SE over-covers; Jenna's review of the propositions in "
-        "`proposals/06`.\n")
+        "- Race variables enter one pre-registered block only (P3d), as the team decided on 2026-10-15.\n"
+        "- Propositions 6 to 9 have not yet been checked by the team's mathematical lead; Proposition 9 (iii) is a heuristic "
+        "second-order expansion, and Propositions 1, 2, 6 and 8 assume equal cluster sizes.\n"
+        "- Next: Jenna's review of `proposals/06` and the draft note `proposals/08`; which AUC the project reports (across "
+        "events or within an event); unequal cluster sizes in the theory; the two-person (dyadic) case.\n")
     OUT.write_text("\n".join(T))
     print(f"wrote {OUT} ({len(' '.join(T).split())} words)")
 

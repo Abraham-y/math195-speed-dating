@@ -402,6 +402,10 @@ Part 6 tests the proposition on balanced synthetic clusters over a wide range of
    version is unbiased in mean (Proposition 3) but noisy.
 5. For coverage studies: redraw the clusters (Proposition 7) and score the target precisely (Part 6b, Part 7).
    Otherwise the coverage numbers are distorted.
+6. For the AUC, do not pool held-out scores across fold models when clusters differ in outcome rate. The pooled CV
+   AUC is biased downward by a predictable amount of order 1/G (Proposition 9, Part 9). Use the between-cluster
+   within-fold AUC, pooled over folds, with the Obuchowski SE and t quantiles; it covered 85% to 94%. For AUC the
+   Nadeau-Bengio correction is not conservative (ratio about 1).
 
 ## 6f. The cross-validated AUC under clustering (derived 2026-10-15; tested in Part 9)
 
@@ -465,8 +469,39 @@ Remarks.
   by about the design effect of the residuals. At $G=20$ with a cluster SD of 2 on the logit scale it is about one
   standard error.
 - The leading term does not shrink with more folds. Only the $c_2$ part does.
-- In all nine designs computed, $c_2/C_{\rm mix}$ is 0.49 to 0.53. If $c_2=C_{\rm mix}/2$ exactly, which is a conjecture, the
-  mixing bias is $C_{\rm mix}(2K-1)/(2(K-1))/G$.
+- In all nine designs computed, $c_2/C_{\rm mix}$ is 0.49 to 0.53. If $c_2=C_{\rm mix}/2$ exactly, the mixing bias is
+  $C_{\rm mix}(2K-1)/(2(K-1))/G$. Proposition 10 proves this in one case; with clustering it is a conjecture.
+
+**Proposition 10 (the factor 1/2; proved for independent rows, 2026-10-15).** Suppose the rows are independent, the
+covariates are Gaussian, and the logistic model is correctly specified. Then $c_2=C_{\rm mix}/2$ exactly, and the pooling
+bias of $K$-fold CV is
+$$-\frac{2K-1}{2(K-1)}\cdot\frac1n\,E\big[\delta(D)\,(1-p_i+p_j)\,\tilde x_i^\top H^{-1}\tilde x_j\big]$$
+plus the training-size term. This is a closed form for the pessimistic bias of pooled CV AUC that Airola et al. and
+Parker et al. report.
+
+*Proof.*
+
+1. With independent rows, $E[s_{h(j)}\mid j]=-p_j\tilde x_j$ for a non-match and $(1-p_i)\tilde x_i$ for a match, and
+   $\operatorname{Var}\psi=H^{-1}/m$. So $C_{\rm mix}=-\frac1mE[\delta(D)(1-p_i+p_j)q]$, with $q=\tilde x_i^\top H^{-1}\tilde x_j$, and $c_2=-\frac1mI'(0)$, with
+   $I(t)=E[q\,\delta(D-t)]$.
+2. Take a direction $v$ with $v^\top\theta=1$. Integrate $I'(t)=-E[q\,\delta'(D-t)]$ by parts along $v$ in $x_i$, and separately in
+   $x_j$, and average the two:
+   $$I'(0)=\tfrac12E\big[\delta(D)\{\partial_{v,i}q-\partial_{v,j}q+q(\partial_v\log f_1(x_i)-\partial_v\log f_0(x_j))\}\big].$$
+3. The logistic link gives $\partial_v\log f_1=(1-p)+\partial_v\log f$ and $\partial_v\log f_0=-p+\partial_v\log f$, with $f$ the covariate
+   density.
+4. For Gaussian $x$, choose $v=\Sigma\theta/\theta^\top\Sigma\theta$. Then $\partial_v\log f(x)=-(s-\bar s)/\sigma_s^2$, which takes the same value for
+   $x_i$ and $x_j$ when $D=0$, so those terms cancel.
+5. What is left is $\tfrac12\tilde v^\top H^{-1}E[\delta(D)(\tilde x_j-\tilde x_i)]=-\tfrac12\tilde v^\top H^{-1}\nabla A(\theta^*)$, which is 0 under correct
+   specification.
+6. So $I'(0)=\tfrac12E[\delta(D)(1-p_i+p_j)q]$, and $c_2=C_{\rm mix}/2$. $\square$
+
+Notes on Proposition 10:
+
+- The numbers agree: in design 0 (no clustering, correct model) the computed ratio is 0.4985.
+- Under misspecification the identity is off by $-\tilde v^\top H^{-1}\nabla A/(2m)$, which is small because $\nabla A$ is small.
+- With clustering, $E[s_{h(j)}\mid j]$ picks up the cluster mates' residuals, and step 1 no longer matches pointwise. Yet the
+  clustered designs give 0.49 to 0.50 (0.53 with random slopes). A general proof, or a counterexample, is an open
+  problem for the team.
 - Which target? For ranking pairs across events (an app), the pooled between-cluster AUC is right, and BCWF
   estimates it without the mixing and same-cluster biases. For ranking within an event (a matchmaker), the target is
   $A_w$, and a within-cluster AUC estimates it.
@@ -475,6 +510,46 @@ Status: (i) and (ii) are derived as in Proposition 8. (iii) is a heuristic secon
 computed numerically from the population (`sim_cv_auc.py --components`, tested in `tests/test_part9.py`). It is
 tested in Part 9 (N16 to N21) on fresh seeds, after two labelled pilots in which the two-term expression matched the
 mixing bias to within about 5%.
+
+**Results** (Part 9, 2026-10-15; `sim_cv_auc.py`, 400 data sets per cell; five of six hypotheses supported).
+
+- **The pooled CV AUC is biased downward under outcome clustering (N16 supported).** The bias was -0.004 to -0.040
+  in all 12 cells, with every 90% interval below 0. Times G it is roughly constant, so it is of order $1/G$: about
+  -0.75 with a cluster SD of 2 and -0.27 with 1. Without outcome clustering it is under 0.003.
+- **The mixing term is predicted quantitatively (N17 supported).** The observed G x (pooled between-cluster minus
+  BCWF-pooled) was within 1.3% to 5.1% of $C_{\rm mix}+c_2/4$ in all four designs:
+
+  | Design (sa, su) | Predicted | Observed |
+  | --- | --- | --- |
+  | 1, 0 | -0.300 | -0.304 |
+  | 1, 1 | -0.236 | -0.242 |
+  | 2, 0 | -0.846 | -0.865 |
+  | 2, 1 | -0.708 | -0.745 |
+
+- **The fold-count structure held in three of four out-of-sample cells (N18 not supported).** At $K=10$ the
+  predictions held (-0.282 against -0.281, and -0.794 against -0.783), and at $K=2$ with cluster SD 1 (-0.400 against
+  -0.397). At $K=2$ with cluster SD 2 the second-order term over-predicted: -1.127 against -0.917, off by 18.6% against a
+  15% band. When half the clusters are held out under strong clustering, the expansion needs a third term. That
+  matches Part 8, where $K=2$ was also the weakest fold count. The leading term's independence of $K$ is confirmed
+  wherever the expansion applies.
+- **BCWF-pooled removes the bias (N19 supported).** Its absolute bias was at most 0.11 SE in all 18 cells with
+  $G\ge40$. In the cluster SD 2 cells at G = 40 and 80, the pooled bias was 0.49 to 0.87 SE.
+- **Coverage (N20 supported).** The BCWF-pooled interval ($t_{G-1}$, Obuchowski SE) covered 89.9% on average over the
+  18 cells with $G\ge40$, ranging from 84.8% to 93.8%. The pooled interval covered 84.1% on average in the cluster SD 2
+  cells, down to 70.5% at G = 20. The wild cluster bootstrap does not rescue the pooled interval (69.5% at G = 20),
+  because the problem is bias, not variance.
+- **The Nadeau–Bengio ratio for AUC is about 1 (N21 supported).** It was 0.978 to 0.999 against predictions of 0.991 to
+  1.003, in the linear, hinge and random-slope designs at G = 80 and 160. For the error rate it is about 1.2.
+- **Exploratory.**
+  - The fold-averaged estimate followed $(c_{\rm train}+K\kappa(A_w-A_b))/G$ closely where the same-cluster term dominates
+    (cluster SD 0, su = 1: -0.0150 against -0.0137 at G = 20, and -0.0015 against -0.0017 at G = 160). With cluster SD
+    2 it ran about 30% above prediction, which is the per-fold ratio bias that pooling counts across folds removes:
+    per-fold BCWF was +0.0079 against +0.0011 for BCWF-pooled at G = 20.
+  - In the realistic A2 design at 21 real events (`auc_estimators_real.py`), the pooled interval covered 77% to 87%
+    and BCWF-pooled 85% to 87%, with biases of -0.004 to -0.015 against at most 0.002.
+  - On the real data the four estimates agree on average over 20 event partitions: pooled minus BCWF-pooled is
+    -0.004 to +0.002. So the project's headline AUCs are not materially biased, though a single partition moves the
+    gap by about 0.005.
 
 ## 7. First simulation (done; to be extended)
 

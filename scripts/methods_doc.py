@@ -1,4 +1,4 @@
-"""Write the methods manual: every step from the raw file to each model, metric and check (Parts 1 to 3), as a PDF.
+"""Write the methods manual: every step from the raw file to each model, metric and check (Parts 1 to 9), as a PDF.
 
 Input : data/feature_sets.json, data/pairs.csv, data/clean.csv, the constants and functions of the analysis scripts,
         results/*_summary.csv and *_hypotheses.csv (for the tables of checks and verdicts)
@@ -148,6 +148,7 @@ def later_parts(add):
     import sim_cv_designs as SD
     import sim_cv_repair as SR
     import sim_cv_sizes as SZ
+    import sim_cv_auc as AUC
     add(r"\section{Part 2: more models, leakage and the yes decisions}\label{sec:part2}")
     add(r"""Part 2 uses the Part 1 machinery unchanged: the same event folds (seed """ + str(M.FOLD_SEED) + r"""), the same
 preparation inside each training fold (Section~\ref{sec:prep}; splines only for the logistic models), tuning by inner
@@ -283,7 +284,7 @@ internal--external CV with a DerSimonian--Laird random-effects mean, and grouped
     add(snippet(SR.nadeau_bengio, "Nadeau--Bengio corrected resampled t"))
     add(snippet(SR.dersimonian_laird, "DerSimonian--Laird random-effects mean"))
 
-    add(r"\section{Parts 5 to 7: extensions and the theory of CV error bars under clustering}\label{sec:part5}")
+    add(r"\section{Parts 5 to 9: extensions and the theory of CV error bars under clustering}\label{sec:part5}")
     add(r"""\textbf{Extensions} (Part 5). Self-knowledge (S2): a yes model with rater indicators and the products of each
 rating with the rater's stated weight for that trait, plus a mixed model for the spread of individual weights
 (\texttt{self\_knowledge.py}). Chemistry (C3): a rank-$d$ taste-by-trait term $\mathbf u_i^\top\mathbf v_j$ added to the within-event
@@ -304,16 +305,34 @@ $\frac{J+K-1}{J-1}\operatorname{Var}(a-\beta/(K-1))/G$. When the evaluation loss
 
 \textbf{Simulations.} \texttt{sim\_cv\_confirm.py} (N6, N7), \texttt{sim\_cv\_firstorder.py} and \texttt{firstorder\_check.py}
 (N8 to N11, N8b) and \texttt{sim\_cv\_sizes.py} (N12, N13: the wild cluster bootstrap-$t$ with Rademacher signs on each
-event's residual sum).""")
-    add(snippet(SZ.wild_cluster_t_quantile, "Wild cluster bootstrap-t quantile"))
+event's residual sum).
 
-    add(r"\section{Part 2 to Part 7 results}")
+\textbf{Part 8} (\texttt{sim\_cv\_kfold.py}, N14, N15): Proposition 8 (ii)'s Nadeau--Bengio ratio
+$1-\frac{2\operatorname{Cov}(a,\beta)}{(K-1)\operatorname{Var}a}+\frac{\operatorname{Var}\beta}{(K-1)^2\operatorname{Var}a}$, with the three components estimated from Part 6b at $K=5$,
+predicted before running at $K=3$ and $10$ ($J=60$). \texttt{errorbars\_final.py} applies the recommended intervals
+(cluster-robust $t_{20}$, wild cluster bootstrap-$t$, Nadeau--Bengio on event folds) to the real headline models.
+
+\textbf{Part 9} (\texttt{sim\_cv\_auc.py}, N16 to N21; \texttt{proposals/06}, section 6f): the cross-validated AUC. Four estimates
+from the same held-out scores: pooled (one AUC over all folds' scores, as reported), fold-averaged, BCWF (match /
+non-match pairs from different clusters within a fold, averaged over folds) and BCWF-pooled (their concordances summed
+over folds over their count). \emph{Proposition 9}: the Obuchowski variance is first-order right for all four; the
+Nadeau--Bengio ratio for fold AUCs is about 1 because logistic regression nearly maximizes the AUC; at order $1/G$ the
+pooled estimate carries a mixing bias $(C_{\rm mix}+c_2/(K-1))/G$, because in a cross-fold pair each model was fitted on the
+other side's cluster, plus a same-cluster-pair term $\kappa(A_w-A_b)/G$. The constants come from large population samples
+(\texttt{--components}): $C_{\rm mix}$ and $c_2$ by score bins (functions below, checked against Gaussian closed forms in
+\texttt{tests/test\_part9.py}). \texttt{auc\_estimators\_real.py} (exploratory) compares the four estimates on the real data
+and in the realistic A2 design at 21 events.""")
+    add(snippet(SZ.wild_cluster_t_quantile, "Wild cluster bootstrap-t quantile"))
+    add(snippet(AUC.between_cluster_counts, "Between-cluster concordances (BCWF)"))
+    add(snippet(AUC.pair_density_term, "Density-weighted pair term (the mixing constant)"))
+
+    add(r"\section{Part 2 to Part 9 results}")
     files = ["part2_models_hypotheses.csv", "sim_cv_matched_hypotheses.csv", "ranking_hypotheses.csv", "forecasts_hypotheses.csv",
              "yes_extensions_hypotheses.csv", "mean_reversion_hypotheses.csv", "srm_hypotheses.csv", "sim_cv_designs_hypotheses.csv",
              "race_models_hypotheses.csv", "srm_dec_hypotheses.csv", "sim_cv_repair_hypotheses.csv",
              "sim_cv_confirm_hypotheses.csv", "self_knowledge_hypotheses.csv", "chemistry_hypotheses.csv", "bivariate_probit_hypotheses.csv",
              "order_effects_hypotheses.csv", "matchmaker_hypotheses.csv", "sim_cv_firstorder_hypotheses.csv",
-             "sim_cv_firstorder_hypotheses_b.csv", "sim_cv_sizes_hypotheses.csv"]
+             "sim_cv_firstorder_hypotheses_b.csv", "sim_cv_sizes_hypotheses.csv", "sim_cv_kfold_hypotheses.csv", "sim_cv_auc_hypotheses.csv"]
     rows = []
     for f in files:
         if not (RES / f).exists():
@@ -381,7 +400,7 @@ def main():
 \setlist{itemsep=2pt,topsep=4pt}
 \setlength{\parskip}{0.5em}\setlength{\parindent}{0pt}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 7: data, predictors, models, metrics, error bars and checks}
+\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 9: data, predictors, models, metrics, error bars and checks}
 \author{Math 195 capstone: Sophia Qin, Jenna Yang, Abraham Yeung}
 \date{15 October 2026 \quad (code at commit """ + tx(commit) + r""")}
 \begin{document}
@@ -916,7 +935,10 @@ The same code and seeds reproduce every number to the last digit (checked by two
             ["Design grid; dyadic design", "20262806 + design index; 20262906"],
             ["Repair grid; A2 redrawn; matched dyadic design", "20263006 + design; 20263106 + chunk; 20263206 + chunk"],
             ["Part 5: confirm grid; S2; C3; J1; O1; M1; power", "20263406 + design; 20263506; 20263606; 20263706; 20263806; 20263906; 20264006"],
-            ["Part 6 and 6b; first-order check; Part 7", "20264106 + G; 20264506 + G; 20264606; 20264706 + design"]]
+            ["Part 6 and 6b; first-order check; Part 7", "20264106 + G; 20264506 + G; 20264606; 20264706 + design"],
+            ["Real-data final error bars; Part 8", "20264806; 20264906 + G"],
+            ["Part 9: components; coverage; other K; Nadeau--Bengio; real and realistic (exploratory)",
+             "20265006 + design; 20265106 + 10 design + G index; 20265206 + 10 design + K index; 20265306 + 10 design + G index; 20265406; 20265506 + design"]]
     add(table(["Random operation", "Seed"], rows, "L{5cm}L{9cm}"))
     add(r"\section{More code}")
     add("The rest of the code that decides the reported results, as it ran.")

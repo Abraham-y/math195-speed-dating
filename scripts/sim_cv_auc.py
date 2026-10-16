@@ -28,7 +28,8 @@ Obuchowski variance. Proposition 9 (proposals/06, section 6f) predicts the ratio
 population constants of `--components`.
 Mixing at other fold counts (`--kfold`): designs 2 and 4 at G = 80 with K = 2 and 10, the statistic
 G x (pooled between-cluster AUC - BCWF-pooled), against Proposition 9 (iii)'s C_mix + c2 / (K - 1).
-Run from the repository root: python scripts/sim_cv_auc.py [--components | --kfold | --nb] [replicates] [workers]
+Verdicts (`--verdicts`): N16 to N21 from the three runs, written to results/sim_cv_auc_hypotheses.csv.
+Run from the repository root: python scripts/sim_cv_auc.py [--components | --kfold | --nb | --verdicts] [replicates] [workers]
 """
 import os
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
@@ -283,7 +284,45 @@ def run_nb(args):
     return rows
 
 
+def verdicts():
+    """N16 to N21 as registered (PREREG.md, Part 9), from the three runs' summaries and the components file."""
+    S = pd.read_csv(RES / "sim_cv_auc_summary.csv"); Kf = pd.read_csv(RES / "sim_cv_auc_kfold.csv")
+    NB = pd.read_csv(RES / "sim_cv_auc_nb.csv"); C = pd.read_csv(RES / "sim_cv_auc_components.csv").set_index("design")
+    oc = S[S.sa > 0]; big = S[S.G >= 40]; fmt = lambda v: ", ".join(f"{x:+.4f}" for x in v)
+    n16 = oc[oc.G <= 80].assign(upper=lambda x: x.bias_pooled + 1.645 * x.bias_se_pooled)
+    n17 = oc[oc.G >= 40].groupby("design").G_x_mix.mean()
+    n17r = {d: n17[d] / C.loc[d, "pred_G_mix_K5"] - 1 for d in n17.index}
+    n19a = (big.bias_bcwf_pooled.abs() / big.mean_se_obu); s2 = S[(S.sa == 2) & S.G.isin([40, 80])]
+    n19b = s2.bias_pooled.abs() / s2.mean_se_obu
+    n20a = big.cov_t_bcwf_pooled.mean(); n20b = S[(S.sa == 2) & (S.G >= 40)].cov_t_pooled.mean()
+    n21 = NB.ratio_within - NB.predicted
+    rows = [
+        dict(hypothesis="N16", statistic=f"pooled bias (upper 90% limit) over designs sa 1-2 x su 0-1 at G = 20, 40, 80: biases {fmt(n16.bias_pooled)}; "
+             f"largest upper limit {n16.upper.max():+.4f}", supported=bool((n16.upper < 0).all())),
+        dict(hypothesis="N17", statistic="mean G x (pooled between - BCWF-pooled) over G = 40-160 vs C_mix + c2/4: " +
+             "; ".join(f"design {d}: {n17[d]:+.3f} vs {C.loc[d, 'pred_G_mix_K5']:+.3f} ({100 * n17r[d]:+.1f}%)" for d in n17.index),
+             supported=bool(all(abs(v) <= 0.15 for v in n17r.values()))),
+        dict(hypothesis="N18", statistic="G = 80, K = 2 and 10: " + "; ".join(f"design {r.design} K {r.K}: {r.G_x_mix:+.3f} vs {r.predicted:+.3f} "
+             f"({100 * r.relative_error:+.1f}%)" for r in Kf.itertuples()), supported=bool((Kf.relative_error.abs() <= 0.15).all())),
+        dict(hypothesis="N19", statistic=f"|BCWF-pooled bias| / mean SE over the 18 cells with G >= 40: max {n19a.max():.3f}; "
+             f"|pooled bias| / mean SE in the sa = 2 cells at G = 40, 80: {', '.join(f'{v:.3f}' for v in n19b)}",
+             supported=bool((n19a <= 0.25).all() and (n19b > 0.25).all())),
+        dict(hypothesis="N20", statistic=f"BCWF-pooled t coverage, mean over 18 cells with G >= 40: {n20a:.3f} (range {big.cov_t_bcwf_pooled.min():.3f} "
+             f"to {big.cov_t_bcwf_pooled.max():.3f}); pooled t coverage, mean over the sa = 2 cells with G >= 40: {n20b:.3f}",
+             supported=bool(0.87 <= n20a <= 0.93 and n20b < 0.85)),
+        dict(hypothesis="N21", statistic="Nadeau-Bengio ratio minus prediction: " + "; ".join(f"{r.kind} G {r.G}: {r.ratio_within:.3f} vs {r.predicted:.3f}"
+             for r in NB.itertuples()), supported=bool((n21.abs() <= 0.07).all())),
+    ]
+    H = pd.DataFrame(rows).assign(seed="20265106 + 10 design + G index; 20265206 + 10 design + K index; 20265306 + 10 design + G index",
+                                  fold_scheme="grouped (cluster) K-fold; K = 5 unless stated")
+    H.to_csv(RES / "sim_cv_auc_hypotheses.csv", index=False)
+    with pd.option_context("display.width", 250, "display.max_colwidth", 400):
+        print(H[["hypothesis", "statistic", "supported"]].to_string(index=False))
+
+
 def main():
+    if "--verdicts" in sys.argv:
+        return verdicts()
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     workers = int(args[1]) if len(args) > 1 else 4
     if "--components" in sys.argv:
