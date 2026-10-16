@@ -93,7 +93,39 @@ Across 18 simulated designs: **N1** (not supported): cluster-nested bias-adjuste
 - **N3** (supported): floor interval coverage 0.890 to 0.965 over 15 designs with events redrawn; 15 of 15 at least 0.85.
 - **N4** (supported): A2 with the 21 events redrawn: event CV with the cluster-robust SE covers 0.874 (500 data sets).
 - **N5** (supported): A2 with the 21 events redrawn: the cluster-nested, bias-adjusted interval covers 0.836, against 0.926 in A2.
-- Exploratory comparison: the Nadeau-Bengio corrected t on event folds covered 90.0% to 97.5% over the same designs, with a mean half-width of 0.038 against 0.047 for the floor. An existing correction, applied to whole events, does as well as our repair; a confirmatory test is the next pre-registration.
+- Exploratory comparison: the Nadeau-Bengio corrected t on event folds covered 90.0% to 97.5% over the same designs, with a mean half-width of 0.038 against 0.047 for the floor. An existing correction, applied to whole events, does as well as our repair; Part 5 tested it on fresh seeds (N6, below).
+
+### 4.6 Part 5: self-knowledge, chemistry, joint decisions, order and a matchmaker
+
+- **S2** (not supported): women mean gamma 0.1361 (90% interval 0.0654 to 0.2069); R2_k attr 0.620, sinc 0.052, intel 0.705, fun 0.367, amb 0.054, shar 0.864; 3407 dates, 263 raters; men mean gamma 0.1827 (90% interval 0.1243 to 0.2411); R2_k attr 0.419, sinc 0.677, intel 0.560, fun 0.000, amb 0.474, shar 0.086; 3554 dates, 267 raters. Stated weights predict revealed weights on average, but explain more of their variation than the registered 10%.
+- **C3** (supported): held-out AUC d = 1 0.8107 minus d = 0 (W1) 0.8104 = +0.0003 (SE 0.0002, 90% interval -0.0000 to +0.0006); lambda by fold 3;3;3;3;10; 200-round check: 0.8107, +0.0003 (SE 0.0002); exploratory d = 2: 0.8107, +0.0003 (SE 0.0002).
+- **J1** (not supported): rho -0.0269 (SE 0.0257; 90% interval -0.0691 to 0.0154, delta-method -0.0692 to 0.0154); alpha_f 0.110, theta_f 1.335, alpha_m -0.054, theta_m 0.137; 4184 dyads, 21 events.
+- **O1** (not supported): gamma -0.1389 (90% interval -0.3071 to 0.0293; event-clustered sandwich SE 0.1023); permutation p (two-sided, 1000 within-rater shuffles) 0.0989.
+- **M1** (supported): ratio of realized to random-pairing matches: `pre` 1.278 (90% interval 1.099 to 1.475), `pre+date` 2.666 (90% interval 2.387 to 2.941); realized 58 and 121 against 45.4 expected over 21 events (268 assigned pairs).
+- **N6** (not supported): Nadeau-Bengio on event folds covers 0.880 to 0.975 over 12 designs (8 of 12 within 0.85 to 0.95); half-width 0.73 to 0.90 times the floor's (12 of 12 at most 0.90).
+- **N7** (supported): Nadeau-Bengio on random-row folds covers 0.515 to 0.760 over 12 designs; 12 of 12 below 0.80.
+
+### 4.7 Parts 6 to 9: a tested theory of CV error bars under clustering
+
+Proposition 8 (`proposals/06`, section 6e) says what grouped CV estimates to first order and which error bar fits it; Proposition 9 (section 6f) does the same for the cross-validated AUC and adds a second-order bias expansion. Each prediction was registered before its run, with fresh seeds.
+
+- **N8** (not supported): Var(CV - Err_new) / mean V_CR at G = 80, 160, 320: 0-1 loss 1.146, 1.061, 1.070; log-loss 1.060, 1.072, 1.155.
+- **N9** (supported): Nadeau-Bengio / scaled V_CR: log-loss at G = 160, 320 1.005, 0.994; 0-1 loss at G = 20 to 320 1.145, 1.200, 1.223, 1.200, 1.208.
+- **N10** (supported): log-loss Corr(CV, Err_new) at G = 80, 160, 320: -0.043, -0.053, -0.106.
+- **N11** (supported): cluster-robust t interval coverage of Err_new over 5 G x 2 losses: 0.875 to 0.902.
+- **N8b** (not supported): corrected Var(CV - Err_new) / mean V_CR at G = 80, 160, 320: 0-1 loss 1.114, 1.039, 0.911; log-loss 1.165, 1.096, 0.969.
+- **N12** (supported): wild cluster bootstrap-t covers 0.853 to 0.910 over 8 designs; 8 of 8 within 0.85 to 0.95.
+- **N13** (not supported): cluster-robust (normal) coverage in the four G = 40 designs: 0.883, 0.867, 0.867, 0.867.
+- **N14** (supported): 0-1 loss, observed minus predicted (K = 3 at G = 80, 160, 320; then K = 10): +0.053, +0.022, +0.012, -0.012, -0.001, +0.001.
+- **N15** (supported): log-loss, observed minus 1 (K = 3 at G = 80, 160, 320; then K = 10): +0.032, +0.027, -0.016, -0.006, -0.012, -0.011.
+- **N16** (supported): pooled bias (upper 90% limit) over designs sa 1-2 x su 0-1 at G = 20, 40, 80: biases -0.0132, -0.0068, -0.0036, -0.0141, -0.0063, -0.0036, -0.0372, -0.0194, -0.0105, -0.0397, -0.0184, -0.0124; largest upper limit -0.0022.
+- **N17** (supported): mean G x (pooled between - BCWF-pooled) over G = 40-160 vs C_mix + c2/4: design 2: -0.304 vs -0.300 (+1.3%); design 3: -0.242 vs -0.236 (+2.5%); design 4: -0.865 vs -0.846 (+2.2%); design 5: -0.745 vs -0.708 (+5.1%).
+- **N18** (not supported): G = 80, K = 2 and 10: design 2 K 2: -0.397 vs -0.400 (-0.8%); design 2 K 10: -0.281 vs -0.282 (-0.3%); design 4 K 2: -0.917 vs -1.127 (-18.6%); design 4 K 10: -0.783 vs -0.794 (-1.4%).
+- **N19** (supported): |BCWF-pooled bias| / mean SE over the 18 cells with G >= 40: max 0.112; |pooled bias| / mean SE in the sa = 2 cells at G = 40, 80: 0.868, 0.696, 0.501, 0.485.
+- **N20** (supported): BCWF-pooled t coverage, mean over 18 cells with G >= 40: 0.899 (range 0.848 to 0.938); pooled t coverage, mean over the sa = 2 cells with G >= 40: 0.841.
+- **N21** (supported): Nadeau-Bengio ratio minus prediction: linear G 80: 0.988 vs 1.000; linear G 160: 0.991 vs 1.000; hinge G 80: 0.999 vs 1.003; hinge G 160: 0.994 vs 1.003; slope G 80: 0.979 vs 0.991; slope G 160: 0.978 vs 0.991.
+- Real data, full logistic `pre` (event 5-fold): error rate 0.418, 90% half-widths 0.030 (cluster-robust t), 0.034 (wild cluster bootstrap-t) and 0.032 (Nadeau-Bengio on event folds).
+- Real data, the four AUC estimates (exploratory): pre logistic: pooled 0.542, BCWF-pooled 0.546, within-event 0.539 (mean pooled minus BCWF-pooled over 20 partitions -0.0013); pre lda: pooled 0.553, BCWF-pooled 0.559, within-event 0.544 (mean pooled minus BCWF-pooled over 20 partitions -0.0036); pre+date logistic: pooled 0.780, BCWF-pooled 0.793, within-event 0.800 (mean pooled minus BCWF-pooled over 20 partitions +0.0018); pre+date lda: pooled 0.790, BCWF-pooled 0.797, within-event 0.794 (mean pooled minus BCWF-pooled over 20 partitions -0.0011).
 
 ## 5. What it means
 
@@ -102,5 +134,6 @@ What is known before the date carries a small, real signal. It mostly reflects w
 ## 6. Limitations and next steps
 
 - One experiment, 21 events, one city and one population; the P1 result sits within fold-to-fold noise.
-- Race variables are excluded until the team records a decision.
-- Next: the comparison intervals named by the literature check (Nadeau-Bengio, Bayle et al., cluster bootstrap, internal-external CV); why the cluster-robust SE over-covers; Jenna's review of the propositions in `proposals/06`.
+- Race variables enter one pre-registered block only (P3d), as the team decided on 2026-10-15.
+- Propositions 6 to 9 have not yet been checked by the team's mathematical lead; Proposition 9 (iii) is a heuristic second-order expansion, and Propositions 1, 2, 6 and 8 assume equal cluster sizes.
+- Next: Jenna's review of `proposals/06` and the draft note `proposals/08`; which AUC the project reports (across events or within an event); unequal cluster sizes in the theory; the two-person (dyadic) case.

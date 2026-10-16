@@ -13,9 +13,9 @@
 \setlist{itemsep=2pt,topsep=4pt}
 \setlength{\parskip}{0.5em}\setlength{\parindent}{0pt}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 4: data, predictors, models, metrics, error bars and checks}
+\title{Predicting mutual interest before two strangers meet\\[0.3em]\large Methods, Parts 1 to 9: data, predictors, models, metrics, error bars and checks}
 \author{Math 195 capstone: Sophia Qin, Jenna Yang, Abraham Yeung}
-\date{15 October 2026 \quad (code at commit cd47fc4)}
+\date{15 October 2026 \quad (code at commit 5c801ae)}
 \begin{document}
 \maketitle
 \begin{abstract}
@@ -1496,7 +1496,79 @@ def dersimonian_laird(est, var):
     return float(np.sum(ws * est) / np.sum(ws)), float(np.sqrt(1 / np.sum(ws))), float(tau2)
 \end{lstlisting}
 
-\section{Part 2 to Part 4 results}
+\section{Parts 5 to 9: extensions and the theory of CV error bars under clustering}\label{sec:part5}
+
+\textbf{Extensions} (Part 5). Self-knowledge (S2): a yes model with rater indicators and the products of each
+rating with the rater's stated weight for that trait, plus a mixed model for the spread of individual weights
+(\texttt{self\_knowledge.py}). Chemistry (C3): a rank-$d$ taste-by-trait term $\mathbf u_i^\top\mathbf v_j$ added to the within-event
+model, fitted by alternating ridge-logistic regressions (\texttt{chemistry.py}). Joint decisions (J1): a bivariate probit on
+the two sides' held-out yes predictions (\texttt{bivariate\_probit.py}). Order (O1): a conditional logit in the date's
+relative position within each rater (\texttt{order\_effects.py}). Matchmaker (M1): the maximum-weight one-to-one pairing on
+held-out match predictions (\texttt{matchmaker.py}). Also Benjamini--Hochberg and Benjamini--Yekutieli control
+(\texttt{multiple\_testing.py}) and events needed for 80\% power (\texttt{power.py}).
+
+\textbf{Theory} (\texttt{proposals/06}, sections 6c to 6e). \emph{Proposition 6}: with the per-row losses held fixed, the
+Nadeau--Bengio corrected variance from $R$ random partitions into $K$ folds averages $\frac{J+K-1}{J-1}$ times the cluster-robust
+variance when the folds are grouped, and $\frac{J+K-1}{J-1}$ times the naive variance when they are random rows ($J=RK$). This
+is the random-group estimator of survey sampling in CV notation. \emph{Proposition 7}: a coverage study that reuses the same
+clusters overstates the cluster-robust SE by the spread of the clusters' expected losses. \emph{Proposition 8}: to first
+order, grouped CV equals $\bar a+\bar\beta$ and the full model's new-cluster error equals $\mu+\bar\beta$, so their difference is
+$\bar a-\mu$. The cluster-robust SE fits that difference, while the Nadeau--Bengio variance tends to
+$\frac{J+K-1}{J-1}\operatorname{Var}(a-\beta/(K-1))/G$. When the evaluation loss is the training criterion, $\beta\equiv 0$.
+
+\textbf{Simulations.} \texttt{sim\_cv\_confirm.py} (N6, N7), \texttt{sim\_cv\_firstorder.py} and \texttt{firstorder\_check.py}
+(N8 to N11, N8b) and \texttt{sim\_cv\_sizes.py} (N12, N13: the wild cluster bootstrap-$t$ with Rademacher signs on each
+event's residual sum).
+
+\textbf{Part 8} (\texttt{sim\_cv\_kfold.py}, N14, N15): Proposition 8 (ii)'s Nadeau--Bengio ratio
+$1-\frac{2\operatorname{Cov}(a,\beta)}{(K-1)\operatorname{Var}a}+\frac{\operatorname{Var}\beta}{(K-1)^2\operatorname{Var}a}$, with the three components estimated from Part 6b at $K=5$,
+predicted before running at $K=3$ and $10$ ($J=60$). \texttt{errorbars\_final.py} applies the recommended intervals
+(cluster-robust $t_{20}$, wild cluster bootstrap-$t$, Nadeau--Bengio on event folds) to the real headline models.
+
+\textbf{Part 9} (\texttt{sim\_cv\_auc.py}, N16 to N21; \texttt{proposals/06}, section 6f): the cross-validated AUC. Four estimates
+from the same held-out scores: pooled (one AUC over all folds' scores, as reported), fold-averaged, BCWF (match /
+non-match pairs from different clusters within a fold, averaged over folds) and BCWF-pooled (their concordances summed
+over folds over their count). \emph{Proposition 9}: the Obuchowski variance is first-order right for all four; the
+Nadeau--Bengio ratio for fold AUCs is about 1 because logistic regression nearly maximizes the AUC; at order $1/G$ the
+pooled estimate carries a mixing bias $(C_{\rm mix}+c_2/(K-1))/G$, because in a cross-fold pair each model was fitted on the
+other side's cluster, plus a same-cluster-pair term $\kappa(A_w-A_b)/G$. The constants come from large population samples
+(\texttt{--components}): $C_{\rm mix}$ and $c_2$ by score bins (functions below, checked against Gaussian closed forms in
+\texttt{tests/test\_part9.py}). \texttt{auc\_estimators\_real.py} (exploratory) compares the four estimates on the real data
+and in the realistic A2 design at 21 events.
+
+\begin{lstlisting}[caption={Wild cluster bootstrap-t quantile (scripts/sim\_cv\_sizes.py)}]
+def wild_cluster_t_quantile(u, g, B, rng, level=0.90):
+    """Wild cluster bootstrap-t for a mean: Rademacher signs on each cluster's residual sum; returns the `level`
+    quantile of |t*| with the G/(G-1) cluster-robust SE recomputed in every draw."""
+    u, g = np.asarray(u, float), np.asarray(g); n = len(u)
+    s = pd.Series(u - u.mean()).groupby(g).agg(["sum", "size"])
+    R, ng = s["sum"].to_numpy(), s["size"].to_numpy(float); G = len(R)
+    W = rng.choice([-1.0, 1.0], size=(B, G))
+    d = (W @ R) / n                                       # ybar* - ybar
+    Rs = W * R - ng * d[:, None]                          # residual sums of the bootstrap data
+    v = G / (G - 1) * np.sum(Rs ** 2, axis=1) / n ** 2
+    return float(np.quantile(np.abs(d) / np.sqrt(v), level))
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Between-cluster concordances (BCWF) (scripts/sim\_cv\_auc.py)}]
+def between_cluster_counts(score, y, g):
+    """Concordant match / non-match pairs from different clusters (ties half), and the number of such pairs."""
+    y = np.asarray(y); n1 = (y == 1).sum(); n0 = len(y) - n1
+    conc_w, pairs_w = within_cluster_counts(score, y, g)
+    return M.auc(score, y) * n1 * n0 - conc_w.sum(), n1 * n0 - pairs_w.sum()
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Density-weighted pair term (the mixing constant) (scripts/sim\_cv\_auc.py)}]
+def pair_density_term(s, y, F1, F0, bins=400):
+    """E[delta(s_i - s_j) F1_i . F0_j] over a match i and a non-match j drawn independently (rows of F1 for matches,
+    of F0 for non-matches), by score bins at quantiles."""
+    y = np.asarray(y); edges = np.quantile(s, np.linspace(0.0005, 0.9995, bins + 1))
+    b = np.clip(np.searchsorted(edges, s) - 1, 0, bins - 1); i1, i0 = y == 1, y == 0
+    by_bin = lambda F, m: np.stack([np.bincount(b[m], F[m, c], minlength=bins) for c in range(F.shape[1])], 1)
+    return float(np.sum(np.sum(by_bin(F1, i1) * by_bin(F0, i0), 1) / np.diff(edges)) / (i1.sum() * i0.sum()))
+\end{lstlisting}
+
+\section{Part 2 to Part 9 results}
 
 \footnotesize
 \begin{longtable}{lL{2.6cm}L{9.6cm}l}
@@ -1530,6 +1602,36 @@ K3 &  & dyadic reciprocity of the yes decisions 0.103 (90\% interval 0.076 to 0.
 N3 &  & floor interval coverage 0.890 to 0.965 over 15 designs with events redrawn; 15 of 15 at least 0.85 & supported \\
 N4 &  & A2 with the 21 events redrawn: event CV with the cluster-robust SE covers 0.874 (500 data sets) & supported \\
 N5 &  & A2 with the 21 events redrawn: the cluster-nested, bias-adjusted interval covers 0.836, against 0.926 in A2 & supported \\
+N6 &  & Nadeau-Bengio on event folds covers 0.880 to 0.975 over 12 designs (8 of 12 within 0.85 to 0.95); half-width 0.73 to 0.90 times the floor's (12 of 12 at most 0.90) & not supported \\
+N7 &  & Nadeau-Bengio on random-row folds covers 0.515 to 0.760 over 12 designs; 12 of 12 below 0.80 & supported \\
+S2 & women & mean gamma 0.1361 (90\% interval 0.0654 to 0.2069); R2\_k attr 0.620, sinc 0.052, intel 0.705, fun 0.367, amb 0.054, shar 0.864; 3407 dates, 263 raters; parts: mean gamma above 0 True, every R2\_k < 0.10 False & not supported \\
+S2 & men & mean gamma 0.1827 (90\% interval 0.1243 to 0.2411); R2\_k attr 0.419, sinc 0.677, intel 0.560, fun 0.000, amb 0.474, shar 0.086; 3554 dates, 267 raters; parts: mean gamma above 0 True, every R2\_k < 0.10 False & not supported \\
+S2 & both genders (the decision: supported only if supported for women and for men) & women: not supported; men: not supported & not supported \\
+S2 & pooled model, both genders (exploratory, no verdict: the settings say by gender) & mean gamma 0.1793 (90\% interval 0.1418 to 0.2168); R2\_k attr 0.767, sinc 0.626, intel 0.794, fun 0.084, amb 0.414, shar 0.644; 6961 dates, 530 raters; would be not supported & not supported \\
+S2 & women, without wave 12 (sensitivity, no verdict) & mean gamma 0.1285 (90\% interval 0.0548 to 0.2022); R2\_k attr 0.567, sinc 0.025, intel 0.703, fun 0.324, amb 0.024, shar 0.866; 3236 dates, 249 raters; would be not supported & not supported \\
+S2 & men, without wave 12 (sensitivity, no verdict) & mean gamma 0.1989 (90\% interval 0.1403 to 0.2575); R2\_k attr 0.501, sinc 0.761, intel 0.443, fun 0.004, amb 0.526, shar 0.081; 3382 dates, 254 raters; would be not supported & not supported \\
+C3 & all decisions, d = 1 against d = 0, 25-round cap & held-out AUC d = 1 0.8107 minus d = 0 (W1) 0.8104 = +0.0003 (SE 0.0002, 90\% interval -0.0000 to +0.0006); lambda by fold 3;3;3;3;10; 200-round check: 0.8107, +0.0003 (SE 0.0002); exploratory d = 2: 0.8107, +0.0003 (SE 0.0002) & supported \\
+J1 & headline, pre (her rf, his logistic) & rho -0.0269 (SE 0.0257; 90\% interval -0.0691 to 0.0154, delta-method -0.0692 to 0.0154); alpha\_f 0.110, theta\_f 1.335, alpha\_m -0.054, theta\_m 0.137; 4184 dyads, 21 events & not supported \\
+O1 & all dates, both genders & gamma -0.1389 (90\% interval -0.3071 to 0.0293; event-clustered sandwich SE 0.1023); permutation p (two-sided, 1000 within-rater shuffles) 0.0989 & not supported \\
+M1 & headline random forest, Part 1 event folds & ratio of realized to random-pairing matches: pre 1.278 (90\% interval 1.099 to 1.475), pre+date 2.666 (90\% interval 2.387 to 2.941); realized 58 and 121 against 45.4 expected over 21 events (268 assigned pairs) & supported \\
+N8 &  & Var(CV - Err\_new) / mean V\_CR at G = 80, 160, 320: 0-1 loss 1.146, 1.061, 1.070; log-loss 1.060, 1.072, 1.155 & not supported \\
+N9 &  & Nadeau-Bengio / scaled V\_CR: log-loss at G = 160, 320 1.005, 0.994; 0-1 loss at G = 20 to 320 1.145, 1.200, 1.223, 1.200, 1.208 & supported \\
+N10 &  & log-loss Corr(CV, Err\_new) at G = 80, 160, 320: -0.043, -0.053, -0.106 & supported \\
+N11 &  & cluster-robust t interval coverage of Err\_new over 5 G x 2 losses: 0.875 to 0.902 & supported \\
+N8b &  & corrected Var(CV - Err\_new) / mean V\_CR at G = 80, 160, 320: 0-1 loss 1.114, 1.039, 0.911; log-loss 1.165, 1.096, 0.969 & not supported \\
+N9 (replication, exploratory) &  & Nadeau-Bengio / scaled V\_CR: log-loss at G = 160, 320 0.999, 0.994; 0-1 loss at G = 20 to 320 1.183, 1.187, 1.209, 1.206, 1.193 & supported \\
+N10 (replication, exploratory) &  & log-loss Corr(CV, Err\_new) at G = 80, 160, 320: -0.063, -0.063, -0.021 & supported \\
+N11 (replication, exploratory) &  & cluster-robust t interval coverage of Err\_new over 5 G x 2 losses: 0.875 to 0.915 & supported \\
+N12 &  & wild cluster bootstrap-t covers 0.853 to 0.910 over 8 designs; 8 of 8 within 0.85 to 0.95 & supported \\
+N13 &  & cluster-robust (normal) coverage in the four G = 40 designs: 0.883, 0.867, 0.867, 0.867 & not supported \\
+N14 &  & 0-1 loss, observed minus predicted (K = 3 at G = 80, 160, 320; then K = 10): +0.053, +0.022, +0.012, -0.012, -0.001, +0.001 & supported \\
+N15 &  & log-loss, observed minus 1 (K = 3 at G = 80, 160, 320; then K = 10): +0.032, +0.027, -0.016, -0.006, -0.012, -0.011 & supported \\
+N16 &  & pooled bias (upper 90\% limit) over designs sa 1-2 x su 0-1 at G = 20, 40, 80: biases -0.0132, -0.0068, -0.0036, -0.0141, -0.0063, -0.0036, -0.0372, -0.0194, -0.0105, -0.0397, -0.0184, -0.0124; largest upper limit -0.0022 & supported \\
+N17 &  & mean G x (pooled between - BCWF-pooled) over G = 40-160 vs C\_mix + c2/4: design 2: -0.304 vs -0.300 (+1.3\%); design 3: -0.242 vs -0.236 (+2.5\%); design 4: -0.865 vs -0.846 (+2.2\%); design 5: -0.745 vs -0.708 (+5.1\%) & supported \\
+N18 &  & G = 80, K = 2 and 10: design 2 K 2: -0.397 vs -0.400 (-0.8\%); design 2 K 10: -0.281 vs -0.282 (-0.3\%); design 4 K 2: -0.917 vs -1.127 (-18.6\%); design 4 K 10: -0.783 vs -0.794 (-1.4\%) & not supported \\
+N19 &  & |BCWF-pooled bias| / mean SE over the 18 cells with G >= 40: max 0.112; |pooled bias| / mean SE in the sa = 2 cells at G = 40, 80: 0.868, 0.696, 0.501, 0.485 & supported \\
+N20 &  & BCWF-pooled t coverage, mean over 18 cells with G >= 40: 0.899 (range 0.848 to 0.938); pooled t coverage, mean over the sa = 2 cells with G >= 40: 0.841 & supported \\
+N21 &  & Nadeau-Bengio ratio minus prediction: linear G 80: 0.988 vs 1.000; linear G 160: 0.991 vs 1.000; hinge G 80: 0.999 vs 1.003; hinge G 160: 0.994 vs 1.003; slope G 80: 0.979 vs 0.991; slope G 160: 0.978 vs 0.991 & supported \\
 \bottomrule
 \end{longtable}
 \normalsize
@@ -1685,6 +1787,10 @@ Real-data error bars & 20262506 \\
 Social relations model: bootstrap; simulation & 20262606; 20262706 \\
 Design grid; dyadic design & 20262806 + design index; 20262906 \\
 Repair grid; A2 redrawn; matched dyadic design & 20263006 + design; 20263106 + chunk; 20263206 + chunk \\
+Part 5: confirm grid; S2; C3; J1; O1; M1; power & 20263406 + design; 20263506; 20263606; 20263706; 20263806; 20263906; 20264006 \\
+Part 6 and 6b; first-order check; Part 7 & 20264106 + G; 20264506 + G; 20264606; 20264706 + design \\
+Real-data final error bars; Part 8 & 20264806; 20264906 + G \\
+Part 9: components; coverage; other K; Nadeau--Bengio; real and realistic (exploratory) & 20265006 + design; 20265106 + 10 design + G index; 20265206 + 10 design + K index; 20265306 + 10 design + G index; 20265406; 20265506 + design \\
 \bottomrule
 \end{tabular}
 \end{center}
