@@ -449,6 +449,32 @@ Settings (`scripts/sim_cv_sizes.py`):
 - The wild cluster bootstrap-t: Rademacher weights on each event's residual sum, 999 draws, the cluster-robust t
   statistic recomputed each time, and a symmetric interval from the 90% quantile of |t*|.
 
+## Part 8 (committed 2026-10-15, after Part 7 ran and before any of this ran)
+
+Part 7 is recorded unchanged: N12 supported (the wild cluster bootstrap-t covered 85.3% to 91.0%); N13 not supported
+(with a precise target, the plain cluster-robust interval covered 86.7% to 88.3% at G = 40).
+
+This part is an out-of-sample quantitative test of Proposition 8 (ii) (proposals/06, 6e). It predicts that the
+Nadeau-Bengio ratio NB / ((J+K-1)/(J-1) x V_CR) tends to
+1 - 2Cov(a, beta)/((K-1)Var(a)) + Var(beta)/((K-1)^2 Var(a)).
+The components were estimated from Part 6b's K = 5 runs (pooled over G = 80, 160, 320; 0-1 loss):
+G Var(a) = 0.02266, G Var(beta) = 0.00946, G Cov(a, beta) = -0.00787. These give predicted ratios of 1.451 at K = 3,
+1.082 at K = 10 and 2.112 at K = 2. For log-loss the prediction is 1.00 at every K.
+
+- N14. In Part 6's balanced synthetic design with 0-1 loss, the observed mean ratio lies within 0.07 of the
+  prediction at K = 3 (1.451) and at K = 10 (1.082), at each of G = 80, 160 and 320.
+- N15. With log-loss, the observed mean ratio lies within 0.05 of 1.00 at K = 3 and K = 10, at each of those G.
+
+Exploratory: K = 2 (predicted 2.112; halving the training set may break the first-order expansion), and K = 5 as
+a replication.
+
+Settings (`scripts/sim_cv_kfold.py`):
+
+- Part 6's data generator and model. G in {80, 160, 320}, 400 data sets each, seeds 20264906 + G.
+- V_CR comes from one grouped 5-fold run per data set.
+- The Nadeau-Bengio variance for each K in {2, 3, 5, 10} comes from R grouped partitions with J = R x K = 60
+  (R = 30, 20, 12, 6).
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -731,3 +757,6 @@ Settings (`scripts/sim_cv_sizes.py`):
   and its Monte Carlo variance subtracted, committed before it ran.
 - 2026-10-15 (new hypotheses N12, N13) Part 7: the wild cluster bootstrap for CV error bars under unequal cluster
   sizes, committed after N8b ran (not supported) and before any Part 7 run.
+- 2026-10-15 (new hypotheses N14, N15) Part 8: an out-of-sample quantitative test of Proposition 8 (ii) at K = 3
+  and 10, with predictions computed from Part 6b's K = 5 runs; committed after Part 7 ran (N12 supported, N13 not)
+  and before any Part 8 run.
