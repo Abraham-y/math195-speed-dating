@@ -1,7 +1,8 @@
 """Exploratory (PREREG.md, Part 9): the four CV AUC estimates on the real data and in the realistic A2 design.
 
 Input : data/pairs.csv, data/feature_sets.json
-Output: results/auc_estimators_real.csv (real data), results/auc_estimators_realistic.csv (A2 design, per design)
+Output: results/auc_estimators_real.csv (real data), results/auc_estimators_realistic.csv (A2 design, per design),
+        results/auc_estimators_real_plugin.csv (`--plugin`: Proposition 9's mixing bias estimated from the data)
 Seeds : real-data partitions 20265406; realistic design d (0 to 3) 20265506 + d.
 
 Real data: the full logistic regression and LDA on `pre` and `pre+date` (Part 1 preparation without splines, as in
@@ -13,7 +14,11 @@ the matchmaker's target), and the Obuchowski SE of the pooled scores (Propositio
 Realistic design: Part 7's A2 truth with G = 21 events redrawn (fresh people), person SD in {0.5, 1.0} and event SD
 in {0, 0.4}, 300 data sets each. The target is the full model's pooled AUC on 2,000 new events. Reported: bias and
 coverage (t on 20 degrees of freedom, Obuchowski SE) of the pooled and BCWF-pooled estimates.
-Run from the repository root: python scripts/auc_estimators_real.py [replicates] [workers]
+Plug-in (`--plugin`, needs auc_estimators_real.csv): for the full logistic model, the mixing bias at K = 5 predicted
+from the data alone. The first-order term is [pair term (x_i, H^-1 s_h(j)) - pair term (H^-1 s_h(i), x_j)] / n, with event
+score sums s_h at the full-data fit. The second is -g'(0) / (K - 1), with W the cluster-robust Var(theta-hat). Both are
+compared with the mean of (pooled between-event AUC - BCWF-pooled) over the 20 random partitions.
+Run from the repository root: python scripts/auc_estimators_real.py [replicates] [workers] [--plugin]
 """
 import os
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
@@ -64,6 +69,30 @@ def real():
     return D
 
 
+def plug_in():
+    pairs = pd.read_csv("data/pairs.csv"); sets = json.loads(pathlib.Path("data/feature_sets.json").read_text())
+    obs = pd.read_csv(RES / "auc_estimators_real.csv"); obs = obs[(obs.partition != "headline") & (obs.model == "logistic")]
+    rows = []
+    for fs in ("pre", "pre+date"):
+        X, y, ev, ids = M.build_frame(pairs, sets, M.HEADLINE, fs)
+        prep = ER.P1.make_prep(sets, X).fit(X.reset_index(drop=True), ids.reset_index(drop=True))
+        Z = prep.transform(X.reset_index(drop=True)).to_numpy(); y = np.asarray(y, float); ev = np.asarray(ev)
+        w, _ = M.fit_logit(Z, y); n = len(y)
+        Xt = np.c_[np.ones(n), Z]; p = 1 / (1 + np.exp(-Xt @ w)); s = Z @ w[1:]
+        Hinv = np.linalg.inv((Xt * (p * (1 - p))[:, None]).T @ Xt / n + 1e-8 * np.eye(Xt.shape[1]))
+        res = pd.DataFrame(Xt * (y - p)[:, None]); S = res.groupby(ev).sum().to_numpy()
+        sh = res.groupby(ev).transform("sum").to_numpy() @ Hinv.T
+        G = len(S); v_theta = G / (G - 1) * Hinv @ (S.T @ S) @ Hinv / n ** 2
+        first = (A.pair_density_term(s, y, Xt, sh) - A.pair_density_term(s, y, sh, Xt)) / n
+        second = -A.pair_density_slope(s, y, Xt, Xt, v_theta) / 4
+        o = obs[obs.feature_set == fs]; gap = o.pooled_between - o.bcwf_pooled
+        rows.append(dict(feature_set=fs, model="logistic", events=G, columns=Z.shape[1], predicted_first_order=first, predicted_second_order=second,
+                         predicted_mixing_bias=first + second, observed_mean=gap.mean(), observed_se=gap.std(ddof=1) / np.sqrt(len(o)),
+                         partitions=len(o), seed=SEED_REAL, fold_scheme="event 5-fold"))
+    D = pd.DataFrame(rows); D.to_csv(RES / "auc_estimators_real_plugin.csv", index=False)
+    print(D.round(4).to_string(index=False))
+
+
 def realistic(args):
     d, reps = args
     ps, es = GRID[d]; sd = SD.sd_of(ps, es); seed = SEED_SIM + d; rng = np.random.default_rng(seed)
@@ -85,6 +114,8 @@ def realistic(args):
 
 
 def main():
+    if "--plugin" in sys.argv:
+        return plug_in()
     reps = int(sys.argv[1]) if len(sys.argv) > 1 else 300
     workers = int(sys.argv[2]) if len(sys.argv) > 2 else 4
     real()

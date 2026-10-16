@@ -550,6 +550,12 @@ mixing bias to within about 5%.
   - On the real data the four estimates agree on average over 20 event partitions: pooled minus BCWF-pooled is
     -0.004 to +0.002. So the project's headline AUCs are not materially biased, though a single partition moves the
     gap by about 0.005.
+  - **The theory, applied to our data.** Proposition 9's constants can be estimated from a single data set: the
+    full-data fit, its event score sums, and the cluster-robust $\operatorname{Var}\hat\theta$ (`auc_estimators_real.py --plugin`). For
+    the full logistic model the predicted mixing bias at $K=5$ is -0.0010 on `pre` and +0.0003 on `pre+date`. The
+    observed means over 20 partitions are -0.0005 (SE 0.0019) and +0.0009 (SE 0.0012). Our events differ too little in
+    residual match rate, once the predictors are in, for mixing to matter. The plug-in also gives any project a
+    way to check whether its pooled CV AUC needs the BCWF fix.
 
 ## 7. First simulation (done; to be extended)
 
