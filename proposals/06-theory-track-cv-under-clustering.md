@@ -8,17 +8,23 @@ Three things are established below, in increasing order of novelty.
 
 1. Grouped cross-validation (whole clusters held out) and random-split cross-validation estimate different quantities: the error on rows from new clusters versus the error on rows from clusters already seen. This is a one-line consequence of exchangeability (Lemma 1), and it means that no interval can fix a random-split estimate when the question is about new people.
 
-2. Under grouped folds, the variance of the CV estimate equals the independent-rows formula of Bates, Hastie and Tibshirani (2024) plus one extra term, $(m-1)\,\delta_c/n$, where $m$ is the cluster size and $\delta_c$ is the excess covariance between per-point errors in the same cluster (Proposition 1). The usual standard error misses that term entirely, so it is too small by at least the survey-sampling design effect $1+(m-1)\rho_c$ (Corollary). A cluster-robust standard error recovers the cluster term exactly, and what it still misses is precisely the between-cluster covariance induced by shared training data, the same object the independent-rows literature studies (Proposition 2).
+2. Under grouped folds, the variance of the CV estimate equals the independent-rows formula of Bates, Hastie and Tibshirani (2024) plus one extra term, $(m-1)\,\delta_c/n$, where $m$ is the cluster size and $\delta_c$ is the excess covariance between per-point errors in the same cluster (Proposition 1). The usual standard error misses that term. When the between-cluster covariances are nonnegative, it is too small by at least the survey-sampling design effect $1+(m-1)\rho_c$ (Corollary). In expectation, a cluster-robust variance recovers the cluster term; its remaining bias is the between-cluster covariance $\bar c$ that shared training data induce (Proposition 2), and $\bar c$ can have either sign. Proposition 2 concerns $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})$. For an interval around the full model's new-cluster error, the relevant variance is $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})$, which the cluster-robust variance estimates to first order (Proposition 8, section 6e).
 
 3. Nested cross-validation, the independent-rows fix, can be adapted to clustered data by holding out clusters at both levels and replacing its within-fold variance correction with a cluster-robust one. The resulting MSE estimate is unbiased for the MSE of a grouped CV estimate (Proposition 3); using the original correction under clustering is provably conservative. The adapted estimate is noisy at five folds, and a first simulation shows that flooring it at the cluster-robust variance gives nominal coverage where each component alone does not.
 
 The cross-classified (dyadic) case, where every row belongs to one rater and one ratee, is set up in Section 6 with the estimators stated and the proofs left open.
 
+4. Sections 6c to 6e were added on 2026-10-15 and reviewed adversarially the same day; the review's corrections are folded in.
+   - Proposition 6: on grouped folds, the Nadeau-Bengio variance is the random-group (cluster-robust) variance times $(J+K-1)/(J-1)$.
+   - Proposition 7: coverage studies differ depending on whether the clusters are fixed or redrawn.
+   - Proposition 8: a first-order theory of what grouped CV estimates and which error bar fits it.
+   - The simulations that test them, and a statement of where the error-bar track stands.
+
 ## 1. Setup and notation
 
 Rows $z_i=(x_i,y_i)$, $i=1,\dots,n$, each in exactly one cluster $g(i)\in\{1,\dots,G\}$, balanced so $n=Gm$. Two-level model: cluster effects $U_1,\dots,U_G$ are i.i.d.; given $U_g$, the rows of cluster $g$ are i.i.d. from a distribution $P_{U_g}$. Rows in different clusters are independent; rows in the same cluster are exchangeable but dependent.
 
-A learner maps a training set $D$ to a fitted function $\hat f_D$ and is symmetric (does not depend on the order of training rows). A bounded loss $\ell(z;f)$. Folds $F_1,\dots,F_K$, assigned at random and independently of the data. Grouped folds: each cluster lies entirely in one fold, $G/K$ clusters per fold. Random-split folds: rows assigned individually, so clusters straddle folds.
+A learner maps a training set $D$ to a fitted function $\hat f_D$ and is symmetric (does not depend on the order of training rows). A loss $\ell(z;f)$ with finite second moments (bounded in Sections 2 to 5; log-loss, used in Section 6e, is not bounded). Folds $F_1,\dots,F_K$, assigned at random and independently of the data. Grouped folds: each cluster lies entirely in one fold, $G/K$ clusters per fold. Random-split folds: rows assigned individually, so clusters straddle folds.
 
 Per-point CV error and the CV estimate:
 
@@ -68,7 +74,7 @@ $$\mathrm{Var}\big(\widehat{\mathrm{Err}}_{\mathrm{CV}}\big)=\frac{1}{n^2}\Big[n
 
 Substitute $\sigma_{cc}=\sigma_{sf}+\delta_c$ and simplify: $\frac{m-1}{n}\sigma_{sf}+(\frac1K-\frac mn)\sigma_{sf}=(\frac1K-\frac1n)\sigma_{sf}$. $\square$
 
-Corollary (design effect). Let $\hat V_{\mathrm{naive}}=s^2/n$ with $s^2$ the sample variance of the $e_i$, and $V=\mathrm{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})$. For any $e_1,\dots,e_n$ with common variance $\sigma^2$, $E[s^2]=\frac{n}{n-1}(\sigma^2-V)$, hence
+Corollary (design effect). Let $\hat V_{\mathrm{naive}}=s^2/n$ with $s^2$ the sample variance of the $e_i$, and $V=\mathrm{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})$. For any $e_1,\dots,e_n$ with common mean and common variance $\sigma^2$, $E[s^2]=\frac{n}{n-1}(\sigma^2-V)$, hence
 
 $$E\big[\hat V_{\mathrm{naive}}\big]=\frac{\sigma^2-V}{n-1}\approx\frac{\sigma^2}{n},\qquad \frac{V}{E[\hat V_{\mathrm{naive}}]}\approx 1+(m-1)\rho_{cc}+\Big(\frac nK-m\Big)\rho_{sf}+\Big(n-\frac nK\Big)\rho_{df},$$
 
@@ -92,7 +98,12 @@ $$V=\frac vG+\frac{G-1}{G}\,\bar c,\qquad E\big[\hat V_{\mathrm{CR}}\big]=\frac 
 
 Proof. The first identity is Proposition 1 rewritten at the cluster level. For the second, apply the sample-variance identity of the Corollary to the $G$ cluster means (balanced clusters make $\widehat{\mathrm{Err}}_{\mathrm{CV}}$ their mean): $E[\frac{1}{G-1}\sum_g(\bar e_g-\bar e)^2]=\frac{G}{G-1}(v-V)$, so $E[\hat V_{\mathrm{CR}}]=\frac{v-V}{G-1}=\frac{v-v/G-\frac{G-1}{G}\bar c}{G-1}=\frac vG-\frac{\bar c}{G}$. Subtract. $\square$
 
-Reading. The bias of the cluster-robust estimate is exactly $\bar c$, the average covariance between errors in different clusters, and it contains no $m$ and no $\delta_c$. So the cluster-robust standard error removes the whole clustering shortfall and leaves exactly the shared-training-data covariance that Bates, Hastie and Tibshirani analyze for independent rows. For $m=1$ the cluster-robust and naive estimates coincide and Proposition 2 reduces to their observation. In the simulation below the remaining shortfall is about 15% of $V$.
+Reading. For balanced clusters, the bias of the cluster-robust variance as an estimate of $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})$ is exactly $\bar c$, the average covariance between errors in different clusters. It contains no $m$ or $\delta_c$ explicitly, though $\sigma_{sf}$ and $\sigma_{df}$ still depend on the cluster structure through the training sets. For $m=1$ the cluster-robust and naive estimates coincide, and Proposition 2 reduces to Bates, Hastie and Tibshirani's observation. Two corrections from the 2026-10-15 review:
+
+1. **$\bar c$ need not be nonnegative.** By Proposition 8, $\bar c=[2\operatorname{Cov}(a,\beta)+\operatorname{Var}(\beta)]/G+o(1/G)$, which is first order and of either sign. In the review's Monte Carlo with 0-1 loss, the cluster-robust variance overstated $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})$ by about 25% at every $G$.
+2. **$\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})$ is not the interval's target.** For the full model's new-cluster error the relevant variance is $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})$, which the cluster-robust variance estimates to first order (Proposition 8 (i)).
+
+The proposition is exact only for balanced clusters; the unbalanced estimator the scripts use is not covered.
 
 ## 5. Cluster-nested cross-validation (proposed; unbiasedness proved)
 
@@ -113,7 +124,7 @@ Proof. Condition on $D_{-k}$ and the fold assignment. The held-out clusters are 
 
 Remark (the original correction is conservative under clustering). With grouped folds but the independent-rows $b_k$, the sample-variance identity gives $E[b^{\mathrm{iid}}_k\mid D_{-k}]\approx\sigma^2_k/n_k$, whereas the correct value is $v_k/G_k=(\sigma_k^2+(m-1)\sigma_{cc,k})/n_k$. So $\widehat{\mathrm{MSE}}$ is biased upward by about $(m-1)\sigma_{cc,k}/n_k$, the within-fold cluster covariance, and the intervals over-cover. The simulation confirms this (98% coverage at nominal 90%, intervals 1.7 times wider than needed).
 
-Remark (variance of the estimate). Proposition 3 is about the mean. The estimate is a difference of two noisy quantities, each averaged over only $K$ folds per assignment, and it is negative in a few percent of replicates at $K=5$, $R=20$. Its misses are concentrated where it happens to be small. Since $\hat V_{\mathrm{CR}}$ is a low-variance estimate that is biased downward by exactly $\bar c\ge0$ (Proposition 2, when the between-cluster covariances are nonnegative), a natural stabilizer is the floor
+Remark (variance of the estimate). Proposition 3 is about the mean. The estimate is a difference of two noisy quantities, each averaged over only $K$ folds per assignment, and it is negative in a few percent of replicates at $K=5$, $R=20$. Its misses are concentrated where it happens to be small. $\hat V_{\mathrm{CR}}$ is a low-variance estimate, so a natural stabilizer is the floor below. The original rationale was that $\hat V_{\mathrm{CR}}$ is biased downward by $\bar c\ge0$. As the review showed, $\bar c$ can be negative, and the interval's target is $\mathrm{Err}_{\mathrm{new}}$, for which $\hat V_{\mathrm{CR}}$ is first-order right (Proposition 8). So the floor is conservative by design rather than a correction of a known bias.
 
 $$\hat V_{\mathrm{floor}}=\max\big(\hat V_{\mathrm{CR}},\,\widehat{\mathrm{MSE}}_{\mathrm{CN}}\big).$$
 
@@ -170,7 +181,7 @@ Setup:
   variance is $\hat\sigma^2_{\mathrm{NB}}=\big(\frac1J+\frac{1}{K-1}\big)S^2$, with $S^2$ the sample variance of the
   $e_j$.
 
-Proposition 6. Averaging over the random partitions,
+Proposition 6. Taking expectation over the random partitions, given the losses (the $R$ partitions need not be independent),
 
 $$E\big[\hat\sigma^2_{\mathrm{NB}}\big]=\frac{J+K-1}{J-1}\cdot\frac{s_c^2}{G}\quad\text{(grouped)},\qquad E\big[\hat\sigma^2_{\mathrm{NB}}\big]=\frac{J+K-1}{J-1}\cdot\frac{s^2}{n}\quad\text{(rows)}.$$
 
@@ -207,10 +218,11 @@ Consequences.
    Registered prediction N7 tests this, and it held: row-fold coverage was 51% to 76%.
 2. **One CV run ($R=1$, $J=K$).** The factor is $(2K-1)/(K-1)$, which is 2.25 at $K=5$. Applied to a single $K$-fold
    run, the correction overstates the test-sampling variance by that much.
-3. **With refitting.** Fold errors also vary because the fitted model changes from fold to fold. That extra spread
-   in $S^2$ is the training-set variability that the cluster-robust SE misses ($\bar c$ in Proposition 2). Conjecture,
-   to be checked in N6's grid and then proved: the excess of $\hat\sigma^2_{\mathrm{NB}}$ over
-   $\frac{J+K-1}{J-1}\hat V_{\mathrm{CR}}$ tracks $\bar c$.
+3. **With refitting.** Fold errors also vary because the fitted model changes from fold to fold. The original
+   conjecture was that the excess of $\hat\sigma^2_{\mathrm{NB}}$ over $\frac{J+K-1}{J-1}\hat V_{\mathrm{CR}}$ tracks $\bar c$. The review
+   refuted it. By Proposition 8, that excess is about $\frac{J+K-1}{J-1}[\operatorname{Var}(\beta)/(K-1)^2-2\operatorname{Cov}(a,\beta)/(K-1)]/G$,
+   while $\bar c\approx[\operatorname{Var}(\beta)+2\operatorname{Cov}(a,\beta)]/G$. In the review's Monte Carlo the two had opposite signs
+   (+0.0046/G against -0.0053/G).
 
 ## 6d. Fixed against redrawn clusters in a coverage study (proved, 2026-10-15)
 
@@ -227,10 +239,12 @@ Proof. The cluster means are $\bar c_g=\mu_g+u_g+\bar v_g$. With the design fixe
 $E\sum_g(\bar c_g-\bar y)^2=\sum_g(\mu_g-\bar\mu)^2+(G-1)(\sigma_u^2+\sigma_v^2/m)$. Divide by $G(G-1)$. With the design random, add the
 expectation of $S_\mu^2$, which is $\sigma_\mu^2$. $\square$
 
-Reading. A coverage study that reuses the same clusters in every replicate measures the conditional variance.
-The cluster-robust SE, however, estimates the unconditional one, so it over-covers by an amount set by how
-different the clusters are. That is what happened in A2: 99.2% with the 21 real events fixed, against 87.4% with
-them redrawn (N4). In the 21-event designs, the mean cluster-robust SE was 0.017 against a true spread of 0.010 to
+Reading. A coverage study that reuses the same clusters in every replicate measures the conditional variance,
+while the cluster-robust variance includes the spread of the clusters' expected losses. So in such a study it
+over-covers by an amount set by how different the clusters are. The proposition has no refitting: with shared
+fitted models, $\bar c$ adds to the comparison (Proposition 2), and A2's events are also unbalanced. So A2's 99.2% with
+the 21 real events fixed, against 87.4% with them redrawn (N4), is consistent with Proposition 7 but not
+quantitatively explained by it. A fixed-design study must also state its target. In the 21-event designs, the mean cluster-robust SE was 0.017 against a true spread of 0.010 to
 0.017. The distinction is the classical one between design-based and model-based variance. The practical lesson
 is for simulation studies of CV error bars: redraw the clusters, or the cluster-robust SE will look better than it
 is.
@@ -246,44 +260,74 @@ Setup:
   match rate, while the model is fitted by log-likelihood). Let $A_h(\theta)$ be cluster $h$'s mean evaluation
   loss, $A(\theta)=E[A_h(\theta)]$, $a_h=A_h(\theta^*)$, $\mu=A(\theta^*)$, $d=\nabla A(\theta^*)$ and $\beta_g=d^\top\psi_g$.
 
-Proposition 8 (first order, balanced grouped $K$-fold CV). To first order, with remainders of order $1/G$:
+Assumptions (stated after the 2026-10-15 review):
 
-$$\widehat{\mathrm{Err}}_{\mathrm{CV}}=\bar a+\bar\beta,\qquad \mathrm{Err}_{\mathrm{new}}(\hat\theta_{\mathrm{all}})=\mu+\bar\beta,\qquad \widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}}=\bar a-\mu .$$
+- $K$ divides $G$, and the partition is a uniform random balanced grouped one.
+- $\hat\theta$ is $\sqrt G$-consistent with the stated linearization, and $\theta^*$ is interior and unique.
+- Smooth losses: $A_h$ and $A$ are twice differentiable near $\theta^*$, with finite second moments.
+- 0-1 loss:
+  - the threshold is part of $\theta$, with influence $\psi^t_g=\bar y_g-t^*$, and $\partial A/\partial t$ is included in $d$;
+  - the linear score has a bounded continuous density near the threshold.
 
-So:
+Proposition 8 (first order, balanced grouped $K$-fold CV). To first order,
 
-- (i) $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})=\operatorname{Var}(a)/G$, which the cluster-robust variance estimates
-  consistently.
-- (ii) The fold errors of $R$ grouped partitions are fold means of $c_h=a_h-\beta_h/(K-1)$. By Proposition 6,
-  $E[\hat\sigma^2_{\mathrm{NB}}]\to\frac{J+K-1}{J-1}\operatorname{Var}(a-\beta/(K-1))/G$, so the Nadeau-Bengio interval is
-  conservative for $\mathrm{Err}_{\mathrm{new}}$ whenever $\operatorname{Var}(\beta)>2(K-1)\operatorname{Cov}(a,\beta)$.
-- (iii) $\operatorname{Corr}(\widehat{\mathrm{Err}}_{\mathrm{CV}},\mathrm{Err}_{\mathrm{new}})=\frac{\operatorname{Cov}(a,\beta)+\operatorname{Var}(\beta)}{\sqrt{\operatorname{Var}(a+\beta)\operatorname{Var}(\beta)}}$.
-- (iv) If the evaluation loss is the training criterion (log-loss here), then $d=0$ because $\theta^*$ minimizes $A$.
-  Then $\beta\equiv0$: the Nadeau-Bengio variance tends to $\frac{J+K-1}{J-1}\hat V_{\mathrm{CR}}$, and $\mathrm{Err}_{\mathrm{new}}$ varies only at
-  second order, so the correlation in (iii) vanishes. This is the setting in which Bates, Hastie and Tibshirani
-  found CV nearly uncorrelated with its conditional target.
+$$\widehat{\mathrm{Err}}_{\mathrm{CV}}=\bar a+\bar\beta+r_1,\qquad \mathrm{Err}_{\mathrm{new}}(\hat\theta_{\mathrm{all}})=\mu+\bar\beta+r_2,\qquad \widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}}=\bar a-\mu+r_1-r_2 .$$
+
+For smooth losses $r_1-r_2=O_p(1/G)$; this includes an $O(1/G)$ bias from the smaller training sets. For 0-1 loss
+it is only $O_p(G^{-3/4})$: a cluster's loss is a step function of $\theta$, so its change is bounded by a
+flip probability of order $|\hat\theta-\theta^*|$. In both cases it is $o_p(G^{-1/2})$, which is enough for (i) to (iii):
+
+- (i) $G\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})\to\operatorname{Var}(a)$ (with uniform integrability), and $G\hat V_{\mathrm{CR}}\to_p\operatorname{Var}(a)$.
+- (ii) The fold errors of $R$ grouped partitions are $\bar c_{F_j}+K\bar\beta/(K-1)$ with $c_h=a_h-\beta_h/(K-1)$, the same in every
+  partition. So by Proposition 6, $G\,E[\hat\sigma^2_{\mathrm{NB}}]\to\frac{J+K-1}{J-1}\operatorname{Var}(a-\beta/(K-1))$. In expectation, the
+  Nadeau-Bengio variance therefore exceeds the relevant variance whenever $\operatorname{Var}(\beta)>2(K-1)\operatorname{Cov}(a,\beta)$
+  (sufficient, not necessary, at finite $J$).
+- (iii) $\operatorname{Corr}(\widehat{\mathrm{Err}}_{\mathrm{CV}},\mathrm{Err}_{\mathrm{new}})\to\frac{\operatorname{Cov}(a,\beta)+\operatorname{Var}(\beta)}{\sqrt{\operatorname{Var}(a+\beta)\operatorname{Var}(\beta)}}$ when $\operatorname{Var}(\beta)>0$.
+- (iv) Suppose three things hold:
+  - the evaluation loss is the training criterion, with any penalty $o(1)$;
+  - training and evaluation weight rows the same way (balanced clusters, or a correctly specified model);
+  - $\theta^*$ is interior and unique.
+  Then $d=0$ and $\beta\equiv0$, and the Nadeau-Bengio variance tends to $\frac{J+K-1}{J-1}$ times the cluster-robust variance.
+  $\mathrm{Err}_{\mathrm{new}}$ then varies at second order, and the correlation goes to 0 at rate $G^{-1/2}$. In the review's
+  Monte Carlo, $\sqrt G\cdot\operatorname{Corr}$ stayed near -1, so the correlation was -0.23 at G = 20, -0.11 at 80 and -0.05 at 640.
+  With unbalanced events and a misspecified marginal model (for example an omitted random intercept), $d\ne0$ even
+  for log-loss.
 
 Derivation.
 
-1. Cluster $h$'s test loss under the model trained without its fold is
-   $A_h(\hat\theta_{T})\approx a_h+d^\top(\hat\theta_T-\theta^*)+(\nabla A_h-d)^\top(\hat\theta_T-\theta^*)$. The last term is the product of
-   a mean-zero term independent of $T$ and an $O_p(G^{-1/2})$ term; averaged over the fold's test clusters it is
-   $O_p(1/G)$.
-2. Fold $j$'s error is therefore $\bar a_{F_j}+\bar\beta_{T_j}$. Each cluster is in $K-1$ training sets of equal size, so
-   averaging over folds gives $\bar a+\bar\beta$.
-3. The full model's error is $A(\hat\theta_{\mathrm{all}})\approx\mu+\bar\beta$.
-4. Within a partition, $\bar\beta_{T_j}-\bar\beta=-\frac{1}{K-1}(\bar\beta_{F_j}-\bar\beta)$, which gives (ii) through Proposition 6. $\square$
+1. Condition on $D_{-k}$; the test clusters of fold $k$ are independent of $\hat\theta_T$. Then
+   $\frac1q\sum_{h\in F}[A_h(\hat\theta_T)-A_h(\theta^*)]-[A(\hat\theta_T)-A(\theta^*)]$ has mean 0 and variance at most
+   $E[(A_h(\hat\theta_T)-A_h(\theta^*))^2]/q$. That is $O(1/G^2)$ for smooth losses and $O(G^{-3/2})$ for 0-1 loss.
+2. $A(\hat\theta_T)-A(\theta^*)=d^\top(\hat\theta_T-\theta^*)+O_p(1/G)$ (Taylor, plus the linearization remainder).
+3. So fold $j$'s error is $\bar a_{F_j}+\bar\beta_{T_j}$ plus remainders. Each cluster is in $K-1$ training sets of equal size,
+   so averaging over folds gives $\bar a+\bar\beta$.
+4. The full model's error is $A(\hat\theta_{\mathrm{all}})=\mu+\bar\beta+O_p(1/G)$.
+5. Within a partition, $\bar\beta_{T_j}-\bar\beta=-\frac{1}{K-1}(\bar\beta_{F_j}-\bar\beta)$, which gives (ii) through Proposition 6. $\square$
 
-Relation to the literature. This is the first-order content of the CV central limit theorem of Bayle et al.
-(2020), applied with clusters as the units. The new pieces are the Nadeau-Bengio limit in (ii), the correlation in
-(iii), and the contrast in (iv) between an evaluation loss equal to the training criterion and one that differs.
+Relation to the literature.
+
+- Bayle et al. (2020) target the average of the $K$ fold models' conditional test errors. They assume i.i.d.
+  points and a loss-stability condition, but no smoothness. Applied with clusters as the units, their central limit
+  theorem already gives (i) for that target, including 0-1 loss.
+- Proposition 8's addition is the step to the full-data model. Here
+  $\frac1K\sum_jA(\hat\theta_{T_j})-A(\hat\theta_{\mathrm{all}})=O_p(1/G)$, because $\frac1K\sum_j\bar\beta_{T_j}=\bar\beta$. That step needs smooth $A$, and it
+  carries an $O(1/G)$ training-size bias.
+- Wager (2020, arXiv 1909.11696) shows that CV's leading error term does not depend on the model and that the
+  conditional risk moves at lower order. That overlaps (i) and (iv).
+- What is left as plausibly new: the Nadeau-Bengio limit in (ii), and its quantitative check.
 
 Caveats, seen in Part 5's grid:
 
-1. Real events are unbalanced (25 to 440 dyads), so the cancellation in step 2 is only approximate.
-2. Drawing 10 of 21 events without replacement adds a finite-population factor: the ratio of
-   $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})$ to $E[\hat V_{\mathrm{CR}}]$ was 0.75 at $G=10$.
-3. At $G=21$ and 40 that ratio was 1.11 and 1.28, so the remainders are not yet negligible.
+1. Real events are unbalanced (25 to 440 dyads), so the cancellation in step 3 is only approximate.
+2. Drawing 10 of 21 events without replacement adds a finite-population effect. The simple factor
+   $1-10/21=0.52$ does not match the observed 0.75, so this explanation is qualitative only.
+3. At $G=21$ and 40 the ratio was 1.11 and 1.28; Part 7 later traced most of that to the imprecise target.
+
+The review's own Monte Carlo (balanced, G = 20 to 640, 3,000 replicates each) confirmed (i) to (iii):
+
+- (i): $G\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})/\operatorname{Var}(a)$ went 1.12 to 0.96 for 0-1 loss and 1.32 to 1.02 for log-loss.
+- (ii): $G\,E[\hat\sigma^2_{\mathrm{NB}}]/(\text{factor}\cdot\operatorname{Var}(c))$ went 1.03 to 1.00.
+- (iii): the correlation was 0.14 to 0.20 for 0-1 loss, against 0.17 predicted.
 
 Part 6 tests the proposition on balanced synthetic clusters over a wide range of $G$.
 
@@ -345,7 +389,7 @@ Design. $G=40$ clusters of $m=20$ rows, $p=10$ covariates, logistic regression f
 
 Point estimates. Mean $\mathrm{Err}^{\mathrm{new}}$ was 0.239. Grouped CV averaged 0.242 (bias $+0.003$, within noise); random-split CV averaged 0.232 (bias $-0.008$, about one standard deviation of the estimate), the leakage of Lemma 1's remark.
 
-Variance. The empirical variance of the grouped CV estimate was $5.0\times10^{-4}$. The naive estimate averaged $2.3\times10^{-4}$ (ratio 2.2, the design effect of the Corollary). The cluster-robust estimate averaged $4.3\times10^{-4}$ (ratio 1.17; the remaining 15% is $\bar c$ of Proposition 2). The cluster-nested MSE estimate averaged $6.8\times10^{-4}$ against an empirical MSE of $5.6\times10^{-4}$, slightly conservative as Proposition 3 predicts for a size-$n'$ estimate; the independent-rows correction averaged $1.7\times10^{-3}$, three times too large.
+Variance. The empirical variance of the grouped CV estimate was $5.0\times10^{-4}$. The naive estimate averaged $2.3\times10^{-4}$ (ratio 2.2, the design effect of the Corollary). The cluster-robust estimate averaged $4.3\times10^{-4}$ (ratio 1.17; a later review noted that the interval's target is $\mathrm{Err}_{\mathrm{new}}$, not $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})$, so this gap should not be read as $\bar c$). The cluster-nested MSE estimate averaged $6.8\times10^{-4}$ against an empirical MSE of $5.6\times10^{-4}$, slightly conservative as Proposition 3 predicts for a size-$n'$ estimate; the independent-rows correction averaged $1.7\times10^{-3}$, three times too large.
 
 Coverage of 90% intervals for $\mathrm{Err}^{\mathrm{new}}(D)$:
 
