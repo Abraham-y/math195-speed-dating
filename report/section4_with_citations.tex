@@ -1,0 +1,251 @@
+% ============================================================================================================
+% Section 4 (Technical Implementation) from the "Survey-Format Standardization" subsection to the end, exactly as
+% the teammate wrote it, with only two kinds of change:
+%   1. citations added (marked % CITE);
+%   2. five one-sentence corrections where the draft does not match what the code did (marked % FIX, with the
+%      source). Each is a suggestion for the author to accept, reword or drop.
+% Nothing else is reworded. The subsections before "Survey-Format Standardization" need no changes.
+% Citation keys: report/references_midterm.bib (James:2023 is already in references.bib).
+% ============================================================================================================
+
+\subsection{Survey-Format Standardization}
+
+Although converting stated preferences to shares makes the two questionnaire formats comparable, the dispersion of the shares was smaller among participants in the 1--10 waves than among participants in the 100-point waves.
+
+The primary specification therefore standardized preference-related variables within questionnaire format. For a preference-related variable $x$,
+
+\begin{equation}
+z
+=
+\frac{
+x-\mu_{\text{format}}
+}{
+\sigma_{\text{format}}
+},
+\end{equation}
+
+where $\mu_{\text{format}}$ and $\sigma_{\text{format}}$ denote the mean and standard deviation for participants who received the same questionnaire format.
+
+The stated-preference shares and the two preference-fit variables were standardized in this manner. A robustness specification used the converted preference shares without the additional format-specific standardization.
+% FIX 1 (modeling.py lines 66-80, 98-102: done once in build_frame, before the folds are formed):
+These means and standard deviations were computed once, before cross-validation, from all participants' survey answers; they use no outcomes, so no match information enters a held-out fold.
+
+\subsection{Cross-Validation}
+
+A central feature of the analysis is that participants appear in multiple dyads. Randomly splitting dyads into training and validation sets could therefore place the same participant on both sides of the split.
+
+% CITE: grouped cross-validation
+We instead conducted five-fold cross-validation grouped by experimental wave \cite[pp.~917, 919]{Roberts:2017}. The 21 events were randomly ordered using a fixed seed and assigned across five folds. In each cross-validation iteration, every dyad belonging to the waves in one fold was held out, while the model was estimated using dyads from the remaining folds.
+
+Thus, no participant appearing in a held-out event also appeared in that iteration's training sample. Predictions from the five held-out folds were then pooled to calculate model performance.
+
+% CITE: nested cross-validation
+For models requiring a tuning parameter, we used nested cross-validation \cite{Varma:2006}, \cite[Section 7.10.2, pp.~245--247]{Hastie:2009}. Within each outer training fold, the training events were divided into four additional event-grouped folds. Candidate tuning values were compared using these inner folds, and the value with the highest pooled inner-fold AUC was selected. The model was then refit on the full outer training sample using the selected value and evaluated on the outer held-out events. This nested procedure ensures that the outer validation observations are not used in selecting model tuning parameters.
+
+\subsection{Preprocessing Within Cross-Validation}
+
+% CITE: preprocessing must be learned inside the folds
+Most preprocessing decisions were estimated separately within each training fold and then applied unchanged to its validation fold \cite[Section 7.10.2, pp.~245--247]{Hastie:2009}.
+
+% FIX 2 (modeling.py lines 154-165: skewness of person-level columns uses one value per participant):
+For numeric variables with more than two distinct observed values, skewness was first estimated on the training sample (for person-level variables, over one value per participant). Predictors with skewness greater than 1 were transformed using
+
+\begin{equation}
+\log(1+x-\min(x)),
+\end{equation}
+
+while predictors with skewness below $-1$ were transformed using the corresponding reflected logarithmic transformation,
+
+\begin{equation}
+-\log(1+\max(x)-x).
+\end{equation}
+
+The relevant minimum and maximum values were estimated from the training fold. Held-out observations outside the corresponding training range were clipped to that range before applying the transformation.
+
+After transformation, missing numerical values were filled using the training-fold median. Categorical variables were converted into dummy variables after rare-level grouping. Finally, each numerical predictor was standardized using its training-fold mean and standard deviation:
+
+\begin{equation}
+z_{ij}
+=
+\frac{
+x_{ij}-\bar{x}_{j,\mathrm{train}}
+}{
+s_{j,\mathrm{train}}
+}.
+\end{equation}
+
+Binary indicators and dummy variables remained as zero or one.
+
+
+\subsection{Prediction Models}
+
+\subsubsection{Logistic Regression}
+
+% CITE: multiple logistic regression (the draft's own ISLP pointer)
+Our primary parametric classification model was multiple logistic regression \cite[Equation 4.7, p.~142]{James:2023}. For dyad $i$, the probability of a mutual match was modeled as
+
+\begin{equation}
+P(Y_i=1\mid X_i)
+=
+\frac{1}
+{1+\exp\left[-(\beta_0 + X_i^\top\beta)\right]},
+\end{equation}
+
+where $X_i$ contains the pre-date predictors for the pair.
+
+The coefficients were estimated by maximum likelihood. Because the model contains a relatively large number of predictors and some combinations of predictors may nearly separate matches from non-matches, the implementation included a very small ridge penalty ($\lambda=10^{-6}$) to stabilize coefficient estimates. The intercept was not penalized.
+
+\subsubsection{Spline-Augmented Logistic Regression}
+
+% CITE: natural cubic splines
+For a small set of continuous predictors, we allowed the logistic model to replace the ordinary linear term with a natural cubic spline \cite[Section 7.4.3, p.~297]{James:2023} if the more flexible form improved the Bayesian Information Criterion (BIC).
+
+The candidate predictors were the woman's age, the man's age, absolute age difference, interest correlation, and the two preference-fit measures.
+
+% CITE: BIC (ESL gives the log-likelihood form used here; ISLP gives the least-squares form)
+BIC was calculated as
+
+\begin{equation}
+\mathrm{BIC}
+=
+-2\ell
++
+k\log(n),
+\end{equation}
+
+where $\ell$ is the fitted log-likelihood, $k$ is the number of estimated model parameters, and $n$ is the number of observations in the training fold \cite[Section 7.7, Eq.~(7.35), p.~233]{Hastie:2009}, \cite[Section 6.1.3, p.~237]{James:2023}.
+
+% FIX 3 (results/part1_models_folds.csv: the `splines` column is empty in every headline fold):
+For each candidate variable, the spline specification was retained if it produced a lower training-fold BIC than the corresponding linear specification. No spline was selected in any fold, so the reported full logistic model is linear.
+
+\subsubsection{Stepwise Logistic Regression}
+
+% CITE: stepwise selection
+Because the full logistic model contains a large number of predictors, we also considered BIC-based variable selection \cite[Section 6.1.2, pp.~233--235]{James:2023}.
+
+Selection was performed at the predictor level rather than the individual-column level. When a categorical predictor was represented by several dummy variables, all corresponding dummy variables were added or removed together. Similarly, when a continuous predictor was represented by multiple spline terms, those terms were treated as a single predictor. This ensured that each conceptual variable entered or left the model as a whole.
+
+Forward selection began with an intercept-only model and repeatedly added the block producing the largest decrease in BIC. Backward selection began with the full model and repeatedly removed the block producing the largest decrease in BIC. A both-directions procedure began with the intercept-only model but considered both additions and removals at each step.
+
+Each algorithm terminated when no single addition or removal reduced BIC further.
+
+\subsubsection{Linear Discriminant Analysis}
+
+As described in Section~\ref{sec:lda_theory}, Linear Discriminant Analysis (LDA) assumes class-specific mean vectors and a common covariance matrix across classes. In our application, LDA was fit to the pre-date predictor set within each outer training fold. Class prior probabilities were estimated from the match and non-match proportions in the training data. We used the standard LDA implementation with no additional tuning parameters.
+
+\subsubsection{Quadratic Discriminant Analysis}
+
+% CITE: regularized discriminant analysis
+Quadratic Discriminant Analysis (QDA) was fit using the same pre-date predictor set and event-grouped cross-validation framework. Because the number of predictors was large relative to the number of matches in each training fold, estimating a separate covariance matrix for each class could be unstable. We therefore used a regularized version of QDA \cite{Friedman:1989} in which each class-specific covariance matrix was shrunk toward the identity matrix \cite[Section 4.3.1, Eq.~(4.14), p.~112]{Hastie:2009}:
+
+\begin{equation}
+\widetilde{\Sigma}_k
+=
+(1-r)\Sigma_k + rI.
+\end{equation}
+
+% FIX 4a (results/part1_models_folds.csv: qda_reg_param = 0.9 in all 10 headline folds):
+The regularization parameter $r$ was selected from
+$\{0.1, 0.3, 0.5, 0.7, 0.9\}$
+using the inner event-grouped cross-validation procedure described above. The value producing the highest pooled inner-fold AUC was selected separately within each outer training fold. The strongest shrinkage, $r=0.9$, was selected in every fold.
+
+\subsubsection{Random Forest}
+
+% CITE: random forests
+As described in Section~\ref{sec:random_forest_theory}, random forests combine many bootstrap-trained classification trees while considering only a random subset of predictors at each split \cite{Breiman:2001}. In our application, we fit a forest of 500 classification trees to the pre-date predictors within each outer training fold. At each split, approximately $\sqrt{p}$ of the $p$ available predictors were considered, and splits were chosen using Gini impurity (for classification).
+
+% FIX 4b (results/part1_models_folds.csv: rf_min_samples_leaf = 50 in all 5 `pre` folds):
+For each dyad, the predicted probability of a match was obtained by averaging the predicted match probabilities across the 500 trees. The minimum terminal-leaf size was treated as a tuning parameter and selected from $\{1,5,20,50\}$ using the inner event-grouped cross-validation procedure described above. The value with the highest pooled inner-fold AUC was then used to refit the forest on the full outer training fold. For the pre-date predictors, the largest value, 50, was selected in every fold.
+
+\subsubsection{L1-Regularized Logistic Regression}
+
+% CITE: the lasso, its logistic form, and the start of the penalty grid
+We additionally considered an L1-regularized logistic regression model \cite[Section 6.2.2, pp.~244--252]{James:2023}, \cite[Section 4.4.4, Eq.~(4.31), p.~125]{Hastie:2009}. The L1 penalty encourages sparse models by shrinking some regression coefficients exactly to zero.
+
+The tuning parameter was represented using the inverse penalty strength $C$. A grid of 30 logarithmically spaced candidate values was used. The lower endpoint, the value at which every coefficient is zero \cite[Section 2.5, p.~7]{Friedman:2010}, was defined by
+
+\begin{equation}
+C_{\min}
+=
+\frac{
+1
+}{
+\max_j
+\left|
+\sum_i
+D_{ij}(Y_i-\bar{Y})
+\right|
+},
+\end{equation}
+
+where $D_{ij}$ denotes the standardized design matrix. Candidate values ranged from $C_{\min}$ to
+
+\begin{equation}
+1000C_{\min}.
+\end{equation}
+
+The value of $C$ producing the largest pooled inner-fold AUC was selected.
+
+This model was added after the original pre-registered model comparisons and was therefore reported as an additional specification rather than being included in the original definition of the best-performing model.
+
+
+\subsection{Model Evaluation}
+
+Because only 16.5\% of dyads resulted in a match, ordinary classification accuracy can be misleading. A classifier that predicts ``no match'' for every observation would already achieve an accuracy of 83.5\%.
+
+We therefore evaluated models using multiple measures.
+
+As mentioned in Section~\ref{sec:lda_theory},
+sensitivity was defined as
+
+\begin{equation}
+\text{Sensitivity}
+=
+\frac{
+\text{number of correctly predicted matches}
+}{
+\text{number of actual matches}
+}
+\end{equation}
+
+and specificity was defined as
+
+\begin{equation}
+\text{Specificity}
+=
+\frac{
+\text{number of correctly predicted non-matches}
+}{
+\text{number of actual non-matches}
+}.
+\end{equation}
+
+Balanced accuracy was calculated as
+
+\begin{equation}
+\text{Balanced Accuracy}
+=
+\frac{1}{2}
+\left(
+\text{Sensitivity}
++
+\text{Specificity}
+\right).
+\end{equation}
+
+The principal threshold-free performance measure was the AUC. For threshold-based measures, a dyad was classified as a predicted match when its predicted probability exceeded the match rate in the corresponding training fold, which was approximately 0.165:
+
+\begin{equation}
+\widehat{Y}_i
+=
+\mathbb{I}
+\left(
+\widehat{p}_i
+>
+\bar{Y}_{\mathrm{train}}
+\right).
+\end{equation}
+
+% CITE: cluster-robust standard errors and the clustered AUC standard error
+% FIX 5 (se_check column of results/part1_models_metrics.csv, from scripts/sim_auc_cluster.py):
+Because participants appeared in multiple dyads and all dyads within an event shared the same experimental setting, observations from the same wave were not treated as fully independent. We therefore calculated cluster-robust uncertainty estimates at the event level, allowing observations within the same wave to be correlated \cite{Liang:1986}, \cite[Section II.C]{Cameron:2015}; for the AUC we used Obuchowski's clustered standard error \cite{Obuchowski:1997}. A simulation check found these AUC standard errors to be 0.84 to 0.95 of the true spread with 21 events, so a nominal 90\% interval behaves like roughly an 83\% interval.

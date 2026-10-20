@@ -8,11 +8,11 @@ script that made it.
 | File | Where it goes in Overleaf | What it is |
 | --- | --- | --- |
 | `abraham_background.tex` | End of Section 2 (Background), after "Random Forests" | **Methods beyond the course textbook**, written at ISL level: grouped CV, nested CV, cluster-robust standard errors, the AUC's standard error, regularized QDA, the lasso for logistic regression, pre-registration. Each entry says what the method is and why we used it (2-3 sentences), with a precise citation. |
-| `abraham_technical_implementation.tex` | Replaces the draft's Section 4 subsections from "Cross-Validation" through "Model Evaluation" | The same content with the fact-check corrections (below) and citations added. Keep the draft's "Prediction Problem", "Constructed Pair-Level Predictors", "Pre-Date Feature Sets" and "Survey-Format Standardization". |
+| `section4_with_citations.tex` | Replaces the draft's Section 4 from "Survey-Format Standardization" to the end | **The teammate's text, word for word**, with only citations added (marked `% CITE`) and five one-sentence corrections where the draft does not match the code (marked `% FIX`, with the source). The FIX lines are suggestions for the author. The subsections before it need no changes. |
 | `references_midterm.bib` | Append to `references.bib` | **Only the 14 entries the midterm files cite.** (`references_abraham.bib` has all 47, for after the midterm.) Entries, with DOIs checked against Crossref. `James:2023` and `Fisman:2006` are omitted because `references.bib` already has them. Pointers and confidence levels are in `citations.md`. |
 | `figures/paper_auc_by_model.png` | Optional, for Section 5 (Results) | Every model's held-out AUC on `pre` and `pre+date` with 90% intervals; suggested caption below. |
 
-The two `.tex` files compile in the template's preamble: 5 pages, every citation resolved, no warnings. They use
+The two `.tex` files compile in the template's preamble: 6 pages, every citation resolved, no warnings. They use
 two labels the draft already has: `sec:lda_theory` and `sec:random_forest_theory`.
 
 Suggested caption for the Section 5 figure:
@@ -43,7 +43,7 @@ cross-validated AUC runs low when events differ") are **hidden**, not deleted. U
 with the current code. The problems are wording that leaves out the specification, a few implementation details
 stated more broadly than the code does them, and robustness results the draft leaves out.
 
-Already corrected in `abraham_technical_implementation.tex`:
+Suggested as one-sentence `% FIX` additions in `section4_with_citations.tex`:
 
 - **Splines.** No spline was chosen in any fold, so the reported full logistic model is linear.
 - **Format standardization.** It is computed once, before cross-validation, from all participants' answers. It
