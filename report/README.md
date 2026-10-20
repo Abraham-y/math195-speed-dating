@@ -7,13 +7,14 @@ script that made it. Nothing was typed in by hand.
 
 | File | Where it goes | What it is |
 | --- | --- | --- |
-| `abraham_background.tex` | End of Section 2 (Background), after "Random Forests" | **Methods beyond the course textbook**: grouped CV, nested CV, cluster-robust SEs, the AUC and its clustered SE, the corrected resampled t, regularized discriminant analysis, the lasso path for logistic regression, pre-registration, simulation studies. Each entry says what the method is, gives 2-3 sentences on why we used it, and cites a primary source and a textbook. |
+| `abraham_background.tex` | End of Section 2 (Background), after "Random Forests" | **Methods beyond the course textbook**, written at ISL level: grouped CV, nested CV, cluster-robust standard errors, the AUC's standard error, repeated CV (Nadeau-Bengio), regularized QDA, the lasso for logistic regression, pre-registration, simulation studies. Each says what the method is and why we used it (2-3 sentences), with a precise citation; only two simple formulas. |
 | `abraham_technical_implementation.tex` | Replaces the draft's Section 4 subsections from "Cross-Validation" through "Model Evaluation" | The same content with the fact-check corrections (below) and citations added. Keep the draft's "Prediction Problem", "Constructed Pair-Level Predictors", "Pre-Date Feature Sets" and "Survey-Format Standardization". |
-| `abraham_errorbars_section.tex` | A new section after Section 5 (Results) | **Error bars when rows share people and events**: Lemma 1 (proof), cluster-robust variance, Proposition 6 (proof), Proposition 8, simulation design, results with four figures, the cross-validated AUC with Proposition 10 (proof sketch), recommendations. About 6 pages with figures. To shorten it, cut the AUC subsection to its first paragraph and Figure `paper_auc_bias`. |
+| `abraham_errorbars_section.tex` | A new section after Section 5 (Results) | **How much should we trust a cross-validated number?** At ISL level plus three small additions (clusters, sampling without replacement, a first-order approximation). It contains Lemma 1 and Result 1 (Proposition 6) with short proofs, and Results 2 and 3 explained in words. It has four figures and recommendations. About 6 pages with figures. |
+| `abraham_appendix_theory.tex` | After `\appendix` | The formal statements behind Results 2 and 3 (Propositions 8, 9 and 10) with proof sketches, for readers who want the math. |
 | `references_abraham.bib` | Append to `references.bib` | BibTeX for every key used above (verified; see the notes column in `citations.md`). |
 | `figures/paper_*.png` | Upload to Overleaf in a `figures/` folder | Untitled figures for LaTeX (the caption carries the message). |
 
-The three `.tex` files compile together in the template's preamble: 10 pages, no errors, no overfull lines. They
+The four `.tex` files compile together in the template's preamble with BibTeX: 12 pages, every citation and cross-reference resolved, no warnings. They
 need these labels from the draft, which it already has: `sec:lda_theory` and `sec:random_forest_theory`.
 
 ### A figure for Section 5 (Results)

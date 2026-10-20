@@ -1,92 +1,94 @@
 % ============================================================================================================
 % Abraham's contribution, part A: methods we used that are not in the course textbook (ISLP).
+% Written at the level of ISLP: what each method is, why we used it (2-3 sentences), and where it comes from.
 % Place at the end of Section 2 ("Background and Literature Review"), after the Random Forests subsection.
-% Each entry says what the method is, why we used it (2-3 sentences), and cites a primary source and, where one
-% exists, a textbook. Citation keys are in report/references_abraham.bib; every pointer is checked in
-% report/citations.md (where only the paper, not a section, could be verified, the paper is cited as a whole).
+% Citation keys are in report/references_abraham.bib; every pointer is checked in report/citations.md.
 % ============================================================================================================
 
 \subsection{Methods Beyond the Course Textbook}
 \label{sec:beyond}
 
-The resampling methods described above (cross-validation and the bootstrap) assume that observations are independent. Ours are not: each participant
-appears in up to 22 dyads, and every dyad in an event shares the same evening, so outcomes and model errors are
-correlated within events. The methods below either respect that structure or regularize models that would otherwise
-overfit. For each we say what it is, why we used it, and where it comes from.
+The resampling methods described above treat observations as independent. Ours are not: each participant
+appears in up to 22 dyads, and all dyads in an event share the same evening, so dyads from the same event tend to be
+predicted well or badly together. We added a few tools to handle this, and small extensions of textbook models. For
+each, we say what it is and why we used it.
 
 \subsubsection{Grouped cross-validation}
-In grouped (or blocked) $K$-fold cross-validation, whole groups of observations are assigned to folds, so every
-observation of a group is held out together \cite[pp.~917, 919]{Roberts:2017}.
-We grouped by event: the 21 events are dealt into five folds, and a model is never tested on an event, or a person, it
-was trained on. Random-row folds would let a model recognize participants it met in training and would report the
-accuracy of predicting people already seen, not new ones; on our data that inflates the AUC of every model
-(Section~\ref{sec:errorbars}).
+Grouped cross-validation is $k$-fold cross-validation \cite[Section 5.1.3, pp.~206--208]{James:2023} in which the folds are
+made of whole groups of observations rather than individual rows \cite[pp.~917, 919]{Roberts:2017}. We grouped by event:
+the 21 events are dealt into five folds, so a model is never tested on an event, or a person, it saw in training. With
+random rows, the same participant could appear in both the training and the validation set, and the model could
+partly recognize them; the estimate would then describe predictions for people already seen, which flatters the
+model compared with a matchmaker meeting new people.
 
 \subsubsection{Nested cross-validation}
-When a model has a tuning parameter, choosing it on the same folds that are used to report performance makes the
-reported error optimistic \cite{Varma:2006}. Nested cross-validation selects the parameter by an inner
-cross-validation inside each outer training set, then scores the refitted model on the outer held-out fold, so every
-choice is made without seeing the test data \cite[Section 7.10.2, pp.~245--247]{Hastie:2009}.
-We nest inner folds that are also grouped by event, so tuning never sees a held-out event either.
+The textbook uses cross-validation both to choose a tuning parameter, such as $\lambda$ for the lasso, and to estimate
+test error. Doing both with the same folds makes the error estimate optimistic, because the chosen value is the one
+that happened to look best on those folds \cite{Varma:2006}. Nested cross-validation separates the two jobs: inside each
+training set, a second (inner) cross-validation chooses the tuning parameter, and only then is the model scored on
+the held-out fold \cite[Section 7.10.2, pp.~245--247]{Hastie:2009}. Our inner folds also hold out whole events.
 
-\subsubsection{Cluster-robust standard errors}
-Let $\ell_i$ be a per-dyad quantity, such as a misclassification, and $\bar\ell$ its mean over $n$ dyads in $G$ events. The
-cluster-robust (sandwich) variance of $\bar\ell$ sums the residuals within each event before squaring,
+\subsubsection{Standard errors that allow for clusters}
+The usual standard error of an average treats every observation as an independent piece of information. When
+observations come in correlated groups, called \emph{clusters}, this overstates how much information we have: 4,184
+dyads from 21 events behave like far fewer than 4,184 independent dyads, so the usual standard error is too small.
+A \emph{cluster-robust} standard error fixes this by adding up the errors within each event before measuring their
+spread. For an average $\bar\ell$ of per-dyad errors $\ell_i$ over $n$ dyads in $G$ events,
 \[
-\hat V_{\mathrm{CR}}=\frac{G}{G-1}\cdot\frac{1}{n^2}\sum_{g=1}^{G}\Big(\sum_{i\in g}(\ell_i-\bar\ell)\Big)^2,
+\widehat{\mathrm{SE}}_{\mathrm{CR}}(\bar\ell)^2=\frac{G}{G-1}\cdot\frac{1}{n^2}\sum_{g=1}^{G}\Big(\sum_{i\in\text{event }g}(\ell_i-\bar\ell)\Big)^2 .
 \]
-which allows any correlation within an event and assumes none between events \cite{Liang:1986},
-\cite[Section II.C, Eqs.~(10)--(12)]{Cameron:2015}.
-The usual standard error treats the 4,184 dyads as independent and is too small by roughly the design effect
-$1+(\bar m-1)\rho$, where $\bar m$ is the average cluster size and $\rho$ the within-cluster correlation \cite{Kish:1965};
-for a mean this is the Moulton factor of \cite[Section II.B, Eq.~(6)]{Cameron:2015} with $\rho_x=1$.
-Because we have only 21 events, we pair it with $t$ quantiles on $G-1$ degrees of freedom and check it against the
-bias-reduced CR2 variance \cite[Section 3, Eq.~(7)]{Bell:2002} and the wild cluster bootstrap-$t$, which resamples
-Rademacher signs on each event's residual sum \cite{Cameron:2008}; these are the standard few-cluster remedies
-\cite[Section VI]{Cameron:2015}. A textbook treatment is \cite[Section 24.5, pp.~829--845]{Cameron:2005}.
+If the errors in an event are all on the same side of the average, they add up instead of cancelling, and the
+standard error grows accordingly \cite{Liang:1986}, \cite[Section II.C]{Cameron:2015}. Because we have only 21 events, we
+use $t$ quantiles with $G-1=20$ degrees of freedom instead of normal quantiles, as recommended when clusters are few
+\cite[Section VI]{Cameron:2015}. As a check we also use a bootstrap that resamples whole events rather than rows (the
+wild cluster bootstrap \cite{Cameron:2008}). A textbook treatment is \cite[Section 24.5, pp.~829--845]{Cameron:2005}.
 
-\subsubsection{The AUC and its standard error}
-The AUC equals the probability that a randomly chosen match receives a higher predicted score than a randomly chosen
-non-match \cite[pp.~30--31]{Hanley:1982}, and is estimated by the Mann--Whitney statistic
+\subsubsection{The standard error of the AUC}
+The AUC \cite[pp.~153--155]{James:2023} has a simple interpretation: it is the probability that a randomly chosen match
+receives a higher predicted score than a randomly chosen non-match \cite[pp.~30--31]{Hanley:1982}, so it can be computed as
+the fraction of (match, non-match) pairs that the model ranks correctly. DeLong, DeLong and Clarke-Pearson gave a
+standard error for it \cite{DeLong:1988}, and Obuchowski extended that standard error to clustered data by adding up each
+event's contribution, the same idea as above \cite{Obuchowski:1997}. Every AUC standard error in this report is the
+clustered one.
+
+\subsubsection{Repeated cross-validation}
+Repeating 5-fold cross-validation with several random fold assignments and averaging gives a more stable estimate.
+Its uncertainty is harder to judge, because the fold errors are not independent: any two training sets share most
+of their data. In fact no exact formula for the variance of $k$-fold cross-validation exists
+\cite[Theorem 6, p.~1098]{Bengio:2004}. Nadeau and Bengio proposed a simple correction: with $J$ fold errors whose sample
+variance is $S^2$, use
 \[
-\hat A=\frac{1}{n_1n_0}\sum_{i:\,y_i=1}\ \sum_{j:\,y_j=0}\Big(\mathbb I(s_i>s_j)+\tfrac12\,\mathbb I(s_i=s_j)\Big).
+\Big(\frac1J+\frac{1}{k-1}\Big)S^2
 \]
-DeLong, DeLong and Clarke-Pearson estimate its variance from each observation's \emph{placement value}, the share of
-the other class it outranks \cite{DeLong:1988}; Obuchowski's version sums the placement values within clusters, so it
-allows correlation within an event \cite{Obuchowski:1997}. We use the clustered version for every AUC in this report,
-and its paired form for differences between two models scored on the same dyads.
+instead of the naive $S^2/J$; the extra term $1/(k-1)$ allows for the overlap between training sets
+\cite[Section 3.1, p.~248]{Nadeau:2003}. We use it with folds made of whole events.
 
-\subsubsection{Repeated cross-validation and the corrected resampled $t$}
-Repeating $K$-fold cross-validation $R$ times gives $J=RK$ fold errors $e_1,\dots,e_J$. They are correlated because the
-training sets overlap, so the naive variance $S_e^2/J$ is too small, and no unbiased estimator of the variance of
-$K$-fold cross-validation exists \cite[Theorem 6, p.~1098]{Bengio:2004}. Nadeau and Bengio's correction inflates it
-to $\big(\frac1J+\frac{n_{\mathrm{test}}}{n_{\mathrm{train}}}\big)S_e^2=\big(\frac1J+\frac{1}{K-1}\big)S_e^2$ \cite[Section 3.1, p.~248]{Nadeau:2003}.
-We study what this correction estimates when the folds are grouped (Section~\ref{sec:errorbars}).
+\subsubsection{Regularized quadratic discriminant analysis}
+QDA estimates a separate covariance matrix for each class \cite[Section 4.4.3, p.~156]{James:2023}. With 74 pre-date
+variables and only about 550 matches in a training fold, the matches' covariance matrix is estimated poorly, which is
+the variance side of the bias-variance trade-off between LDA and QDA. Regularized QDA \cite{Friedman:1989} moves each
+estimated covariance matrix part of the way toward a simpler one,
+\[
+\widetilde\Sigma_k=(1-r)\,\hat\Sigma_k+r\,I,\qquad 0\le r\le 1,
+\]
+so $r=0$ is ordinary QDA and larger $r$ trusts the estimated correlations less \cite[Section 4.3.1, Eq.~(4.14), p.~112]{Hastie:2009}.
+We chose $r$ by cross-validation.
 
-\subsubsection{Regularized discriminant analysis}
-QDA estimates a separate covariance matrix for matches and non-matches. With 74 pre-date variables (124 columns once
-categories are one-hot coded) and about 550 matches in a training fold, the match covariance is poorly estimated. Friedman's regularized discriminant analysis
-shrinks each class covariance toward a simpler matrix \cite{Friedman:1989}, either the pooled covariance or a
-multiple of the identity \cite[Section 4.3.1, Eqs.~(4.13)--(4.14), p.~112]{Hastie:2009}. We use the second kind,
-$\widetilde\Sigma_k=(1-r)\hat\Sigma_k+rI$ on standardized predictors, which trades a little bias for a large reduction in
-variance.
-
-\subsubsection{The lasso path for logistic regression}
-The textbook introduces the lasso for linear regression \cite[Section 6.2.2, Equation 6.7, p.~244]{James:2023}; for
-logistic regression the penalty $\lambda\sum_j|\beta_j|$ is added to the negative log-likelihood
-\cite[Section 4.4.4, Eq.~(4.31), p.~125]{Hastie:2009}. For the linear lasso, Friedman, Hastie and Tibshirani note that
-the smallest penalty that sets every coefficient to zero is $\max_j|\langle x_j,y\rangle|/N$ \cite[Section 2.5, p.~7]{Friedman:2010}.
-The same argument for the logistic log-likelihood, whose gradient at the intercept-only fit is $\sum_i x_{ij}(y_i-\bar y)$,
-gives $\lambda_{\max}=\max_j\big|\sum_i x_{ij}(y_i-\bar y)\big|$ on the scale of the summed log-likelihood, so we search 30
-log-spaced values below it.
+\subsubsection{The lasso for logistic regression}
+The textbook introduces the lasso for least squares \cite[Section 6.2.2, pp.~244--252]{James:2023}. The same penalty,
+$\lambda\sum_j|\beta_j|$, can be added to the logistic regression likelihood, which shrinks some coefficients exactly to
+zero \cite[Section 4.4.4, Eq.~(4.31), p.~125]{Hastie:2009}. As in the textbook, $\lambda$ is chosen by cross-validation over a
+grid of values; we used 30 values, starting from the smallest penalty that sets every coefficient to zero
+\cite[Section 2.5, p.~7]{Friedman:2010}.
 
 \subsubsection{Pre-registration}
-Pre-registration means writing down hypotheses, analyses and decision thresholds before seeing the results, so
-that confirmatory tests are kept separate from exploration \cite{Nosek:2018}. Every hypothesis in this report was
-committed, with its threshold, to our repository's \texttt{PREREG.md} before its test ran, and none was changed
-afterwards; tests that failed are reported as failures.
+Pre-registration means writing down each hypothesis and the result that would count as support before running the
+analysis, so that tests planned in advance are kept separate from patterns found by looking at the data
+\cite{Nosek:2018}. Every hypothesis in this report was committed, with its threshold, to our repository's
+\texttt{PREREG.md} before its test ran, and none was changed afterwards; hypotheses that failed are reported as
+failures.
 
 \subsubsection{Simulation studies}
-To check an error bar we simulate many data sets from a known truth and record how often the 90\% interval contains
-the true value. With $B$ replicates, a coverage near 0.9 has Monte Carlo standard error $\sqrt{0.9\cdot0.1/B}$, about 1.5
-percentage points for $B=400$ \cite[Section 5.2, Table 6]{Morris:2019}.
+To check whether an error bar is trustworthy, we simulate many data sets from a known truth and count how often its
+90\% interval contains the true value; a trustworthy interval does so about 90\% of the time. With 400 simulated
+data sets, such a percentage is itself uncertain by about $\pm1.5$ points \cite[Section 5.2, Table 6]{Morris:2019}.

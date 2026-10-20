@@ -115,14 +115,14 @@ def coverage():
             ("event cluster-nested, bias-adjusted", "Cluster-nested CV (our first fix)"),
             ("event CV, cluster-robust SE", "Event CV, cluster-robust (normal)"),
             ("cluster bootstrap of grouped CV", "Cluster bootstrap"),
-            ("floor: max(cluster-robust, cluster-nested) (N3)", "Floor (our repair, N3)"),
+            ("floor: max(cluster-robust, cluster-nested) (N3)", "Floor (our repair)"),
             ("Nadeau-Bengio corrected t, grouped folds", "Nadeau-Bengio, event folds")]
     s_ = pd.read_csv(RES / "sim_cv_sizes_coverage.csv")
     right = [("cluster-robust, normal (N13)", "Cluster-robust (normal)"), ("CR2, t(G-1)", "CR2 with t(G-1)"),
              ("cluster-robust, t(G*-1)", "Cluster-robust with t(G*-1)"), ("wild cluster bootstrap-t (N12)", "Wild cluster bootstrap-t")]
     fig, axes = plt.subplots(2, 1, figsize=(6.5, 4.6), sharex=True, gridspec_kw=dict(height_ratios=[len(left), len(right)], hspace=0.35))
-    for ax, (df, items, title) in zip(axes, ((r, left, f"(a) {r.design.nunique()} designs with events redrawn (Part 4)"),
-                                             (s_, right, f"(b) {s_.design.nunique()} designs with real event sizes and a precise target (Part 7)"))):
+    for ax, (df, items, title) in zip(axes, ((r, left, f"(a) {r.design.nunique()} designs with events redrawn"),
+                                             (s_, right, f"(b) {s_.design.nunique()} designs with real event sizes and a precisely measured target"))):
         ax.axvspan(0.85, 0.95, color="#f0efec", zorder=0); ax.axvline(0.90, color=REF, linewidth=1, linestyle="--", zorder=1)
         for i, (proc, lab) in enumerate(items):
             v = df[df.procedure == proc].coverage_90

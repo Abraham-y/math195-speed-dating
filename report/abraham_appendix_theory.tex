@@ -1,0 +1,87 @@
+% ============================================================================================================
+% Abraham's contribution, part D: appendix with the formal statements behind Results 2 and 3 of the
+% section "How Much Should We Trust a Cross-Validated Number?". Place after \appendix in the report.
+% Source: proposals/06 (Sections 6e, 6f), checked by the adversarial review in proposals/09.
+% ============================================================================================================
+
+\section{Theory Behind Results 2 and 3}
+\label{app:theory}
+
+This appendix states the results that the main text describes in words. They go beyond the course textbook: they use
+a first-order (Result 2) or second-order (Result 3) approximation of each fitted model around the model that a very
+large study would fit. Full derivations, with their assumptions, are in \texttt{proposals/06} (Sections 6e and 6f)
+and were checked by an adversarial review (\texttt{proposals/09}).
+
+\subsection{Result 2}
+
+Suppose the model is fitted by maximizing a likelihood, the $G$ events are independent and of equal size, and $G$ is
+large. Let $\theta^*$ be the parameter a very large study would estimate, so that the estimate from a set $T$ of events
+is approximately $\theta^*+\frac{1}{|T|}\sum_{g\in T}\psi_g$, where $\psi_g$ is event $g$'s \emph{influence} on the estimate. Let $a_g$ be
+event $g$'s average error at $\theta^*$, let $d$ be the gradient of the expected error at $\theta^*$, and let $b_g=d^\top\psi_g$, the
+change in the expected error caused by including event $g$ in the training data.
+
+\begin{prop}\label{prop:first-formal}
+To first order,
+\begin{enumerate}
+\item[(i)] $\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}}\approx\bar a-E[a]$, so $\widehat{\mathrm{SE}}_{\mathrm{CR}}$ estimates the right variance;
+\item[(ii)] the Nadeau--Bengio variance, divided by $\frac{J+K-1}{J-1}\widehat{\mathrm{SE}}_{\mathrm{CR}}^2$, tends to
+\[
+\frac{\operatorname{Var}\big(a-b/(K-1)\big)}{\operatorname{Var}(a)}=1-\frac{2\operatorname{Cov}(a,b)}{(K-1)\operatorname{Var}(a)}+\frac{\operatorname{Var}(b)}{(K-1)^2\operatorname{Var}(a)};
+\]
+\item[(iii)] if the error being measured is the same loss the model was fitted with (for logistic regression, the
+log-likelihood loss), then $d=0$, so $b\equiv0$ and the ratio in (ii) is 1.
+\end{enumerate}
+\end{prop}
+
+\begin{proof}[Sketch]
+The error of fold $k$ is approximately $\bar a_{F_k}+\bar b_{T_k}$: the average difficulty of its held-out events $F_k$, plus
+the shift from its training events $T_k$. Each event lies in $K-1$ of the $K$ training sets, so averaging over folds gives
+$\bar a+\bar b$; the final model's new-event error is approximately $E[a]+\bar b$, and the difference is (i). Within one
+partition, $\bar b_{T_k}-\bar b=-\frac{1}{K-1}(\bar b_{F_k}-\bar b)$, so the fold errors behave like the event averages of $a-b/(K-1)$, and
+Proposition~\ref{prop:nb} applied to these gives (ii). If the evaluation loss is the training loss, $\theta^*$ minimizes the
+expected loss, so its gradient $d$ is zero, which gives (iii).
+\end{proof}
+
+Part (i) agrees with the central limit theorem of Bayle et al.\ \cite[Theorem 1]{Bayle:2020} applied with events as the
+units. Part (ii) is what Figure~\ref{fig:nbtheory} tests: the three quantities $\operatorname{Var}(a)$, $\operatorname{Var}(b)$ and $\operatorname{Cov}(a,b)$ were
+estimated from runs with five folds, and the formula then predicted the ratio at three and ten folds.
+
+\subsection{Result 3}
+
+Let $D=s_i-s_j$ be the difference in score between a match $i$ and a non-match $j$ from different events, $H$ the
+information matrix of the logistic fit, $s_h$ event $h$'s sum of $x(y-\hat p)$ (its contribution to the score
+equations), and $\delta$ the Dirac delta, so that $E[\delta(D)\,f]$ is an average of $f$ over pairs with equal scores,
+weighted by how often such pairs occur. Call \emph{BCWF-pooled} the AUC over match and non-match pairs from different
+events within the same fold.
+
+\begin{prop}[second order]\label{prop:mix}
+For event-grouped $K$-fold cross-validation with $G$ events of $m$ dyads,
+\begin{align*}
+E\big[\text{pooled AUC}-\text{BCWF-pooled AUC}\big]&\approx\frac{1}{G-1}\Big(C_{\mathrm{mix}}+\frac{c_2}{K-1}\Big),\\
+C_{\mathrm{mix}}&=\frac1m E\big[\delta(D)\{x_i^\top H^{-1}s_{h(j)}-x_j^\top H^{-1}s_{h(i)}\}\big],
+\end{align*}
+where $c_2$ is a second population constant coming from the difference between the two fold models in a pair. The
+leading term does not depend on $K$.
+\end{prop}
+
+The term in braces is the shift described in the main text: the model scoring $i$ was trained on $j$'s event, and the
+model scoring $j$ on $i$'s. We computed $C_{\mathrm{mix}}$ and $c_2$ numerically for each simulated design, and independently by
+exact numerical integration (\texttt{scripts/auc\_ratio\_quadrature.py}).
+
+\begin{prop}\label{prop:half}
+If the dyads are independent and the logistic model is correctly specified, then $c_2=C_{\mathrm{mix}}/2$, so the bias is
+$\frac{2K-1}{2(K-1)}\cdot\frac{C_{\mathrm{mix}}}{G-1}$.
+\end{prop}
+
+\begin{proof}[Sketch]
+Write $f_1$ and $f_0$ for the densities of the score among matches and non-matches, and $Q(u,v)=\mu(u)^\top H^{-1}\mu(v)$, where
+$\mu(s)$ is the average covariate vector at score $s$. With independent dyads, $c_2=-I'(0)/m$ with
+$I(t)=\int f_1(s+t)f_0(s)Q(s+t,s)\,ds$, and $C_{\mathrm{mix}}=-I(0)/m$ (on $D=0$ the two predicted probabilities are equal).
+Differentiating $I$ in its two
+equivalent forms and averaging, the derivatives of $Q$ cancel because $Q$ is symmetric, leaving
+$I'(0)=\frac12\int (f_1'f_0-f_1f_0')\,Q=\frac12\int f_1f_0\,\big(\log\tfrac{f_1}{f_0}\big)'\,Q$. Under a correct logistic model,
+$\log(f_1/f_0)$ is the score plus a constant, so its derivative is 1 and $I'(0)=\frac12 I(0)$.
+\end{proof}
+
+With clustered data the identity $c_2=C_{\mathrm{mix}}/2$ is false in general: a random event effect taking only the values
+$\pm3$ gives $c_2/C_{\mathrm{mix}}=0.454$. It holds to within 0.5\% in the Gaussian event-effect designs we simulated.
