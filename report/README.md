@@ -17,14 +17,20 @@ teammate's section without rewording it. Each `.tex` file says in a comment wher
 | 5 | `results_additions.tex` | Section 5 (Results) | drop-in | The AUC figure, three tables (models, compatibility ladder, stated vs revealed) and a new subsection, "How robust are these results?". The insertion points are marked. |
 | 6 | `drafts_abstract_intro_conclusion.tex` | Title, Abstract, Introduction, Conclusion | **drafts** | Replaces the template placeholders: an abstract, an introduction with a notation paragraph and a roadmap, and a conclusion. Error bars appear only as upcoming work. |
 
-Upload to Overleaf:
-- `figures/paper_auc_part1.png` and `figures/paper_events.png` into `figures/`;
-- `tables/models.tex`, `tables/ladder.tex` and `tables/stated_revealed.tex` into `tables/`.
+Upload to Overleaf **beside `Written_Report.tex`** (no subfolders; the drop-ins use bare file names, the same way
+the template uses `Bessel_functions.png`): `figures/paper_auc_part1.png`, `figures/paper_events.png`,
+`tables/models.tex`, `tables/ladder.tex`, `tables/stated_revealed.tex`.
 
-All six files compile together with the template's own figure and table macros: 10 pages, every citation and
-reference resolved, no warnings.
+### Shortcut: `Written_Report_midterm.tex`
 
-### Template leftovers to delete before submitting (the draft still has these)
+The Overleaf file as of 2026-10-20 with all of the above applied. The template leftovers are removed and the drafts
+and drop-ins are inserted; search for `DRAFT` and `ADDED`. Teammates' text is unchanged, and Section 4 still has no
+citations (item 3 is for its author). Paste it over `Written_Report.tex` only when nobody else is editing, or copy
+the marked blocks across one at a time. It compiles locally (plain bibtex standing in for biber) to 24 pages, with
+every citation and reference resolved; the only warnings are two lines in teammates' text that run 3 to 4 pt into
+the margin.
+
+### Template leftovers to delete before submitting (all removed in the shortcut file)
 
 - [ ] The instruction block at the top, the resource lists, and the red "Delete everything above…" note
 - [ ] The opening paragraph of Background ("The background and literature review section discusses…")

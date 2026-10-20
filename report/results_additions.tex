@@ -1,35 +1,35 @@
 % ============================================================================================================
 % Optional additions to Section 5 (Results). They add figures, tables and one robustness subsection; they do not
-% reword the existing text. Insert each block where its comment says. Figures: report/figures/; tables:
-% report/tables/ (made by scripts/report_figures.py and scripts/report_tables.py from results/*.csv).
+% reword the existing text. Insert each block where its comment says. Upload report/figures/paper_auc_part1.png and
+% report/tables/*.tex beside Written_Report.tex (made by scripts/report_figures.py and scripts/report_tables.py).
 % Every number below was checked against results/ (see report/factcheck_draft.md).
 % ============================================================================================================
 
 % ---- (1) After the paragraph that ends "...than was observable from the participants' characteristics before meeting."
-Figure~\ref{fig:auc} and Table~\ref{tab:models} show the held-out AUC of every pre-registered model with and
+Figure~\ref{fig:auc} and Table~\ref{tab:models} show the held-out AUC of each model with and
 without the in-date ratings. Before the date the models are tightly bunched between 0.54 and 0.58; once the ratings
 are added they reach 0.78 to 0.85.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{figures/paper_auc_part1.png}
+\includegraphics[width=\textwidth]{paper_auc_part1.png}
 \caption{Before the date every model is near chance; the four-minute date adds most of the signal. Held-out AUC of the
-pre-registered models under event 5-fold cross-validation (4,184 dyads), with 90\% intervals (AUC $\pm\,t_{20}$ times the
+models of Section~4 under event 5-fold cross-validation (4,184 dyads), with 90\% intervals (AUC $\pm\,t_{20}$ times the
 event-clustered standard error). Source: results/part1\_models\_metrics.csv.}
 \label{fig:auc}
 \end{figure}
 
-\input{tables/models}
+\input{models}
 
 % ---- (2) After the paragraph that ends "...beyond the participants' individual characteristics."
 Table~\ref{tab:ladder} lists each step.
 
-\input{tables/ladder}
+\input{ladder}
 
 % ---- (3) After the paragraph on attractiveness (end of the current Results section).
 Table~\ref{tab:stated} gives the stated and revealed importance of all six traits.
 
-\input{tables/stated_revealed}
+\input{stated_revealed}
 
 % ---- (4) A new subsection at the end of Section 5.
 \subsection{How robust are these results?}
@@ -45,8 +45,9 @@ of about 0.26 in AUC is more than ten times the standard error of any single AUC
 random seeds gave AUCs from 0.5732 to 0.5870, and dealing the events into folds with ten other seeds moved the
 logistic model's AUC with a standard deviation of 0.0127. The best pre-date AUC also fell just short of 0.58 on
 complete cases (0.5796) and when the waves with the different preference survey (6--9), or wave 12, were left out
-(0.560 to 0.579). Second, the forest's advantage over logistic regression, 0.0401 under our main specification, was
-0.0215 on complete cases, below the 0.03 we had predicted.
+(0.560 to 0.579). Second, the forest's advantage over logistic regression was 0.0401 under our main specification but
+0.0215 on complete cases; we had predicted an advantage of less than 0.03, so that hypothesis fails in the main
+specification and holds on complete cases.
 
 Finally, the standard errors themselves were checked by simulation before we used them. With 21 events, our
 clustered AUC standard errors were 0.84 to 0.95 of the true spread, so the intervals in Figure~\ref{fig:auc} behave

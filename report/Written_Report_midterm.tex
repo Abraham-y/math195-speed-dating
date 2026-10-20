@@ -1,0 +1,1163 @@
+% Copyright 2025 by Lernik Asserian
+% This file may be distributed and/or modified.
+
+% ============================================================================================================
+% MIDTERM VERSION, merged by Abraham (2026-10-20) from the Overleaf Written_Report.tex as of that date.
+% Changes from the Overleaf file (search for "DRAFT" and "ADDED" to find each one):
+%   - template instructions, example figure/table, citation how-to and template appendices removed;
+%   - DRAFT title, abstract, introduction, Section 2 opening sentence, conclusion, acknowledgments
+%     (for the team to edit);
+%   - ADDED related-work paragraph and data figure (Section 2), Results figure, three tables and the robustness
+%     subsection (Section 5);
+%   - two clauses in "Grouped cross-validation" (Abraham's own subsection) reworded.
+% Teammates' text in Sections 2, 3, 4 and 5 is unchanged. Section 4 still has no citations: the proposed ones are in
+% report/section4_with_citations.tex for its author.
+% Needs, beside this file in Overleaf: references.bib (with report/references_midterm.bib appended),
+% paper_auc_part1.png, paper_events.png, models.tex, ladder.tex, stated_revealed.tex.
+% ============================================================================================================
+
+\documentclass[11pt,letterpaper,reqno]{amsart}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xspace}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{setspace}
+\usepackage[letterpaper,margin=1in,headheight=15pt]{geometry}
+\usepackage{bm}
+\usepackage{hyperref}
+\definecolor{hyperlinkblue}{rgb}{0,0,238}
+\hypersetup{colorlinks=true,urlcolor=hyperlinkblue,linkcolor=hyperlinkblue,citecolor=hyperlinkblue}
+\allowdisplaybreaks
+
+% Makes the subsection go onto a new line
+% \makeatletter
+% \def\subsection{\@startsection{subsection}{2}%
+%   \z@{.5\linespacing\@plus.7\linespacing}{.5\linespacing}%
+%   {\normalfont\bfseries}}
+% \makeatother
+
+% Customizing the inclusion of codes in Appendix
+\usepackage{listings}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{lightgray!20}, % A light gray background
+    commentstyle=\color{green!60!black},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{gray},
+    stringstyle=\color{purple},
+    basicstyle=\fontfamily{pcr}\selectfont\footnotesize, % Use a courier-like font
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\numberwithin{equation}{subsection}
+\newtheorem{thm}{Theorem}
+\newtheorem{lem}[thm]{Lemma}
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem{cor}[thm]{Corollary}
+\theoremstyle{definition}
+\newtheorem{Example}[thm]{Example}
+\newtheorem{Definition}[thm]{Definition}
+\numberwithin{thm}{subsection}
+\newtheorem{problem}{Problem}
+
+% labeling of figures and tables
+\newcounter{figtab}[subsection]
+\setcounter{figtab}{0}
+\makeatletter
+\@addtoreset{figure}{subsection}
+\@addtoreset{table}{subsection}
+\makeatother
+\renewcommand{\thefigure}{\thesubsection.\arabic{figtab}}
+\renewcommand{\thetable}{\thesubsection.\arabic{figtab}}
+\let\oldfigure\figure
+\def\figure[#1]{\oldfigure[#1]\stepcounter{figtab}}
+\let\oldtable\table
+\def\table[#1]{\oldtable[#1]\stepcounter{figtab}}
+
+\usepackage{biblatex}
+\addbibresource{references.bib}
+
+\begin{document}
+\onehalfspacing
+
+% DRAFT title and authors
+\title[Predicting a Match Before Two Strangers Meet]{Can We Predict a Match Before Two Strangers Meet? Evidence from a Speed-Dating Experiment}
+\author{Sophia Qin, Jenna Yang, and Abraham Yeung}
+
+\thanks{This report is submitted as part of the capstone requirement for the Mathematics major at Stanford University.}
+
+% DRAFT abstract
+\begin{abstract}
+Dating apps and matchmakers try to predict which pairs of people will like each other before they meet. Using the
+Columbia speed-dating experiment (21 events, 551 participants and 4,184 woman--man pairs), we ask how well a
+\emph{mutual} match can be predicted from information available before the date, and how much the four-minute date
+adds. We compare logistic regression, stepwise selection, the lasso, linear and quadratic discriminant analysis and
+random forests, and we hold out whole events in cross-validation so that every prediction is for people the model has
+never seen. Before the date the best model reaches an AUC of 0.58, only slightly better than chance; adding the
+ratings the two participants gave each other after the date raises it to 0.85. Features designed to measure
+compatibility, such as similar interests or a small age gap, add about 0.01. Participants' choices depended far more
+on attractiveness than their stated preferences suggested. Every hypothesis was registered before it was tested.
+\end{abstract}
+
+\maketitle
+
+% DRAFT introduction
+\section{Introduction}
+
+Online dating platforms match millions of people using profiles: age, interests, what each person says they want.
+Behind every recommendation is a prediction that two strangers will like each other. How good can such predictions
+be? Speed dating offers an unusually clean test. In the Columbia experiment \cite[Section II]{Fisman:2006}, every
+participant filled in a detailed questionnaire, then met each partner of the opposite sex for four minutes and
+privately decided whether to see that person again. A \emph{match} occurs when both say yes, so for every pair we
+know what was known beforehand, what each person thought after meeting, and whether the interest was mutual.
+
+Our main question is how well a mutual match can be predicted from information available before the date, and which
+pair characteristics matter. A second question is how much the four-minute meeting adds. To answer them we built two
+sets of predictors, one known before the date and one that adds the participants' ratings of each other after it,
+and fitted the classification methods of the course textbook to each. The data need one departure from textbook
+practice: the same person appears in up to 22 pairs, so we hold out whole events, not individual rows, when we
+measure accuracy.
+
+We find that pre-date information carries a real but small signal. The best model reaches an AUC of 0.58, where 0.5 is
+a coin flip, and explicitly modelling compatibility barely helps. The four-minute meeting changes the picture: with
+the in-date ratings the best AUC is 0.85. Attractiveness weighed far more in participants' decisions than in their
+stated preferences, in line with the finding that stated ideals predict actual choices poorly \cite{Eastwick:2008}.
+Together these results suggest that compatibility emerges from the interaction itself rather than from
+characteristics a profile can capture, which echoes Joel, Eastwick and Finkel's finding that pairwise attraction is
+hard to predict from pre-date reports \cite{Joel:2017}.
+
+\emph{Notation and terminology.} A \emph{dyad} is one woman--man pair who met at an event; there are $n=4{,}184$ dyads in
+$G=21$ events (also called waves). For dyad $i$, $Y_i=1$ if both people said yes (a match) and $0$ otherwise, and $X_i$
+is its vector of predictors. Variables of the woman carry the prefix \texttt{f\_} and those of the man \texttt{m\_}.
+The feature set \texttt{pre} contains only information available before the date; \texttt{pre+date} adds the ratings
+the two people gave each other after it. All accuracy measures are computed on held-out events, and AUC denotes the
+area under the ROC curve.
+
+\emph{Roadmap.} Section~2 describes the data and reviews the statistical methods we use, including a few that go
+beyond the course textbook. Section~3 explains how we cleaned the data and built one row per dyad. Section~4 describes
+the predictors, the cross-validation design and the models. Section~5 reports the results and how robust they are,
+and Section~6 concludes and outlines the second half of the project.
+
+\section{Background and Literature Review}
+
+% DRAFT opening sentence (replaces the template paragraph)
+This section describes the data and earlier work on them, then reviews the classification and resampling methods we
+use, following the course textbook \cite{James:2023}. Section~\ref{sec:beyond} covers the few methods we use that go
+beyond it.
+
+\subsection{Data Description}
+The data used in our project were collected as part of speed-dating experiments conducted at Columbia University between 2002 and 2004 \cite[Section II]{Fisman:2006}. Participants were recruited mainly from Columbia's graduate and professional schools and completed a pre-event questionnaire. The public dataset comprises 21 speed-dating sessions (waves) in which participants met opposite-sex partners for four-minute conversations. After each interaction, participants privately indicated whether they wanted to see the partner again and rated the partner on several traits, including attractiveness, intelligence, and fun. The dataset contains demographic, educational, socioeconomic, interest, and preference measures collected prior to the dates, as well as participants' evaluations and decisions following each interaction. Each row represents one date from the perspective of one participant: the participant is identified by \texttt{iid}, the partner by \texttt{pid}, and the event by \texttt{wave}.
+
+% ADDED: data figure
+Figure~\ref{fig:events} shows that the 21 events differ greatly in size, from 25 to 484 dyads, and in how often
+people matched, from 8\% to 31\%. Because the dyads of one event share people and an evening, our cross-validation
+holds out whole events (Section~4).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{paper_events.png}
+\caption{Events differ in size and in how often people match. (a) Number of woman--man dyads per event; (b) match rate
+per event, with the overall rate of 16.5\% dashed. Source: data/pairs.csv.}
+\label{fig:events}
+\end{figure}
+
+Fisman et al. \cite{Fisman:2006} examined gender differences in partner selection. Using fixed-effects regression models, they found that men placed greater weight on physical attractiveness, while women placed greater weight on intelligence and were more likely to select partners of the same race. They also found that women's selectivity increased with the number of potential partners, whereas men's selectivity remained relatively unchanged. Compared to Fisman et al. \cite{Fisman:2006}, our study investigates whether two participants will mutually select one another. Understanding which attributes influence attraction does not necessarily imply that those attributes can reliably predict compatibility. By examining the predictive limitations of pre-date information and the additional value of post-interaction evaluations, our analysis provides insight for matchmaking systems into the extent to which compatibility can be anticipated from observable characteristics alone.
+
+% ADDED: related work
+Two later studies bear directly on our question. Joel, Eastwick and Finkel \cite{Joel:2017} ran two speed-dating
+studies in which participants reported more than 100 traits and preferences beforehand, and used random forests to
+predict romantic desire after each date. Their models could predict how much each person tended to desire others and
+how much each person was desired, but not which particular pairs would be attracted to each other. Eastwick and
+Finkel \cite{Eastwick:2008} found that the qualities people say they want in a partner before a speed-dating event fail
+to predict what actually draws them to the partners they meet there. Using the same experiment as our data, Fisman et al.\
+\cite{Fisman:2008} studied preferences for partners of the same race in detail and found them stronger among women.
+
+\subsection{Classification}
+
+\subsubsection{Logistic Regression}
+
+Logistic regression is used to predict a binary categorical outcome by modeling the probability that the outcome occurs. If $Y$ is the outcome and $X$ is the predictor, we write this probability as $P(Y=1\mid X)=p(X)$. The logistic function,
+
+\[
+p(X)=\frac{e^{\beta_0+\beta_1X}}{1+e^{\beta_0+\beta_1X}},
+\]
+
+ensures that predicted probabilities remain between $0$ and $1$, producing an S-shaped curve that approaches these limits without exceeding them \cite[Equation 4.2, p. 139]{James:2023}.
+
+The coefficients $\beta_0$ and $\beta_1$ are estimated from training data using maximum likelihood. We choose coefficient estimates that maximize the likelihood of the observed outcomes. A large absolute $z$-statistic, usually accompanied by a small $p$-value, provides evidence against the null hypothesis that a coefficient is zero \cite[Sections 4.3.2--4.3.3, pp. 140--142]{James:2023}.
+
+With multiple predictors, logistic regression becomes \cite[Equation 4.7, p. 142]{James:2023}:
+
+\[
+p(X)=
+\frac{e^{\beta_0+\beta_1X_1+\cdots+\beta_pX_p}}
+{1+e^{\beta_0+\beta_1X_1+\cdots+\beta_pX_p}}.
+\]
+
+Each coefficient describes the association between its predictor and the log odds of $Y$ while holding the other predictors fixed. Including multiple predictors can help account for confounding. For example, students may appear more likely to default in a single-predictor model because they tend to have greater debt; controlling for debt can reveal that students with the same debt level as non-students may be less likely to default \cite[Section 4.3.4, pp. 142--144]{James:2023}.
+
+\subsubsection{Multinomial Logistic Regression}
+
+Multinomial logistic regression extends logistic regression to response variables with more than two classes. If there are $K$ classes, we can choose class $K$ as a baseline and compare every other class $k$, where $1\leq k\leq K-1$, against it:
+
+\[
+\Pr(Y=k\mid X=x)
+=
+\frac{
+e^{\beta_{k0}+\beta_{k1}x_1+\cdots+\beta_{kp}x_p}
+}{
+1+\sum_{\ell=1}^{K-1}
+e^{\beta_{\ell0}+\beta_{\ell1}x_1+\cdots+\beta_{\ell p}x_p}
+}
+\]
+\cite[Equation 4.10, pp. 144--145]{James:2023}.
+Equivalently,
+
+\[
+\log\left(
+\frac{\Pr(Y=k\mid X=x)}
+{\Pr(Y=K\mid X=x)}
+\right)
+=
+\beta_{k0}+\beta_{k1}x_1+\cdots+\beta_{kp}x_p
+\]
+\cite[Equation 4.12, p. 145]{James:2023}.
+This creates $K-1$ sets of coefficients. The class probabilities are linked because they must sum to $1$. The choice of baseline changes coefficient values and their interpretation, while the model represents the class probabilities through these baseline comparisons \cite[Section 4.3.5, pp. 144--146]{James:2023}.
+
+\subsection{Generative Models}
+
+Logistic regression directly models
+
+\[
+P(Y=k\mid X=x),
+\]
+
+the probability that an observation belongs to class $k$ given its predictor values. Generative models instead first model
+
+\[
+P(X=x\mid Y=k),
+\]
+
+asking how plausible the predictor values would be if the observation came from class $k$, and then uses Bayes' theorem to obtain $P(Y=k\mid X=x)$ \cite[Section 4.4, p. 146]{James:2023}.
+
+Generative models provide a direct approach to problems with more than two classes. LDA can work well with relatively small samples when the class-conditional Gaussian and shared-covariance assumptions are reasonable; the comparison with logistic regression depends on how well those distributional assumptions fit \cite[Section 4.4, p. 146-147]{James:2023}.
+
+Let $\pi_k$ denote the prior probability that an observation belongs to class $k$, and let
+
+\[
+f_k(x)\approx P(X=x\mid Y=k)
+\]
+
+describe the distribution of predictors within class $k$ \cite[Section 4.4, p. 146]{James:2023}. Bayes' theorem gives \cite[Equation 4.15, p. 147]{James:2023}:
+
+\[
+P(Y=k\mid X=x)
+=
+\frac{\pi_k f_k(x)}
+{\sum_{\ell=1}^{K}\pi_\ell f_\ell(x)}.
+\]
+
+The resulting quantity is the posterior probability. The Bayes classifier assigns an observation to the class with the largest posterior probability \cite[Section 4.4, pp. 147--148]{James:2023}.
+
+\subsubsection{Linear Discriminant Analysis}
+\label{sec:lda_theory}
+One-dimensional Linear Discriminant Analysis (LDA) assumes that each class follows a normal distribution with its own mean but that all classes share the same variance \cite[Section 4.4.1, pp. 147--148]{James:2023}:
+
+\[
+X\mid Y=k \sim N(\mu_k,\sigma^2).
+\]
+
+After substituting these normal distributions into Bayes' theorem, classification can be performed using the estimated discriminant score \cite[Equation 4.22, p. 149]{James:2023}:
+
+\[
+\hat{\delta}_k(x)
+=
+x\frac{\hat{\mu}_k}{\hat{\sigma}^2}
+-
+\frac{\hat{\mu}_k^2}{2\hat{\sigma}^2}
++
+\log(\hat{\pi}_k).
+\]
+
+The observation is assigned to the class with the largest score. LDA estimates the class means and common variance, and estimates prior probabilities from the training data \cite[Equations 4.20--4.21, p. 149]{James:2023}.
+
+With multiple predictors, $X=(X_1,\ldots,X_p)$, LDA assumes a multivariate Gaussian distribution within each class, and each class has its own mean vector:
+
+\[
+\mu_k=(\mu_{k1},\ldots,\mu_{kp}),
+\]
+
+but all classes share the same covariance matrix $\Sigma$, which captures predictor variances and correlations \cite[Section 4.4.2, pp. 150--151]{James:2023}. The discriminant score becomes \cite[Equation 4.24, p. 151]{James:2023}:
+
+\[
+\delta_k(x)
+=
+x^T\Sigma^{-1}\mu_k
+-
+\frac{1}{2}\mu_k^T\Sigma^{-1}\mu_k
++
+\log\pi_k.
+\]
+
+Because LDA uses a shared covariance matrix, its class decision boundaries are linear \cite[Section 4.4.2, pp. 151--152]{James:2023}.
+
+Overall classification error can be misleading when classes are imbalanced. For example, in the default dataset there are $9{,}667$ non-defaulters but only $333$ defaulters. A classifier may therefore achieve a very low overall error rate while performing poorly on defaulters. Error rates should consequently be examined separately for each class as well as overall \cite[Section 4.4.1, p. 153]{James:2023}.
+
+Sensitivity measures how well a classifier identifies actual positives, while specificity measures how well it identifies actual negatives. Their definitions are \cite[Table 4.7, p. 156]{James:2023}:
+
+\[
+\text{Sensitivity}
+=
+\frac{\text{True Positives}}{\text{Actual Positives}},
+\qquad
+\text{Specificity}
+=
+\frac{\text{True Negatives}}{\text{Actual Negatives}}.
+\]
+The usual default is to predict the positive class when the estimated probability exceeds $0.5$ \cite[Section 4.4.1, pp. 153--154]{James:2023}:
+\[
+P(Y=1\mid X=x)>0.5,
+\]
+
+but this threshold can be changed. Lowering the threshold classifies more observations as positive and raises sensitivity, while raising the threshold classifies more observations as negative and raises specificity.
+A Receiver Operating Characteristic (ROC) curve evaluates a classifier over all possible thresholds. For each threshold, it plots the True Positive Rate, or sensitivity, against the False Positive Rate, the fraction of actual negatives incorrectly classified as positive. The Area Under the Curve (AUC) summarizes discrimination ability: an AUC of $1$ represents perfect discrimination, while an AUC of $0.5$ corresponds to chance-level discrimination \cite[Section 4.4.1, pp. 153--155]{James:2023}.
+
+\subsubsection{Quadratic Discriminant Analysis}
+
+Quadratic Discriminant Analysis (QDA) also assumes normally distributed predictors within each class, but unlike LDA it allows every class to have its own covariance matrix \cite[Section 4.4.3, p. 156]{James:2023}:
+
+\[
+X\mid Y=k\sim N(\mu_k,\Sigma_k).
+\]
+
+The observation is again assigned to the class producing the largest discriminant score. Because covariance matrices vary across classes, QDA produces curved, quadratic decision boundaries \cite[Equation 4.28, p. 157]{James:2023}.
+
+This creates a bias-variance trade-off. LDA is less flexible and estimates fewer parameters; QDA is more flexible and estimates a separate covariance matrix for each class \cite[Section 4.4.3, pp. 156--158]{James:2023}. The relative performance depends on the sample size and how plausible the shared-covariance assumption is \cite[Section 4.5.1, pp. 161--163]{James:2023}.
+
+\subsubsection{Naive Bayes}
+
+LDA and QDA estimate $f_k(x)=P(X=x\mid Y=k)$ by assuming particular normal distributions. Naive Bayes instead makes the simplifying assumption that the $p$ predictors are independent within each class \cite[Section 4.4.4, p. 158]{James:2023}. It factorizes the class-conditional density as follows \cite[Equation 4.29, p. 159]{James:2023}:
+
+\[
+f_k(x)
+=
+f_{k1}(x_1)
+f_{k2}(x_2)
+\cdots
+f_{kp}(x_p),
+\]
+
+where $f_{kj}$ is the distribution of predictor $j$ within class $k$. For quantitative predictors modeled as Gaussian, this corresponds to a diagonal within-class covariance matrix.
+
+The independence assumption simplifies estimation because the model no longer needs to estimate joint distributions among predictors. It may introduce bias when predictors are not conditionally independent \cite[Section 4.4.4, pp. 158--160]{James:2023}.
+
+Bayes' theorem then becomes \cite[Equation 4.30, p. 160]{James:2023}:
+
+\[
+\Pr(Y=k\mid X=x)
+=
+\frac{
+\pi_k\prod_{j=1}^{p}f_{kj}(x_j)
+}{
+\sum_{\ell=1}^{K}
+\pi_\ell\prod_{j=1}^{p}f_{\ell j}(x_j)
+}.
+\]
+
+For quantitative predictors, each $f_{kj}$ can be estimated using a normal distribution within each class or a kernel density estimator. For qualitative predictors, it can be estimated directly from proportions in the training data \cite[Section 4.4.4, pp. 159--160]{James:2023}. For example, if $32\%$ of observations in class $k$ have $X_j=1$, then
+
+\[
+P(X_j=1\mid Y=k)=0.32.
+\]
+
+For a new observation, Naive Bayes multiplies the prior probability of each class by the estimated probability or density of each predictor value, then normalizes the resulting class scores so that the posterior probabilities sum to $1$. The observation is assigned to the class with the highest posterior probability \cite[Section 4.4.4, p. 160]{James:2023}.
+
+\subsection{Comparing Classification Models}
+
+LDA produces linear decision boundaries, while QDA produces quadratic boundaries. LDA can therefore be viewed as a simpler, more restricted version of QDA.
+
+Naive Bayes can capture nonlinear effects of individual predictors but does not model interactions between predictors, for which QDA may perform better. For Gaussian predictors, Naive Bayes and LDA are closely related: conditional independence corresponds to diagonal within-class covariance matrices.
+
+Logistic regression and LDA have the same general linear form, but they estimate coefficients differently. LDA assumes the predictors follow a normal distribution, whereas logistic regression estimates coefficients by maximizing the likelihood function. Under a reasonably accurate Gaussian model, LDA can perform well; when that model is inaccurate, logistic regression may be preferable. Their relative performance also depends on sample size and the data-generating process.
+
+K-Nearest Neighbors (KNN) is completely non-parametric, meaning it assumes no fixed mathematical form relating predictors to class labels. It can outperform LDA when the decision boundary is highly nonlinear, provided that the sample size $n$ is large and the number of predictors $p$ is small. Because KNN is non-parametric, it generally has lower bias but higher variance and therefore requires a relatively large sample size. If $n$ is smaller and $p$ is larger, QDA may be preferable because it can represent nonlinear boundaries while retaining a parametric structure. Unlike logistic regression, KNN does not provide a simple coefficient-based account of predictor effects \cite[Section 4.5.1, p. 163]{James:2023}.
+
+\subsection{Cross-Validation and Bootstrap}
+
+Resampling methods involve repeatedly drawing samples from a training set and refitting a model on each sample in order to obtain additional information about the fitted model. Two common resampling methods are cross-validation and the bootstrap. Cross-validation is used to estimate test error and assess or select models, while the bootstrap is often used to quantify the uncertainty of parameter estimates \cite[Ch. 5, p. 201]{James:2023}.
+
+One way to estimate the test error rate when a separate test set is not readily available is to hold out a subset of the training observations. The validation set approach divides the available observations into a training set and a validation set. The model is fit on the training set, and the fitted model is then used to predict the responses for observations in the validation set. For a quantitative response, the validation mean squared error (MSE) provides an estimate of the test error:
+\[
+\mathrm{MSE} = \frac{1}{m}\sum_{i=1}^{m}(y_i-\hat{y}_i)^2,
+\]
+where $m$ is the number of observations in the validation set \cite[Equation 2.5, p. 28]{James:2023}. Although this approach is straightforward, it has two drawbacks: (1) the validation estimate of the test error can vary substantially depending on which observations are assigned to the training and validation sets, and (2) only a subset of the available observations is used to fit the model. Because statistical learning methods generally perform worse when trained on fewer observations, the validation set error may overestimate the test error of a model fit using the full data set \cite[Section 5.1.1, pp. 202--204]{James:2023}.
+
+Leave-one-out cross-validation (LOOCV) attempts to address these drawbacks. In each iteration, one observation is used as the validation set and the remaining $n-1$ observations form the training set. A single $\mathrm{MSE}$ is highly variable because it is based on only one observation. However, this procedure is repeated $n$ times, with each observation serving once as the validation observation. The LOOCV estimate of the test MSE is therefore \cite[Equation 5.1, p. 204]{James:2023}
+\[
+\mathrm{CV}_{(n)} = \frac{1}{n}\sum_{i=1}^{n}\mathrm{MSE}_i.
+\]
+
+Compared with the validation set approach, LOOCV has less bias because each model is fit using $n-1$ observations. In addition, there is no randomness in the training-validation splits, so repeated applications of LOOCV produce the same result. A drawback is that LOOCV can be computationally expensive because the model generally must be fit $n$ times. LOOCV is a general method that can be applied to many types of predictive models \cite[Equation 5.1 and Section 5.1.2, pp. 204--206]{James:2023}.
+
+Another approach is $k$-fold cross-validation, which randomly divides the observations into $k$ equal-sized groups, or folds. One fold is treated as the validation set while the remaining $k-1$ folds are used to fit the model. The validation MSE is computed, and the procedure is repeated $k$ times so that each fold serves as the validation set once. The resulting cross-validation estimate is \cite[Equation 5.3, p. 206]{James:2023}
+\[
+\mathrm{CV}_{(k)} = \frac{1}{k}\sum_{i=1}^{k}\mathrm{MSE}_i.
+\]
+Compared with LOOCV, $k$-fold cross-validation can be substantially less computationally expensive, particularly when $n$ is large \cite[Equation 5.3 and Section 5.1.3, pp. 206--207]{James:2023}.
+
+The choice of $k$ also involves a bias-variance trade-off. $k$-fold cross-validation with $k<n$ has higher bias than LOOCV because each model is trained on only approximately $(k-1)n/k$ observations. However, LOOCV tends to have higher variance because the $n$ fitted models are trained on highly overlapping data sets, making their error estimates strongly correlated. Values such as $k=5$ or $k=10$ often provide a useful balance between bias and variance \cite[Section 5.1.4, pp. 208--209]{James:2023}.
+
+When the response is qualitative rather than quantitative, the same cross-validation procedures can be applied, but prediction error is measured using the misclassification rate rather than MSE \cite[Section 5.1.5, p. 209]{James:2023}.
+
+The bootstrap is a resampling method used to quantify the uncertainty associated with an estimator. Rather than obtaining new samples from the underlying population, the bootstrap creates new data sets by repeatedly sampling observations from the original data set with replacement. Each bootstrap sample contains $n$ observations, the same number as the original data set, although some observations may appear multiple times while others may not appear at all.
+
+For each bootstrap sample, the statistic of interest is computed. Repeating this procedure $B$ times, for example $B=1000$, produces $B$ bootstrap estimates. The variability of these estimates can then be used to estimate the standard error of the original statistic \cite[Section 5.2, pp. 212--214]{James:2023}.
+
+\subsection{Random Forests}
+\label{sec:random_forest_theory}
+A \textit{decision tree} is a model that makes predictions by repeatedly splitting the data into different branches based on predictor values. The tree continues splitting until it reaches a terminal node, or leaf, which gives the prediction for that observation \cite[Section 8.1, pp. 331--332]{James:2023}. In a regression tree, each leaf predicts a numeric value, usually the average response among the training observations in that leaf \cite[Section 8.1.1, p. 332]{James:2023}. In a \textit{classification tree}, each leaf predicts a class, usually the most common class among observations in that leaf \cite[Section 8.1.2, p. 337]{James:2023}.
+
+Decision trees are easy to interpret, but a single decision tree can have very high variance, meaning that small changes in the training data can have drastic effects on the resulting tree. To address this, we first turn to \textit{bagging}. Bagging reduces variance by creating many bootstrap samples of the training data, fitting a separate deep decision tree to each sample, and then combining their predictions. For regression, the predictions are averaged, while for classification, a majority vote is taken. The idea is that averaging many high-variance trees produces a more stable prediction \cite[Section 8.2.1, pp. 343--345]{James:2023}.
+
+At each split, a tree chooses one predictor by which to split the data. For a regression tree, the ``best'' split is selected to reduce RSS; classification trees use classification-specific criteria (for example, the Gini index). Predictors can be used again later in a tree. For example, higher in the tree we might find that splitting on $\text{Age}<30$ minimizes RSS, while several layers farther down the tree we could split on $\text{Age}<24$ \cite[Sections 8.1.1--8.1.2, pp. 331--341]{James:2023}.
+
+A \textit{random forest} follows many of the same steps as bagging: it creates bootstrap samples, fits one decision tree to each sample, and combines the trees' predictions at the end. However, when a tree is deciding how to make a split, it is not allowed to consider all $p$ predictors. Instead, it chooses only $m<p$ predictors, often $m=\sqrt{p}$ for classification.
+
+A new random group of predictors is chosen at every split. This reduces the chance that the same strong predictor drives every tree, decorrelating the trees and potentially reducing variance and test error \cite[Section 8.2.2, pp. 346--347]{James:2023}.
+
+\subsection{Methods Beyond the Course Textbook}
+\label{sec:beyond}
+
+The resampling methods described above treat observations as independent. Ours are not: each participant
+appears in up to 22 dyads, and all dyads in an event share the same evening, so dyads from the same event tend to be
+predicted well or badly together. We added a few tools to handle this, and small extensions of textbook models.
+
+\subsubsection{Grouped cross-validation}
+Grouped cross-validation is $k$-fold cross-validation \cite[Section 5.1.3, pp.~206--208]{James:2023} in which the folds are
+made of whole groups of observations rather than individual rows \cite[pp.~917, 919]{Roberts:2017}. We grouped by event:
+the 21 events are dealt into five folds, so that a model is never tested on an event or a person it saw in training. With
+random rows, the same participant could appear in both the training and the validation set, and the model could
+partly recognize them; the estimate would then describe predictions for people already seen, which overstates how well
+the model would do for a matchmaker meeting new people.
+
+\subsubsection{Nested cross-validation}
+The textbook uses cross-validation both to choose a tuning parameter, such as $\lambda$ for the lasso, and to estimate
+test error. Doing both with the same folds makes the error estimate optimistic, because the chosen value is the one
+that happened to look best on those folds \cite{Varma:2006}. Nested cross-validation separates the two jobs: inside each
+training set, a second (inner) cross-validation chooses the tuning parameter, and only then is the model scored on
+the held-out fold \cite[Section 7.10.2, pp.~245--247]{Hastie:2009}. Our inner folds also hold out whole events.
+
+\subsubsection{Standard errors that allow for clusters}
+The usual standard error of an average treats every observation as an independent piece of information. When
+observations come in correlated groups, called \emph{clusters}, this overstates how much information we have: 4,184
+dyads from 21 events behave like far fewer than 4,184 independent dyads, so the usual standard error is too small.
+A \emph{cluster-robust} standard error fixes this by adding up the errors within each event before measuring their
+spread. For an average $\bar\ell$ of per-dyad errors $\ell_i$ over $n$ dyads in $G$ events,
+\[
+\widehat{\mathrm{SE}}_{\mathrm{CR}}(\bar\ell)^2=\frac{G}{G-1}\cdot\frac{1}{n^2}\sum_{g=1}^{G}\Big(\sum_{i\in\text{event }g}(\ell_i-\bar\ell)\Big)^2 .
+\]
+If the errors in an event are all on the same side of the average, they add up instead of cancelling, and the
+standard error grows accordingly \cite{Liang:1986}, \cite[Section II.C]{Cameron:2015}. Because we have only 21 events, we
+use $t$ quantiles with $G-1=20$ degrees of freedom instead of normal quantiles, as recommended when clusters are few
+\cite[Section VI]{Cameron:2015}. As a check we also use a bootstrap that resamples whole events rather than rows (the
+wild cluster bootstrap \cite{Cameron:2008}). A textbook treatment is \cite[Section 24.5, pp.~829--845]{Cameron:2005}.
+
+\subsubsection{The standard error of the AUC}
+The AUC \cite[pp.~153--155]{James:2023} has a simple interpretation: it is the probability that a randomly chosen match
+receives a higher predicted score than a randomly chosen non-match \cite[pp.~30--31]{Hanley:1982}, so it can be computed as
+the fraction of (match, non-match) pairs that the model ranks correctly. DeLong, DeLong and Clarke-Pearson gave a
+standard error for it \cite{DeLong:1988}, and Obuchowski extended that standard error to clustered data by adding up each
+event's contribution, the same idea as above \cite{Obuchowski:1997}. Every AUC standard error in this report is the
+clustered one.
+
+\subsubsection{Regularized quadratic discriminant analysis}
+QDA estimates a separate covariance matrix for each class \cite[Section 4.4.3, p.~156]{James:2023}. With 74 pre-date
+variables and only about 550 matches in a training fold, the matches' covariance matrix is estimated poorly, which is
+the variance side of the bias-variance trade-off between LDA and QDA. Regularized QDA \cite{Friedman:1989} moves each
+estimated covariance matrix part of the way toward a simpler one,
+\[
+\widetilde\Sigma_k=(1-r)\,\hat\Sigma_k+r\,I,\qquad 0\le r\le 1,
+\]
+so $r=0$ is ordinary QDA and larger $r$ trusts the estimated correlations less \cite[Section 4.3.1, Eq.~(4.14), p.~112]{Hastie:2009}.
+We chose $r$ by cross-validation.
+
+\subsubsection{The lasso for logistic regression}
+The textbook introduces the lasso for least squares \cite[Section 6.2.2, pp.~244--252]{James:2023}. The same penalty,
+$\lambda\sum_j|\beta_j|$, can be added to the logistic regression likelihood, which shrinks some coefficients exactly to
+zero \cite[Section 4.4.4, Eq.~(4.31), p.~125]{Hastie:2009}. As in the textbook, $\lambda$ is chosen by cross-validation over a
+grid of values; we used 30 values, starting from the smallest penalty that sets every coefficient to zero
+\cite[Section 2.5, p.~7]{Friedman:2010}.
+
+\subsubsection{Pre-registration}
+Pre-registration means writing down each hypothesis and the result that would count as support before running the
+analysis, so that tests planned in advance are kept separate from patterns found by looking at the data
+\cite{Nosek:2018}. Every hypothesis in this report was committed, with its threshold, to our repository's
+\texttt{PREREG.md} before its test ran, and none was changed afterwards; hypotheses that failed are reported as
+failures.
+
+
+
+
+
+\section{Data Cleaning}
+
+We first removed 10 observations for which the partner identifier was missing. We then defined identifiers for the participant giving the evaluation, the partner being evaluated, the event, and the unique pair. As consistency checks, we verified that no pair contained participants from different waves, that there were no duplicate dates, and that the recorded \texttt{match} variable agreed with the definition that a match occurs if and only if both participants said ``yes.''
+
+The main prediction dataset was then collapsed to one observation per dyad, where each dyad consists of one woman and one man who met during the event. The resulting dataset contains 4,184 unique dyads, of which 690, or 16.5\%, resulted in a mutual match. The dataset contains 551 unique participants, so each individual appears in multiple dyads within the same event. Variables belonging to the woman are denoted by the prefix \texttt{f\_}, while variables belonging to the man are denoted by \texttt{m\_}. The two individual decisions, \texttt{f\_dec} and \texttt{m\_dec}, were used only to verify the match outcome and were never included as predictors because they directly determine the response.
+
+\subsection{Normalizing Stated Preferences}
+
+An important complication in the dataset is that stated partner preferences were collected using two different survey formats. In Waves 1--5 and 10--21, participants allocated a total of 100 points across six partner characteristics: attractiveness, sincerity, intelligence, fun, ambition, and shared interests. In Waves 6--9, participants instead rated each of these characteristics independently on a 1--10 scale.
+
+To make these waves comparable, each person's six preference responses were converted into shares summing to 100. Let $x_{ij}$ denote participant $i$'s raw response for attribute $j$. The normalized preference share was defined as
+
+\begin{equation}
+w_{ij}
+=
+100
+\frac{x_{ij}}
+{\sum_{k=1}^{6} x_{ik}}.
+\end{equation}
+
+This transformation preserves the relative importance that each participant assigns to the six characteristics. The original questionnaire format was retained in a separate indicator, \texttt{pref\_scale}.
+
+A small number of participants in the 100-point waves left one or more preference entries blank even though the completed entries already summed to approximately 100 points. In these cases, the blank values were assigned zero, since effectively no points remained to allocate. This affected 3 participants and 40 date-level observations.
+
+We also identified a small number of responses outside the documented ranges of the survey. Five participants had a gaming score of 14 and three participants had a reading score of 13. In the primary specification, these observations were treated as missing. The original recorded values were retained for a robustness specification. Values equal to zero were not modified.
+
+\subsection{Pre-Date Variables}
+Only information available before the four-minute interaction was included in the pre-date prediction models. For each member of the dyad, the model included variables from the sign-up questionnaire describing:
+
+\begin{itemize}
+    \item age;
+    \item field of study;
+    \item intended career;
+    \item primary goal in attending the event;
+    \item frequency of dating;
+    \item frequency of going out;
+    \item expected happiness with the people at the event;
+    \item interest in 17 activities;
+    \item self-ratings of attractiveness, sincerity, intelligence, fun, and ambition; and
+    \item stated preferences over attractiveness, sincerity, intelligence, fun, ambition, and shared interests.
+\end{itemize}
+
+Field of study, career, and event goal were treated as categorical variables. Dating frequency and going-out frequency were recorded on seven-point scales, where lower values indicate greater frequency. The activity-interest variables and the five self-ratings were recorded on 1--10 scales.
+
+Because the six stated-preference shares sum to 100, including all six as separate regressors would create exact linear dependence. We omitted the shared-interests preference share as the reference category from all model feature sets.
+
+\subsection{Missing Data}
+
+The primary specification handled missing numeric values using the median within each training fold. For each predictor, the median was estimated using only observations in the relevant training fold and then applied to both the training and held-out observations. Binary variables with missing values were filled using the corresponding training-fold median.
+
+We additionally included indicators for whether either participant had left any pre-date survey response blank. These indicators allow the model to distinguish an imputed observation from one that was originally observed.
+
+Categorical missingness was handled separately. A missing field, career, or goal response was assigned to an explicit ``missing'' category. For field and career, categories represented by fewer than 10 participants in a training fold were combined into an ``other'' category. A category that appeared in a held-out fold but not in its corresponding training fold was also assigned to ``other'' whenever that category was available.
+
+As a sensitivity analysis, the models were also estimated on a complete-case sample rather than using imputation. Under the complete-case specification implemented in the analysis pipeline, 2,685 dyads and 477 matches remained.
+
+\section{Technical Implementation}
+
+\subsection{Prediction Problem}
+
+The primary outcome is whether the two participants in a dyad mutually selected one another. For dyad $i$, define
+
+\begin{equation}
+Y_i =
+\begin{cases}
+1, & \text{if both participants said yes},\\
+0, & \text{otherwise}.
+\end{cases}
+\end{equation}
+
+The objective is to estimate
+
+\begin{equation}
+P(Y_i = 1 \mid X_i),
+\end{equation}
+
+where $X_i$ contains only information available before the two individuals met.
+
+\subsection{Constructed Pair-Level Predictors}
+\label{constructed_vars}
+
+In addition to entering the two participants' pre-date responses directly, we constructed several dyad-level features designed to measure compatibility.
+
+\subsubsection{Age Difference}
+
+The primary age-similarity measure was the absolute difference between the man's and woman's ages:
+
+\begin{equation}
+\text{abs\_age\_diff}
+=
+\left|
+\text{age}_{m}
+-
+\text{age}_{f}
+\right|.
+\end{equation}
+
+This measure captures the size of the age gap without imposing a direction.
+
+An extended specification additionally included a squared age-gap term,
+
+\begin{equation}
+\text{age\_diff\_sq}
+=
+\left(
+\text{age}_{m}
+-
+\text{age}_{f}
+\right)^2,
+\end{equation}
+
+to allow the relationship between age differences and matching to be nonlinear.
+
+\subsubsection{Interest Similarity}
+
+Our primary measure of interest similarity, \texttt{int\_corr}, was the Pearson correlation between the two participants' ratings across 16 interests, excluding yoga. The correlation was calculated using interests answered by both participants and required at least three common responses. Higher values indicate that the two participants ranked activities more similarly.
+
+In an extended specification, we included two additional similarity measures using all 17 interests. Let $S$ denote the interests answered by both participants. Mean absolute difference was defined as
+
+\begin{equation}
+\text{int\_mad}
+=
+\frac{1}{|S|}
+\sum_{k\in S}|f_k-m_k|,
+\end{equation}
+
+where lower values indicate greater similarity. Cosine similarity was defined as
+
+\begin{equation}
+\text{int\_cosine}
+=
+\frac{\sum_{k\in S}f_km_k}
+{\sqrt{\sum_{k\in S}f_k^2}\sqrt{\sum_{k\in S}m_k^2}},
+\end{equation}
+
+where higher values indicate greater similarity. Both measures were calculated over interests answered by both participants and required at least three common responses.
+
+\subsubsection{Shared Characteristics}
+
+We constructed indicator variables for whether the two individuals shared selected categorical characteristics:
+
+\begin{equation}
+\text{same\_field}
+=
+\mathbb{I}
+\left(
+\text{field}_{f}
+=
+\text{field}_{m}
+\right),
+\end{equation}
+
+\begin{equation}
+\text{same\_goal}
+=
+\mathbb{I}
+\left(
+\text{goal}_{f}
+=
+\text{goal}_{m}
+\right),
+\end{equation}
+
+and, in the extended feature set,
+
+\begin{equation}
+\text{same\_career}
+=
+\mathbb{I}
+\left(
+\text{career}_{f}
+=
+\text{career}_{m}
+\right).
+\end{equation}
+
+If either participant's underlying response was missing, the corresponding compatibility indicator was treated as missing rather than automatically assigned a value of zero.
+
+\subsubsection{Dating and Social-Frequency Differences}
+
+The extended specification also included the absolute difference in reported dating frequency,
+
+\begin{equation}
+\text{abs\_date\_diff}
+=
+\left|
+\text{date}_{f}
+-
+\text{date}_{m}
+\right|,
+\end{equation}
+
+and the absolute difference in frequency of going out,
+
+\begin{equation}
+\text{abs\_go\_out\_diff}
+=
+\left|
+\text{go\_out}_{f}
+-
+\text{go\_out}_{m}
+\right|.
+\end{equation}
+
+Because both variables are recorded on the same seven-point ordinal scale, a difference of zero indicates identical reported frequencies.
+
+\subsubsection{Preference-Fit Measures}
+
+We also constructed variables intended to measure whether one participant's relative strengths aligned with the characteristics that the other participant reported valuing in a partner.
+
+The calculation uses five attributes: attractiveness, sincerity, intelligence, fun, and ambition. Shared interests is omitted because participants did not provide a directly corresponding pre-date self-rating.
+
+Consider the woman's preferences. Let $w_a$ denote her stated preference share for attribute $a$, rescaled across these five attributes so that
+
+\begin{equation}
+\sum_{a=1}^{5} w_a = 1.
+\end{equation}
+
+Let $s_a$ denote the man's self-rating on attribute $a$, and define his mean self-rating by
+
+\begin{equation}
+\bar{s}
+=
+\frac{1}{5}
+\sum_{a=1}^{5}
+s_a.
+\end{equation}
+
+The compatibility measure comparing the man's relative self-perceived strengths with the woman's relative priorities is
+
+\begin{equation}
+\text{fit\_to\_f\_prefs}
+=
+\sum_{a=1}^{5}
+\left(
+w_a-\frac{1}{5}
+\right)
+\left(
+s_a-\bar{s}
+\right).
+\end{equation}
+
+A positive value indicates that the characteristics the woman weights more heavily than average tend to be the same characteristics on which the man rates himself relatively highly. The measure equals zero when either the preference weights or self-ratings are equal across all five attributes.
+
+The reverse measure,
+
+\begin{equation}
+\text{fit\_to\_m\_prefs},
+\end{equation}
+
+is calculated analogously by comparing the man's preferences with the woman's self-ratings.
+
+For robustness analysis, we also retained a simpler weighted-average preference-fit measure,
+
+\begin{equation}
+\text{fit\_raw}
+=
+\sum_{a=1}^{5}
+w_as_a.
+\end{equation}
+
+However, the main compatibility measure was preferred because the simple weighted average is largely driven by the partner's overall level of self-rating rather than by alignment between relative preferences and relative strengths.
+
+\subsubsection{Interaction Terms}
+
+The most extensive pre-date specification added three prespecified nonlinear or interaction terms.
+
+In addition to squared age difference, we interacted interest similarity with each participant's stated preference for shared interests:
+
+\begin{equation}
+\text{int\_x\_f\_pref\_shar}
+=
+\text{int\_corr}
+\times
+\text{f\_pref\_shar},
+\end{equation}
+
+and
+
+\begin{equation}
+\text{int\_x\_m\_pref\_shar}
+=
+\text{int\_corr}
+\times
+\text{m\_pref\_shar}.
+\end{equation}
+
+These terms allow actual similarity in interests to have a different association with matching depending on how strongly each person reports valuing shared interests in a potential partner.
+
+\subsection{Pre-Date Feature Sets}
+
+We created several pre-date predictor sets in order to determine whether explicit measures of pair compatibility improved prediction beyond participants' individual characteristics.
+
+\begin{table}[htbp]
+\centering
+\caption{Pre-date feature sets}
+\begin{tabular}{p{0.20\textwidth} p{0.68\textwidth}}
+\toprule
+\textbf{Feature set} & \textbf{Contents} \\
+\midrule
+\texttt{pre\_individual}
+&
+Both participants' individual sign-up responses only. \\[0.5em]
+
+\texttt{pre}
+&
+Individual sign-up responses plus
+\texttt{abs\_age\_diff},
+\texttt{int\_corr},
+\texttt{same\_field},
+\texttt{same\_goal},
+\texttt{fit\_to\_f\_prefs}, and
+\texttt{fit\_to\_m\_prefs}. \\[0.5em]
+
+\texttt{pre\_extended}
+&
+All variables in \texttt{pre}, plus
+\texttt{same\_career},
+\texttt{abs\_date\_diff},
+\texttt{abs\_go\_out\_diff},
+\texttt{int\_mad}, and
+\texttt{int\_cosine}. \\[0.5em]
+
+\texttt{pre\_interactions}
+&
+All variables in \texttt{pre\_extended}, plus
+\texttt{age\_diff\_sq},
+\texttt{int\_x\_f\_pref\_shar}, and
+\texttt{int\_x\_m\_pref\_shar}. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Survey-Format Standardization}
+
+Although converting stated preferences to shares makes the two questionnaire formats comparable, the dispersion of the shares was smaller among participants in the 1--10 waves than among participants in the 100-point waves.
+
+The primary specification therefore standardized preference-related variables within questionnaire format. For a preference-related variable $x$,
+
+\begin{equation}
+z
+=
+\frac{
+x-\mu_{\text{format}}
+}{
+\sigma_{\text{format}}
+},
+\end{equation}
+
+where $\mu_{\text{format}}$ and $\sigma_{\text{format}}$ denote the mean and standard deviation for participants who received the same questionnaire format.
+
+The stated-preference shares and the two preference-fit variables were standardized in this manner. A robustness specification used the converted preference shares without the additional format-specific standardization.
+
+\subsection{Cross-Validation}
+
+A central feature of the analysis is that participants appear in multiple dyads. Randomly splitting dyads into training and validation sets could therefore place the same participant on both sides of the split.
+
+We instead conducted five-fold cross-validation grouped by experimental wave. The 21 events were randomly ordered using a fixed seed and assigned across five folds. In each cross-validation iteration, every dyad belonging to the waves in one fold was held out, while the model was estimated using dyads from the remaining folds.
+
+Thus, no participant appearing in a held-out event also appeared in that iteration's training sample. Predictions from the five held-out folds were then pooled to calculate model performance.
+
+For models requiring a tuning parameter, we used nested cross-validation. Within each outer training fold, the training events were divided into four additional event-grouped folds. Candidate tuning values were compared using these inner folds, and the value with the highest pooled inner-fold AUC was selected. The model was then refit on the full outer training sample using the selected value and evaluated on the outer held-out events. This nested procedure ensures that the outer validation observations are not used in selecting model tuning parameters.
+
+\subsection{Preprocessing Within Cross-Validation}
+
+Most preprocessing decisions were estimated separately within each training fold and then applied unchanged to its validation fold.
+
+For numeric variables with more than two distinct observed values, skewness was first estimated on the training sample. Predictors with skewness greater than 1 were transformed using
+
+\begin{equation}
+\log(1+x-\min(x)),
+\end{equation}
+
+while predictors with skewness below $-1$ were transformed using the corresponding reflected logarithmic transformation,
+
+\begin{equation}
+-\log(1+\max(x)-x).
+\end{equation}
+
+The relevant minimum and maximum values were estimated from the training fold. Held-out observations outside the corresponding training range were clipped to that range before applying the transformation.
+
+After transformation, missing numerical values were filled using the training-fold median. Categorical variables were converted into dummy variables after rare-level grouping. Finally, each numerical predictor was standardized using its training-fold mean and standard deviation:
+
+\begin{equation}
+z_{ij}
+=
+\frac{
+x_{ij}-\bar{x}_{j,\mathrm{train}}
+}{
+s_{j,\mathrm{train}}
+}.
+\end{equation}
+
+Binary indicators and dummy variables remained as zero or one.
+
+
+\subsection{Prediction Models}
+
+\subsubsection{Logistic Regression}
+
+Our primary parametric classification model was multiple logistic regression. For dyad $i$, the probability of a mutual match was modeled as
+
+\begin{equation}
+P(Y_i=1\mid X_i)
+=
+\frac{1}
+{1+\exp\left[-(\beta_0 + X_i^\top\beta)\right]},
+\end{equation}
+
+where $X_i$ contains the pre-date predictors for the pair.
+
+The coefficients were estimated by maximum likelihood. Because the model contains a relatively large number of predictors and some combinations of predictors may nearly separate matches from non-matches, the implementation included a very small ridge penalty ($\lambda=10^{-6}$) to stabilize coefficient estimates. The intercept was not penalized.
+
+\subsubsection{Spline-Augmented Logistic Regression}
+
+For a small set of continuous predictors, we allowed the logistic model to replace the ordinary linear term with a natural cubic spline if the more flexible form improved the Bayesian Information Criterion (BIC).
+
+The candidate predictors were the woman's age, the man's age, absolute age difference, interest correlation, and the two preference-fit measures.
+
+BIC was calculated as
+
+\begin{equation}
+\mathrm{BIC}
+=
+-2\ell
++
+k\log(n),
+\end{equation}
+
+where $\ell$ is the fitted log-likelihood, $k$ is the number of estimated model parameters, and $n$ is the number of observations in the training fold.
+
+For each candidate variable, the spline specification was retained if it produced a lower training-fold BIC than the corresponding linear specification.
+
+\subsubsection{Stepwise Logistic Regression}
+
+Because the full logistic model contains a large number of predictors, we also considered BIC-based variable selection.
+
+Selection was performed at the predictor level rather than the individual-column level. When a categorical predictor was represented by several dummy variables, all corresponding dummy variables were added or removed together. Similarly, when a continuous predictor was represented by multiple spline terms, those terms were treated as a single predictor. This ensured that each conceptual variable entered or left the model as a whole.
+
+Forward selection began with an intercept-only model and repeatedly added the block producing the largest decrease in BIC. Backward selection began with the full model and repeatedly removed the block producing the largest decrease in BIC. A both-directions procedure began with the intercept-only model but considered both additions and removals at each step.
+
+Each algorithm terminated when no single addition or removal reduced BIC further.
+
+\subsubsection{Linear Discriminant Analysis}
+
+As described in Section~\ref{sec:lda_theory}, Linear Discriminant Analysis (LDA) assumes class-specific mean vectors and a common covariance matrix across classes. In our application, LDA was fit to the pre-date predictor set within each outer training fold. Class prior probabilities were estimated from the match and non-match proportions in the training data. We used the standard LDA implementation with no additional tuning parameters.
+
+\subsubsection{Quadratic Discriminant Analysis}
+
+Quadratic Discriminant Analysis (QDA) was fit using the same pre-date predictor set and event-grouped cross-validation framework. Because the number of predictors was large relative to the number of matches in each training fold, estimating a separate covariance matrix for each class could be unstable. We therefore used a regularized version of QDA in which each class-specific covariance matrix was shrunk toward the identity matrix:
+
+\begin{equation}
+\widetilde{\Sigma}_k
+=
+(1-r)\Sigma_k + rI.
+\end{equation}
+
+The regularization parameter $r$ was selected from
+$\{0.1, 0.3, 0.5, 0.7, 0.9\}$
+using the inner event-grouped cross-validation procedure described above. The value producing the highest pooled inner-fold AUC was selected separately within each outer training fold.
+
+\subsubsection{Random Forest}
+
+As described in Section~\ref{sec:random_forest_theory}, random forests combine many bootstrap-trained classification trees while considering only a random subset of predictors at each split. In our application, we fit a forest of 500 classification trees to the pre-date predictors within each outer training fold. At each split, approximately $\sqrt{p}$ of the $p$ available predictors were considered, and splits were chosen using Gini impurity (for classification).
+
+For each dyad, the predicted probability of a match was obtained by averaging the predicted match probabilities across the 500 trees. The minimum terminal-leaf size was treated as a tuning parameter and selected from $\{1,5,20,50\}$ using the inner event-grouped cross-validation procedure described above. The value with the highest pooled inner-fold AUC was then used to refit the forest on the full outer training fold.
+
+\subsubsection{L1-Regularized Logistic Regression}
+
+We additionally considered an L1-regularized logistic regression model. The L1 penalty encourages sparse models by shrinking some regression coefficients exactly to zero.
+
+The tuning parameter was represented using the inverse penalty strength $C$. A grid of 30 logarithmically spaced candidate values was used. The lower endpoint was defined by
+
+\begin{equation}
+C_{\min}
+=
+\frac{
+1
+}{
+\max_j
+\left|
+\sum_i
+D_{ij}(Y_i-\bar{Y})
+\right|
+},
+\end{equation}
+
+where $D_{ij}$ denotes the standardized design matrix. Candidate values ranged from $C_{\min}$ to
+
+\begin{equation}
+1000C_{\min}.
+\end{equation}
+
+The value of $C$ producing the largest pooled inner-fold AUC was selected.
+
+This model was added after the original pre-registered model comparisons and was therefore reported as an additional specification rather than being included in the original definition of the best-performing model.
+
+
+\subsection{Model Evaluation}
+
+Because only 16.5\% of dyads resulted in a match, ordinary classification accuracy can be misleading. A classifier that predicts ``no match'' for every observation would already achieve an accuracy of 83.5\%.
+
+We therefore evaluated models using multiple measures.
+
+As mentioned in Section~\ref{sec:lda_theory},
+sensitivity was defined as
+
+\begin{equation}
+\text{Sensitivity}
+=
+\frac{
+\text{number of correctly predicted matches}
+}{
+\text{number of actual matches}
+}
+\end{equation}
+
+and specificity was defined as
+
+\begin{equation}
+\text{Specificity}
+=
+\frac{
+\text{number of correctly predicted non-matches}
+}{
+\text{number of actual non-matches}
+}.
+\end{equation}
+
+Balanced accuracy was calculated as
+
+\begin{equation}
+\text{Balanced Accuracy}
+=
+\frac{1}{2}
+\left(
+\text{Sensitivity}
++
+\text{Specificity}
+\right).
+\end{equation}
+
+The principal threshold-free performance measure was the AUC. For threshold-based measures, a dyad was classified as a predicted match when its predicted probability exceeded the match rate in the corresponding training fold, which was approximately 0.165:
+
+\begin{equation}
+\widehat{Y}_i
+=
+\mathbb{I}
+\left(
+\widehat{p}_i
+>
+\bar{Y}_{\mathrm{train}}
+\right).
+\end{equation}
+
+Because participants appeared in multiple dyads and all dyads within an event shared the same experimental setting, observations from the same wave were not treated as fully independent. We therefore calculated cluster-robust uncertainty estimates at the event level, allowing observations within the same wave to be correlated.
+
+\section{Results}
+\subsection{Pre-date information had limited predictive power.}
+Among the models we tested, the random forest achieved the highest held-out AUC using only pre-date variables, with an AUC of \(0.5825\) (SE \(=0.0197\)). Because an AUC of \(0.5\) corresponds to chance-level discrimination, this result suggests that pre-event information provided some predictive signal, but were far from sufficient to reliably distinguish matches from non-matches (performing not much better than a random guess).
+
+Additionally, prediction improved substantially once we included participants' evaluations of one another following the four-minute interaction. The best model using both pre-date information and post-interaction scorecard ratings achieved an AUC of \(0.8459\), an increase of \(0.2634\) over the best pre-date model. Thus, substantially more information about mutual interest appeared to emerge from the interaction itself than was observable from the participants' characteristics before meeting.
+
+% ADDED: AUC figure and model table
+Figure~\ref{fig:auc} and Table~\ref{tab:models} show the held-out AUC of each model with and
+without the in-date ratings. Before the date the models are tightly bunched between 0.54 and 0.58; once the ratings
+are added they reach 0.78 to 0.85.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{paper_auc_part1.png}
+\caption{Before the date every model is near chance; the four-minute date adds most of the signal. Held-out AUC of the
+models of Section~4 under event 5-fold cross-validation (4,184 dyads), with 90\% intervals (AUC $\pm\,t_{20}$ times the
+event-clustered standard error). Source: results/part1\_models\_metrics.csv.}
+\label{fig:auc}
+\end{figure}
+
+\input{models}
+
+Finally, pre-date information also performed poorly when predicting participants' overall liking ratings (given post-date). The full liking model (which accounted for the rater's characteristics, the rated person's characteristics, and pair level features) had a held-out \(R^2\) of \(-0.0341\) (SE \(=0.0304\)), indicating that on held-out events it did not outperform a baseline that simply predicted the training-sample mean liking score (having a negative score). Adding pair-level compatibility features improved held-out \(R^2\) by only \(0.0084\). Taken together, these results reinforce the conclusion that relatively little of participants' eventual reactions to one another could be recovered from their characteristics before they met.
+
+\subsection{Constructed compatibility measures (\ref{constructed_vars}) provided  little additional predictive value.}
+In the full logistic regression, a model using only the two participants' individual pre-date characteristics achieved an AUC of \(0.5319\). Adding the six primary pair-level features, including age difference, interest similarity, shared field and goal, and the two preference-fit measures, increased the AUC to \(0.5425\), an improvement of only \(0.0105\). Adding the five constructed pair features further increased the AUC to \(0.5454\), a gain of \(0.0030\), while the squared age-difference and interest-preference interaction terms increased it only to \(0.5465\), an additional gain of \(0.0010\). These results suggest that explicitly modeling compatibility between participants did little to improve pre-date prediction beyond the participants' individual characteristics.
+
+% ADDED: ladder table
+Table~\ref{tab:ladder} lists each step.
+
+\input{ladder}
+
+\subsection{Random forest performed better than logistic regression.}
+Model choice nevertheless mattered within the pre-date setting. The random forest's pre-date AUC of \(0.5825\) exceeded the full logistic regression AUC of \(0.5425\) by \(0.0401\). This exceeded our preregistered threshold of \(0.03\), so the hypothesis that the random forest would offer little improvement over logistic regression was not supported. The result suggests that some of the limited pre-date signal may involve relationships that are better captured by a flexible nonlinear model than by the additive logistic specification.
+
+\subsection{Attractiveness was more important in decisions than participant preferences stated.}
+We also compared participants' stated preferences before the event with the characteristics associated with their actual yes/no decisions after meeting. For both women and men, attractiveness had the largest standardized coefficient in the decision model and the largest difference between revealed and stated importance. The revealed-minus-stated gap for attractiveness was \(18.4\) percentage points among women and \(25.3\) percentage points among men. Thus, attractiveness appeared substantially more strongly associated with participants' actual decisions than their stated preference allocations would suggest.
+
+% ADDED: stated-versus-revealed table
+Table~\ref{tab:stated} gives the stated and revealed importance of all six traits.
+
+\input{stated_revealed}
+
+% ADDED: robustness subsection
+\subsection{How robust are these results?}
+
+Two of our conclusions are firm and two are fragile.
+
+\emph{Firm.} Pre-date information carries a small but real signal: every model's 90\% interval in
+Figure~\ref{fig:auc} lies above 0.5. And the in-date ratings add far more than any pre-date model achieves: the gain
+of about 0.26 in AUC is more than ten times the standard error of any single AUC.
+
+\emph{Fragile.} First, the random forest's pre-date AUC of 0.5825 clears our pre-registered threshold of 0.58 by only
+0.0025, which is smaller than the variation caused by arbitrary choices. Refitting the forest with five different
+random seeds gave AUCs from 0.5732 to 0.5870, and dealing the events into folds with ten other seeds moved the
+logistic model's AUC with a standard deviation of 0.0127. The best pre-date AUC also fell just short of 0.58 on
+complete cases (0.5796) and when the waves with the different preference survey (6--9), or wave 12, were left out
+(0.560 to 0.579). Second, the forest's advantage over logistic regression was 0.0401 under our main specification but
+0.0215 on complete cases; we had predicted an advantage of less than 0.03, so that hypothesis fails in the main
+specification and holds on complete cases.
+
+Finally, the standard errors themselves were checked by simulation before we used them. With 21 events, our
+clustered AUC standard errors were 0.84 to 0.95 of the true spread, so the intervals in Figure~\ref{fig:auc} behave
+like roughly 83\% rather than 90\% intervals.
+% Sources: results/part1_models_hypotheses.csv, part1_additions_hypotheses.csv, fold_seed_noise_summary.csv.
+
+% DRAFT conclusion
+\section{Conclusion}
+
+We asked how well a mutual match between two strangers can be predicted before they meet. Using the Columbia
+speed-dating data and holding out whole events, so that every prediction concerns people the model has never seen,
+we found that pre-date information gives an AUC of about 0.58 at best, compatibility features add about 0.01, and the
+ratings from a four-minute date raise the AUC to 0.85. People's actual choices weighted attractiveness roughly twice as
+heavily as their stated preferences. For matchmaking systems the lesson is that profiles say a little about who will
+be liked, but much more is learned once two people have met.
+
+These conclusions come with limits. The data are one experiment, at one university, with 21 events. The best
+pre-date model clears our pre-registered threshold only narrowly, and its margin over logistic regression depends
+on how missing data are handled (Section~5). In the second half of the project we will study how much to trust
+cross-validated results when the same people appear in many rows, rank participants by desirability with honest
+uncertainty, and measure how accurate participants' own forecasts of their partners' decisions were.
+
+% DRAFT acknowledgments
+\section{Acknowledgments}
+
+We thank our instructor and the Math 195 teaching staff for their guidance and feedback, and Raymond Fisman and
+Sheena Iyengar for collecting the speed-dating data and making them available for research.
+
+\printbibliography
+
+% Appendices (if needed): \appendix, then \section{...}
+
+\end{document}
