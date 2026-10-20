@@ -9,7 +9,7 @@ script that made it.
 | --- | --- | --- |
 | `abraham_background.tex` | End of Section 2 (Background), after "Random Forests" | **Methods beyond the course textbook**, written at ISL level: grouped CV, nested CV, cluster-robust standard errors, the AUC's standard error, regularized QDA, the lasso for logistic regression, pre-registration. Each entry says what the method is and why we used it (2-3 sentences), with a precise citation. |
 | `abraham_technical_implementation.tex` | Replaces the draft's Section 4 subsections from "Cross-Validation" through "Model Evaluation" | The same content with the fact-check corrections (below) and citations added. Keep the draft's "Prediction Problem", "Constructed Pair-Level Predictors", "Pre-Date Feature Sets" and "Survey-Format Standardization". |
-| `references_abraham.bib` | Append to `references.bib` | 47 entries, with DOIs checked against Crossref. `James:2023` and `Fisman:2006` are omitted because `references.bib` already has them. Pointers and confidence levels are in `citations.md`. |
+| `references_midterm.bib` | Append to `references.bib` | **Only the 14 entries the midterm files cite.** (`references_abraham.bib` has all 47, for after the midterm.) Entries, with DOIs checked against Crossref. `James:2023` and `Fisman:2006` are omitted because `references.bib` already has them. Pointers and confidence levels are in `citations.md`. |
 | `figures/paper_auc_by_model.png` | Optional, for Section 5 (Results) | Every model's held-out AUC on `pre` and `pre+date` with 90% intervals; suggested caption below. |
 
 The two `.tex` files compile in the template's preamble: 5 pages, every citation resolved, no warnings. They use
