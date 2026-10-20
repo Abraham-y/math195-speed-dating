@@ -5,8 +5,9 @@
 % MIDTERM VERSION, merged by Abraham (2026-10-20) from the Overleaf Written_Report.tex as of that date.
 % Changes from the Overleaf file (search for "DRAFT" and "ADDED" to find each one):
 %   - template instructions, example figure/table, citation how-to and template appendices removed;
-%   - DRAFT title, abstract, introduction, Section 2 opening sentence, conclusion, acknowledgments
-%     (for the team to edit);
+%   - DRAFT title, introduction, Section 2 opening sentence, acknowledgments (for the team to edit);
+%   - abstract and conclusion held for the final report: one-line placeholders (drafts kept in
+%     report/drafts_abstract_intro_conclusion.tex);
 %   - ADDED related-work paragraph and data figure (Section 2), Results figure, three tables and the robustness
 %     subsection (Section 5);
 %   - two clauses in "Grouped cross-validation" (Abraham's own subsection) reworded.
@@ -98,17 +99,9 @@
 
 \thanks{This report is submitted as part of the capstone requirement for the Mathematics major at Stanford University.}
 
-% DRAFT abstract
+% Abstract: held for the final report (draft kept in report/drafts_abstract_intro_conclusion.tex)
 \begin{abstract}
-Dating apps and matchmakers try to predict which pairs of people will like each other before they meet. Using the
-Columbia speed-dating experiment (21 events, 551 participants and 4,184 woman--man pairs), we ask how well a
-\emph{mutual} match can be predicted from information available before the date, and how much the four-minute date
-adds. We compare logistic regression, stepwise selection, the lasso, linear and quadratic discriminant analysis and
-random forests, and we hold out whole events in cross-validation so that every prediction is for people the model has
-never seen. Before the date the best model reaches an AUC of 0.58, only slightly better than chance; adding the
-ratings the two participants gave each other after the date raises it to 0.85. Features designed to measure
-compatibility, such as similar interests or a small age gap, add about 0.01. Participants' choices depended far more
-on attractiveness than their stated preferences suggested. Every hypothesis was registered before it was tested.
+The abstract will be written for the final report.
 \end{abstract}
 
 \maketitle
@@ -147,8 +140,7 @@ area under the ROC curve.
 
 \emph{Roadmap.} Section~2 describes the data and reviews the statistical methods we use, including a few that go
 beyond the course textbook. Section~3 explains how we cleaned the data and built one row per dyad. Section~4 describes
-the predictors, the cross-validation design and the models. Section~5 reports the results and how robust they are,
-and Section~6 concludes and outlines the second half of the project.
+the predictors, the cross-validation design and the models. Section~5 reports the results and how robust they are.
 
 \section{Background and Literature Review}
 
@@ -1134,21 +1126,10 @@ clustered AUC standard errors were 0.84 to 0.95 of the true spread, so the inter
 like roughly 83\% rather than 90\% intervals.
 % Sources: results/part1_models_hypotheses.csv, part1_additions_hypotheses.csv, fold_seed_noise_summary.csv.
 
-% DRAFT conclusion
+% Conclusion: held for the final report (draft kept in report/drafts_abstract_intro_conclusion.tex)
 \section{Conclusion}
 
-We asked how well a mutual match between two strangers can be predicted before they meet. Using the Columbia
-speed-dating data and holding out whole events, so that every prediction concerns people the model has never seen,
-we found that pre-date information gives an AUC of about 0.58 at best, compatibility features add about 0.01, and the
-ratings from a four-minute date raise the AUC to 0.85. People's actual choices weighted attractiveness roughly twice as
-heavily as their stated preferences. For matchmaking systems the lesson is that profiles say a little about who will
-be liked, but much more is learned once two people have met.
-
-These conclusions come with limits. The data are one experiment, at one university, with 21 events. The best
-pre-date model clears our pre-registered threshold only narrowly, and its margin over logistic regression depends
-on how missing data are handled (Section~5). In the second half of the project we will study how much to trust
-cross-validated results when the same people appear in many rows, rank participants by desirability with honest
-uncertainty, and measure how accurate participants' own forecasts of their partners' decisions were.
+The conclusion will be written for the final report, once the second half of the project is complete.
 
 % DRAFT acknowledgments
 \section{Acknowledgments}

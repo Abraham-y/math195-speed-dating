@@ -23,7 +23,7 @@ the template uses `Bessel_functions.png`): `figures/paper_auc_part1.png`, `figur
 
 ### Shortcut: `Written_Report_midterm.tex`
 
-The Overleaf file as of 2026-10-20 with all of the above applied. The template leftovers are removed and the drafts
+The Overleaf file as of 2026-10-20 with all of the above applied, except that the abstract and conclusion are held for the final report: each is a one-line placeholder, and the drafts stay in `drafts_abstract_intro_conclusion.tex`. The template leftovers are removed and the drafts
 and drop-ins are inserted; search for `DRAFT` and `ADDED`. Teammates' text is unchanged, and Section 4 still has no
 citations (item 3 is for its author). Paste it over `Written_Report.tex` only when nobody else is editing, or copy
 the marked blocks across one at a time. It compiles locally (plain bibtex standing in for biber) to 24 pages, with
