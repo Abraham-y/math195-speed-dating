@@ -1,0 +1,233 @@
+"""Figures for the written report and the slides, drawn from the results tables (nothing typed by hand).
+
+Input : results/part2_models_metrics.csv, results/sim_cv_repair_coverage.csv, results/sim_cv_sizes_coverage.csv,
+        results/sim_cv_kfold_summary.csv, results/sim_cv_auc_summary.csv, results/sim_cv_auc_components.csv,
+        results/errorbars_real.csv, results/errorbars_final.csv
+Output: results/report_figures_<name>.png (300 dpi, 6.5 inches wide), copied to report/figures/<name>.png for Overleaf:
+  auc_by_model    held-out AUC of every headline model, pre and pre+date, with 90% intervals (event 5-fold)
+  leakage         event against random-row CV AUC for the same models (the cost of letting people repeat)
+  coverage        simulated coverage of 90% intervals for the new-event error, by method (two grids)
+  nb_theory       Proposition 8's predicted Nadeau-Bengio ratio against the observed one, by fold count
+  auc_bias        Proposition 9: bias of the pooled CV AUC and of BCWF-pooled against G, with the prediction
+  real_intervals  90% intervals for the full logistic model's error rate on the real data, by method
+Colors: the first three slots of the dataviz skill's validated categorical palette (blue, orange, aqua), with
+direct labels for aqua (below 3:1 contrast). Nothing is random.
+With --paper: untitled versions for LaTeX (the caption carries the message), named paper_<name>.png.
+With --slides: the same figures for the deck (fonts 1.5x, no titles or footnotes; the slide carries them), named
+slide_<name>.png.
+Run from the repository root: python scripts/report_figures.py [--paper | --slides]
+"""
+import pathlib, shutil
+import numpy as np, pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.ticker
+from scipy import stats
+
+RES = pathlib.Path("results")
+OUT = pathlib.Path("report/figures")
+BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
+INK, INK2, GRID, REF = "#0b0b0b", "#52514e", "#e4e3df", "#8a8984"
+T20 = stats.t.ppf(0.95, 20)
+NAMES = {"logistic": "Logistic", "lda": "LDA", "qda": "QDA (regularized)", "rf": "Random forest", "lasso": "L1 logistic",
+         "stepwise_forward": "Stepwise (forward)", "stepwise_backward": "Stepwise (backward)", "stepwise_both": "Stepwise (both)",
+         "tree": "Pruned tree", "bagging": "Bagging", "boosting": "Boosting", "ensemble_mean": "Mean ensemble",
+         "ensemble_stacked": "Stacked ensemble", "two_decision_logistic": "Two-decision (logistic)", "two_decision_rf": "Two-decision (forest)"}
+
+PAPER = "--paper" in __import__("sys").argv
+SLIDE = "--slides" in __import__("sys").argv or PAPER   # both drop titles and footnotes
+SC = 1.5 if SLIDE and not PAPER else 1.0
+F = lambda v: v * SC
+plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": F(9), "axes.edgecolor": REF, "axes.labelcolor": INK2,
+                     "xtick.color": INK2, "ytick.color": INK2, "axes.titlesize": F(10), "axes.titleweight": "bold",
+                     "axes.titlecolor": INK, "axes.titlelocation": "left", "legend.frameon": False, "figure.dpi": 100})
+
+
+def style(ax, grid_axis="x"):
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    ax.grid(axis=grid_axis, color=GRID, linewidth=0.8); ax.set_axisbelow(True)
+
+
+def save(fig, name):
+    name = f"paper_{name}" if PAPER else (f"slide_{name}" if SLIDE else name)
+    fig.savefig(RES / f"report_figures_{name}.png", dpi=200 if SLIDE and not PAPER else 300, bbox_inches="tight", facecolor="white")
+    OUT.mkdir(exist_ok=True); shutil.copy(RES / f"report_figures_{name}.png", OUT / f"{name}.png")       # for Overleaf / the deck
+    plt.close(fig); print(f"wrote results/report_figures_{name}.png (copy: report/figures/{name}.png)")
+
+
+def headline_match(scheme):
+    d = pd.read_csv(RES / "part2_models_metrics.csv")
+    return d[(d.target == "match") & (d.headline == True) & (d.scheme == scheme)]
+
+
+def auc_by_model():
+    d = headline_match("event")
+    order = d[d.feature_set == "pre"].sort_values("auc").model.tolist()
+    order += [m for m in d[d.feature_set == "pre+date"].sort_values("auc").model if m not in order]
+    y = {m: i for i, m in enumerate(order)}
+    fig, ax = plt.subplots(figsize=(6.5, 4.6))
+    for fs, col, off, mk in (("pre", BLUE, 0.17, "o"), ("pre+date", ORANGE, -0.17, "s")):
+        x = d[d.feature_set == fs]
+        yy = np.array([y[m] for m in x.model]) + off
+        ax.errorbar(x.auc, yy, xerr=T20 * x.auc_se, fmt=mk, color=col, ms=4.5, elinewidth=1.4, capsize=0, label=f"{fs}")
+    ax.axvline(0.5, color=REF, linewidth=1, linestyle="--"); ax.text(0.502, len(order) - 0.4, "chance", color=INK2, fontsize=F(8), va="top")
+    ax.set_yticks(range(len(order))); ax.set_yticklabels([NAMES.get(m, m) for m in order])
+    ax.set_xlabel("Held-out AUC (event 5-fold CV), with 90% interval"); ax.set_xlim(0.45, 0.9)
+    best = d.sort_values("auc").groupby("feature_set").tail(1).set_index("feature_set")
+    for fs, col in (("pre", BLUE), ("pre+date", ORANGE)):
+        r = best.loc[fs]; ax.annotate(f"{r.auc:.3f}", (r.auc + T20 * r.auc_se + 0.005, y[r.model] + (0.17 if fs == "pre" else -0.17)),
+                                      color=INK, fontsize=F(8), va="center")
+    style(ax); ax.legend(loc="lower right", title="Feature set", title_fontsize=F(8))
+    ax.set_title("" if SLIDE else "Before the date every model is near chance; the four-minute date adds most of the signal")
+    if not SLIDE: fig.text(0, -0.02, "4,184 dyads, 21 events. Intervals: AUC plus or minus t(20) times the event-clustered (Obuchowski) SE. "
+             "Source: results/part2_models_metrics.csv.", fontsize=F(7), color=INK2)
+    save(fig, "auc_by_model")
+
+
+def leakage():
+    ev, rr = headline_match("event").set_index(["feature_set", "model"]).auc, headline_match("random-row").set_index(["feature_set", "model"]).auc
+    keep = ["logistic", "lda", "qda", "lasso", "rf", "boosting"]
+    fig, axes = plt.subplots(1, 2, figsize=(6.5, 2.9), sharey=True)
+    for ax, fs in zip(axes, ("pre", "pre+date")):
+        for i, m in enumerate(keep):
+            a, b = ev.get((fs, m)), rr.get((fs, m))
+            ax.plot([a, b], [i, i], color=GRID, linewidth=3, solid_capstyle="round", zorder=1)
+            ax.scatter([a], [i], color=BLUE, s=26, zorder=2, label="event CV (whole events held out)" if i == 0 else None)
+            ax.scatter([b], [i], color=ORANGE, marker="s", s=24, zorder=2, label="random-row CV (people repeat)" if i == 0 else None)
+            ax.text(b + 0.006, i, f"+{b - a:.3f}", va="center", fontsize=F(7.5), color=INK2)
+        ax.set_title(f"{fs}"); style(ax); ax.set_xlabel("Held-out AUC")
+        ax.set_xlim(min(ev.loc[fs].min(), rr.loc[fs].min()) - 0.02, max(rr.loc[fs][keep].max(), ev.loc[fs][keep].max()) + 0.06)
+    axes[0].set_yticks(range(len(keep))); axes[0].set_yticklabels([NAMES[m] for m in keep])
+    axes[0].legend(loc="upper center", bbox_to_anchor=(1.05, -0.24), ncol=2, fontsize=F(8))
+    if not SLIDE: fig.suptitle("Letting the same people appear in training and test inflates every model's AUC", x=0.01, ha="left",
+                 fontsize=F(10), fontweight="bold", color=INK, y=1.03)
+    if not SLIDE: fig.text(0.01, -0.3, "Same models, same features; only the fold assignment differs. Source: results/part2_models_metrics.csv.", fontsize=F(7), color=INK2)
+    save(fig, "leakage")
+
+
+def coverage():
+    r = pd.read_csv(RES / "sim_cv_repair_coverage.csv")
+    r = r[(r.design == "A2 redrawn") | (r.person_sd > 0) | (r.event_sd > 0)]
+    left = [("random-row CV, naive SE (conventional)", "Random-row CV, rows independent"),
+            ("event CV, naive SE", "Event CV, rows independent"),
+            ("event cluster-nested, bias-adjusted", "Cluster-nested CV (our first fix)"),
+            ("event CV, cluster-robust SE", "Event CV, cluster-robust (normal)"),
+            ("cluster bootstrap of grouped CV", "Cluster bootstrap"),
+            ("floor: max(cluster-robust, cluster-nested) (N3)", "Floor (our repair, N3)"),
+            ("Nadeau-Bengio corrected t, grouped folds", "Nadeau-Bengio, event folds")]
+    s_ = pd.read_csv(RES / "sim_cv_sizes_coverage.csv")
+    right = [("cluster-robust, normal (N13)", "Cluster-robust (normal)"), ("CR2, t(G-1)", "CR2 with t(G-1)"),
+             ("cluster-robust, t(G*-1)", "Cluster-robust with t(G*-1)"), ("wild cluster bootstrap-t (N12)", "Wild cluster bootstrap-t")]
+    fig, axes = plt.subplots(2, 1, figsize=(6.5, 4.6), sharex=True, gridspec_kw=dict(height_ratios=[len(left), len(right)], hspace=0.35))
+    for ax, (df, items, title) in zip(axes, ((r, left, f"(a) {r.design.nunique()} designs with events redrawn (Part 4)"),
+                                             (s_, right, f"(b) {s_.design.nunique()} designs with real event sizes and a precise target (Part 7)"))):
+        ax.axvspan(0.85, 0.95, color="#f0efec", zorder=0); ax.axvline(0.90, color=REF, linewidth=1, linestyle="--", zorder=1)
+        for i, (proc, lab) in enumerate(items):
+            v = df[df.procedure == proc].coverage_90
+            good = v.min() >= 0.85 and v.max() <= 0.95
+            col = AQUA if good else (BLUE if v.median() >= 0.85 else ORANGE)
+            ax.plot([v.min(), v.max()], [i, i], color=col, linewidth=2.4, solid_capstyle="round", zorder=2)
+            ax.scatter([v.median()], [i], color=col, s=24, zorder=3, edgecolor="white", linewidth=0.8)
+            ax.text(1.02, i, f"{v.min():.0%} to {v.max():.0%}", va="center", fontsize=F(7.5), color=INK2, transform=ax.get_yaxis_transform())
+        ax.set_yticks(range(len(items))); ax.set_yticklabels([lab for _, lab in items], fontsize=F(8))
+        ax.set_ylim(-0.6, len(items) - 0.4); ax.set_title(title, fontsize=F(8.5)); style(ax)
+    axes[1].set_xlim(0.4, 1.0); axes[1].set_xticks([0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+    axes[1].xaxis.set_major_formatter(lambda x, _: f"{x:.0%}"); axes[1].set_xlabel("Coverage of nominal 90% intervals for the new-event error")
+    if not SLIDE: fig.suptitle("Only event-aware error bars reach their 90% target; rows-independent ones cover about half the time",
+                 x=0.01, ha="left", fontsize=F(10), fontweight="bold", color=INK, y=0.99)
+    if not SLIDE: fig.text(0.01, -0.03, "Line: range over designs; dot: median; shaded band: 85% to 95%. Aqua: every design in the band; blue: median in "
+             "the band; orange: median below.\nSources: results/sim_cv_repair_coverage.csv, results/sim_cv_sizes_coverage.csv.",
+             fontsize=F(7), color=INK2)
+    save(fig, "coverage")
+
+
+def nb_theory():
+    k = pd.read_csv(RES / "sim_cv_kfold_summary.csv")
+    VA, VB, CAB = 0.02266, 0.00946, -0.00787                       # PREREG.md Part 8 (from Part 6b, K = 5)
+    kk = np.linspace(2, 10, 200); pred = 1 - 2 * CAB / ((kk - 1) * VA) + VB / ((kk - 1) ** 2 * VA)
+    fig, ax = plt.subplots(figsize=(6.5, 3.2))
+    ax.plot(kk, pred, color=BLUE, linewidth=2, label="0-1 loss: Proposition 8 prediction")
+    ax.axhline(1, color=ORANGE, linewidth=2, label="log-loss: prediction (= 1)")
+    for loss, col, mk, lab in (("0-1 at the training rate", BLUE, "o", "0-1 loss: observed"), ("log-loss", ORANGE, "s", "log-loss: observed")):
+        x = k[k.loss == loss]
+        for j, (G, g) in enumerate(x.groupby("G")):
+            off = (j - 1) * 0.12
+            ax.errorbar(g.K + off, g.observed, yerr=1.96 * g.observed_se, fmt=mk, color=col, ms=4, elinewidth=1, capsize=0,
+                        markeredgecolor="white", markeredgewidth=0.6, label=lab if j == 0 else None)
+    for K, yv, txt in ((3, 1.452, "predicted 1.45 before the run"), (10, 1.082, "1.08")):
+        ax.annotate(txt, (K, yv), xytext=(K + 0.35, yv + 0.18), fontsize=F(7.5), color=INK2, arrowprops=dict(arrowstyle="-", color=REF, lw=0.8))
+    ax.set_xticks([2, 3, 5, 10]); ax.set_xlabel("Number of folds K (J = 60 fold errors)")
+    ax.set_ylabel("Nadeau-Bengio variance /\n(J+K-1)/(J-1) x cluster-robust"); style(ax, "y"); ax.legend(fontsize=F(7.5), ncol=2, loc="upper right")
+    ax.set_title("" if SLIDE else "Proposition 8 predicts how conservative the Nadeau-Bengio correction is, at any fold count")
+    if not SLIDE: fig.text(0.01, -0.1, "Synthetic balanced clusters; at each K the points are G = 80, 160, 320 (left to right), 400 data sets each; bars: "
+             "95% Monte Carlo intervals.\nK = 5 was used to estimate the components; K = 3 and 10 were predicted before running. "
+             "Source: results/sim_cv_kfold_summary.csv.", fontsize=F(7), color=INK2)
+    save(fig, "nb_theory")
+
+
+def auc_bias():
+    s = pd.read_csv(RES / "sim_cv_auc_summary.csv"); c = pd.read_csv(RES / "sim_cv_auc_components.csv").set_index("design")
+    fig, axes = plt.subplots(1, 2, figsize=(9.5, 4.2) if SLIDE and not PAPER else (6.5, 3.0))
+    ax = axes[0]; gg = np.geomspace(18, 180, 100)
+    for d, col, mk, lab in ((4, BLUE, "o", "cluster SD 2"), (2, ORANGE, "s", "cluster SD 1")):
+        x = s[s.design == d]; cc = c.loc[d]
+        ax.errorbar(x.G, x.bias_pooled, yerr=1.96 * x.bias_se_pooled, fmt=mk, color=col, ms=4.5, elinewidth=1, capsize=0, label=f"pooled, {lab}")
+        pred = (cc.c_mix + cc.c_mix2 / 4) / (gg - 1) + (cc.c_train + cc.c_within) / gg
+        ax.plot(gg, pred, color=col, linewidth=1.4, linestyle="--")
+        ax.errorbar(x.G * 1.07, x.bias_bcwf_pooled, yerr=1.96 * x.bias_se_bcwf_pooled, fmt="D", color=AQUA, ms=3.5, elinewidth=1,
+                    capsize=0, label="BCWF-pooled (both)" if d == 4 else None)
+    ax.axhline(0, color=REF, linewidth=0.8); ax.set_xscale("log"); ax.set_xticks([20, 40, 80, 160]); ax.set_xticklabels(["20", "40", "80", "160"]); ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+    ax.set_xlabel("Number of clusters G"); ax.set_ylabel("Bias against the new-cluster AUC"); style(ax, "y")
+    ax.set_title("(a) Bias (dashed: Proposition 9)" if SLIDE else "(a) Bias; dashed: Proposition 9", fontsize=F(8.5))
+    if SLIDE and not PAPER:
+        ax.legend(fontsize=F(7), loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=1, frameon=False)
+    else:
+        ax.legend(fontsize=F(7), loc="lower right")
+    ax = axes[1]
+    x = s[s.sa == 2].groupby("G")[["cov_t_pooled", "cov_t_bcwf_pooled"]].mean()
+    ax.axhspan(0.85, 0.95, color="#f0efec"); ax.axhline(0.9, color=REF, linestyle="--", linewidth=1)
+    ax.plot(x.index, x.cov_t_pooled, marker="o", color=BLUE, linewidth=2, ms=4.5, label="pooled")
+    ax.plot(x.index, x.cov_t_bcwf_pooled, marker="D", color=AQUA, linewidth=2, ms=4, label="BCWF-pooled")
+    for G in x.index:
+        ax.text(G, x.cov_t_pooled[G] - 0.025, f"{x.cov_t_pooled[G]:.0%}", ha="center", fontsize=F(7), color=INK2)
+    ax.set_xscale("log"); ax.set_xticks([20, 40, 80, 160]); ax.set_xticklabels(["20", "40", "80", "160"]); ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter()); ax.set_ylim(0.6, 1.0)
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0%}"); ax.set_xlabel("Number of clusters G"); style(ax, "y")
+    ax.set_title("(b) Coverage, cluster SD 2" if SLIDE else "(b) Coverage of 90% intervals, cluster SD 2", fontsize=F(8.5))
+    if SLIDE and not PAPER:
+        ax.legend(fontsize=F(7), loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=2, frameon=False)
+    else:
+        ax.legend(fontsize=F(7), loc="lower right")
+    if not SLIDE: fig.suptitle("Pooling held-out scores across fold models biases the AUC down under clustering; pairs within folds fix it",
+                 x=0.01, ha="left", fontsize=F(10), fontweight="bold", color=INK, y=1.04)
+    if not SLIDE: fig.text(0, -0.06, "Synthetic clusters of 40 rows, 400 data sets per point; bars: 95% Monte Carlo intervals; (b) averages the two "
+             "cluster-SD-2 designs. Sources: results/sim_cv_auc_summary.csv, sim_cv_auc_components.csv.", fontsize=F(7), color=INK2)
+    fig.tight_layout(); save(fig, "auc_bias")
+
+
+def real_intervals():
+    e = pd.read_csv(RES / "errorbars_real.csv"); f = pd.read_csv(RES / "errorbars_final.csv")
+    e = e[(e.feature_set == "pre") & (e.model == "logistic") & (e.metric == "error rate")]
+    f = f[(f.feature_set == "pre") & (f.model == "logistic") & (f.metric == "error rate")]
+    rows = [("Random-row CV, rows independent", e[(e.scheme == "random-row") & e.se_type.str.startswith("naive")]),
+            ("Event CV, rows independent", e[(e.scheme == "event") & e.se_type.str.startswith("naive")])]
+    items = [(lab, float(x.estimate.iloc[0]), float(x.ci90_low.iloc[0]), float(x.ci90_high.iloc[0]), ORANGE) for lab, x in rows]
+    for name, lab in (("cluster-robust, t(20)", "Event CV, cluster-robust t(20)"), ("wild cluster bootstrap-t", "Event CV, wild cluster bootstrap-t"),
+                      ("Nadeau-Bengio, event folds", "Event CV, Nadeau-Bengio")):
+        x = f[f.interval == name].iloc[0]; items.append((lab, float(x.error_rate), float(x.ci90_low), float(x.ci90_high), BLUE))
+    naive_hw = (items[1][3] - items[1][2]) / 2; ratios = [((hi - lo) / 2) / naive_hw for _, _, lo, hi, c in items[2:]]
+    fig, ax = plt.subplots(figsize=(6.5, 2.6))
+    for i, (lab, est, lo, hi, col) in enumerate(items[::-1]):
+        ax.plot([lo, hi], [i, i], color=col, linewidth=2.4, solid_capstyle="round"); ax.scatter([est], [i], color=col, s=22, zorder=3, edgecolor="white")
+        ax.text(hi + 0.004, i, f"{est:.3f} ({lo:.3f} to {hi:.3f})", va="center", fontsize=F(7.5), color=INK2)
+    ax.set_yticks(range(len(items))); ax.set_yticklabels([it[0] for it in items[::-1]]); ax.set_xlim(0.35, 0.475)
+    ax.set_xlabel("Error rate of the full logistic model on `pre` (threshold at the training match rate)"); style(ax)
+    ax.set_title("" if SLIDE else f"Real data: event-aware 90% intervals are {min(ratios):.1f} to {max(ratios):.1f} times wider,\nand random-row CV is centred too low")
+    if not SLIDE: fig.text(0, -0.1, "Sources: results/errorbars_real.csv (rows-independent intervals), errorbars_final.csv (event-aware intervals).",
+             fontsize=F(7), color=INK2)
+    save(fig, "real_intervals")
+
+
+if __name__ == "__main__":
+    auc_by_model(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()

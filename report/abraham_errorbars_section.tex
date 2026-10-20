@@ -1,0 +1,268 @@
+% ============================================================================================================
+% Abraham's contribution, part C: a new section for the written report (place it after "Results").
+% Every number below comes from results/*.csv through the scripts named in the text; figures are in
+% report/figures/ (made by scripts/report_figures.py). Theory: proposals/06 (Lemma 1, Propositions 6-10), the
+% draft note proposals/08, and the adversarial review proposals/09. Pre-registration: PREREG.md, Parts 2-9.
+% Citation keys are in report/references_abraham.bib.
+% ============================================================================================================
+
+\section{Error Bars When Rows Share People and Events}
+\label{sec:errorbars}
+
+Every number in Section~5 is a cross-validated estimate, and every one needs an error bar. The textbook's error bars
+for cross-validation treat the rows as independent \cite[Section 5.1.3, pp.~206--208]{James:2023}. Ours are not: a
+participant appears in up to 22 dyads, and all dyads in an event share the same evening. This section asks which
+error bars are honest for such data, proves what the common ones estimate, and tests every prediction on simulated
+data built like ours. Each prediction was committed to our repository before its simulation ran.
+
+\subsection{Setup and notation}
+
+There are $G=21$ events. Event $g$ contains $n_g$ dyads and $n=\sum_g n_g=4{,}184$. A fitted model $\hat f$ assigns each
+dyad $i$ a loss $\ell_i$; we use the misclassification loss with the threshold at the training match rate. In
+\emph{grouped} (event) $K$-fold cross-validation the events are dealt at random into $K$ folds; the model
+$\hat f_{-k}$ is fitted on the events outside fold $k$ and scores the dyads in fold $k$. The cross-validation estimate is
+the mean held-out loss,
+\begin{equation}
+\widehat{\mathrm{Err}}_{\mathrm{CV}}=\frac1n\sum_{k=1}^{K}\sum_{i\in F_k}\ell\big(y_i,\hat f_{-k}(x_i)\big).
+\end{equation}
+The quantity a matchmaker cares about is the error of the model fitted to all the data on a new event, with new
+people,
+\begin{equation}
+\mathrm{Err}_{\mathrm{new}}=E\big[\ell\big(Y,\hat f(X)\big)\,\big|\,\text{data}\big],\qquad (X,Y)\ \text{from a new event}.
+\end{equation}
+A 90\% interval for the error is \emph{honest} if it contains $\mathrm{Err}_{\mathrm{new}}$ about 90\% of the time over repetitions of
+the whole study.
+
+\subsection{What each cross-validation scheme estimates}
+
+\begin{lem}[Lemma 1 of our theory note]\label{lem:what}
+Suppose events are independent and identically distributed and the learner treats its training rows symmetrically.
+With grouped folds, for every dyad $i$ in fold $k$,
+\[
+E\big[\ell_i\,\big|\,\text{training events of fold }k\big]=\mathrm{Err}_{\mathrm{new}}\big(\hat f_{-k}\big),
+\]
+so $\widehat{\mathrm{Err}}_{\mathrm{CV}}$ estimates the new-event error of a model trained on $(K-1)/K$ of the events. With random-row folds
+it instead estimates the error on rows from events (and people) the model has already seen.
+\end{lem}
+
+\begin{proof}
+With grouped folds the event of dyad $i$ is disjoint from the training events of fold $k$, so $(x_i,y_i)$ is
+independent of $\hat f_{-k}$ and has the law of a dyad from a new event. Conditioning on the training events gives the
+display; averaging over $i$ and $k$ gives the claim. Under random-row folds the event of dyad $i$ usually has other
+dyads in the training set, so the same argument holds only conditionally on that event, which is the
+already-seen-event error.
+\end{proof}
+
+The difference is not academic. With random-row folds every model's AUC rises, by 0.08 to 0.13 on the \texttt{pre}
+features and by 0.02 to 0.07 on \texttt{pre+date} (Figure~\ref{fig:leakage}): the model partly recognizes people it
+met in training. Grouped cross-validation for clustered, spatial or hierarchical data is recommended for the same
+reason in ecology \cite[pp.~917, 919]{Roberts:2017}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/paper_leakage.png}
+\caption{Letting the same people appear in training and test inflates every model's AUC. Held-out AUC under event and
+random-row 5-fold cross-validation, same models and features (results/part2\_models\_metrics.csv).}
+\label{fig:leakage}
+\end{figure}
+
+\subsection{Three kinds of error bar}
+
+\emph{Rows independent.} The usual standard error of a mean, $\hat V_{\mathrm{naive}}=s^2/n$ with $s^2$ the sample variance of the
+$\ell_i$. It ignores the correlation of losses within an event, which inflates the true variance by roughly the
+design effect $1+(\bar m-1)\rho$, where $\bar m$ is the cluster size and $\rho$ the within-cluster correlation of the
+losses \cite{Kish:1965}, \cite[Section II.B, Eq.~(6)]{Cameron:2015}.
+
+\emph{Cluster-robust.} Sum the residuals within each event, then square:
+\begin{equation}\label{eq:vcr}
+\hat V_{\mathrm{CR}}=\frac{G}{G-1}\cdot\frac{1}{n^2}\sum_{g=1}^{G}\Big(\sum_{i\in g}(\ell_i-\bar\ell)\Big)^2 .
+\end{equation}
+This is the sandwich variance of Liang and Zeger \cite{Liang:1986} applied to a mean, with the usual small-sample
+factor $G/(G-1)$ \cite[Section II.C, Eq.~(12)]{Cameron:2015}.
+It allows any correlation within an event and none between events. With only 21 events it should be used with $t$
+quantiles on $G-1=20$ degrees of freedom, or replaced by the bias-reduced CR2 version \cite[Section 3]{Bell:2002} or
+the wild cluster bootstrap-$t$ \cite{Cameron:2008}, which Cameron and Miller recommend when clusters are few
+\cite[Sections VI.B--VI.D]{Cameron:2015}.
+For the AUC we use the clustered version of DeLong's placement-value variance due to Obuchowski
+\cite{DeLong:1988,Obuchowski:1997}.
+
+\emph{Repeated cross-validation.} Repeat $K$-fold cross-validation $R$ times, collect the $J=RK$ fold errors $e_1,\dots,e_J$,
+and use Nadeau and Bengio's corrected variance \cite[Section 3.1, p.~248]{Nadeau:2003}
+\begin{equation}\label{eq:nb}
+\hat\sigma^2_{\mathrm{NB}}=\Big(\frac1J+\frac{n_{\mathrm{test}}}{n_{\mathrm{train}}}\Big)S_e^2=\Big(\frac1J+\frac{1}{K-1}\Big)S_e^2,
+\end{equation}
+where $S_e^2$ is the sample variance of the fold errors. The second term is a rough allowance for the overlap of the
+training sets, since no unbiased estimator of the variance of $K$-fold cross-validation exists
+\cite[Theorem 6]{Bengio:2004}.
+
+\begin{prop}[Proposition 6 of our theory note]\label{prop:nb}
+Hold the losses $\ell_1,\dots,\ell_n$ fixed, in $G=Kq$ events of equal size, and let $\bar c_g$ be the event means and
+$s_c^2=\frac{1}{G-1}\sum_g(\bar c_g-\bar\ell)^2$. Average $\hat\sigma^2_{\mathrm{NB}}$ over random partitions. If the folds are grouped by event,
+\[
+E\big[\hat\sigma^2_{\mathrm{NB}}\big]=\frac{J+K-1}{J-1}\cdot\frac{s_c^2}{G}=\frac{J+K-1}{J-1}\cdot\hat V_{\mathrm{CR}};
+\]
+if the folds are random rows, the same holds with $s_c^2/G$ replaced by the naive variance $s^2/n$.
+\end{prop}
+
+\begin{proof}
+Each partition's fold means average to $\bar\ell$ exactly, so $E[S_e^2]=\frac{J}{J-1}\operatorname{Var}_{\mathrm{sel}}(e_j)$, where $\operatorname{Var}_{\mathrm{sel}}$ is the
+variance over the random choice of fold. A grouped fold mean is the mean of $q$ event means drawn without
+replacement from $G$, so its selection variance is $(1-q/G)\,s_c^2/q=(K-1)s_c^2/G$. Multiplying by
+$\frac1J+\frac{1}{K-1}=\frac{J+K-1}{J(K-1)}$ gives the result. For row folds replace event means by rows. With equal event sizes,
+$s_c^2/G$ equals \eqref{eq:vcr}.
+\end{proof}
+
+Proposition~\ref{prop:nb} says two things. On grouped folds, the Nadeau--Bengio correction carries the cluster-robust
+variance, so it handles the clustering; on random-row folds it inherits the naive variance and fails by the design
+effect. For $J=K$ it reduces to the random-group variance estimator of survey sampling \cite[Chapter 2]{Wolter:2007}.
+
+\begin{prop}[Proposition 8 of our theory note; first order]\label{prop:first}
+Let the model be fitted by an $M$-estimator with per-event influence functions $\psi_g$, let $a_g$ be event $g$'s mean
+loss at the limiting parameter, and let $\beta_g=d^\top\psi_g$, where $d$ is the gradient of the expected loss. For balanced
+events and $G\to\infty$,
+\begin{enumerate}
+\item[(i)] $\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}}=\bar a-E[a]+o_p(G^{-1/2})$, so $\hat V_{\mathrm{CR}}$ is first-order right for the error of the
+cross-validation estimate as an estimate of $\mathrm{Err}_{\mathrm{new}}$;
+\item[(ii)] $G\,E[\hat\sigma^2_{\mathrm{NB}}]\to\frac{J+K-1}{J-1}\operatorname{Var}\big(a-\beta/(K-1)\big)$, so the Nadeau--Bengio interval is conservative
+whenever $\operatorname{Var}(\beta)>2(K-1)\operatorname{Cov}(a,\beta)$;
+\item[(iii)] when the evaluation loss is the training loss (log-loss), $d=0$ and the ratio in (ii) is exactly 1.
+\end{enumerate}
+\end{prop}
+
+The derivation is a first-order Taylor expansion of each fold's error around the limiting parameter; it is in
+\texttt{proposals/06}, Section 6e, with its assumptions. Part (i) agrees with the central limit theorem of Bayle
+et al.\ \cite[Theorem 1]{Bayle:2020} applied with events as the units, and with Wager's observation that the conditional risk
+moves at lower order \cite{Wager:2020}; part (ii), the limit of the Nadeau--Bengio variance, is to our knowledge new.
+
+\subsection{Simulation design}
+
+Following Morris, White and Crowther \cite[Sections 3--5]{Morris:2019}, we simulated data sets with the structure of ours and recorded how often each 90\% interval contained
+$\mathrm{Err}_{\mathrm{new}}$. In the realistic design the truth is a logistic model for the match fitted to our data, with a
+woman effect, a man effect and an event effect (person SD in $\{0,0.5,1\}$, event SD in $\{0,0.4\}$); each replicate draws
+fresh events (10, 21 or 40), fresh people and fresh outcomes, and $\mathrm{Err}_{\mathrm{new}}$ is the full model's error on 2,000 new
+events. A balanced synthetic design with $G$ from 20 to 320 tests the asymptotic claims. Every design used 300 to 400
+replicates, so a coverage of 90\% carries a Monte Carlo standard error of about 1.5 points
+\cite[Section 5.2, Table 6]{Morris:2019}. Two lessons from the theory shaped the design: a coverage study must redraw the events in every
+replicate, or it overstates the cluster-robust interval's coverage (Proposition 7 of the theory note), and the target
+must be scored on many new events, or its own Monte Carlo noise depresses the measured coverage.
+
+\subsection{Results}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/paper_coverage.png}
+\caption{Only event-aware error bars reach their 90\% target. Coverage of nominal 90\% intervals for $\mathrm{Err}_{\mathrm{new}}$:
+line, range over designs; dot, median; shaded band, 85\% to 95\%. (a) 16 designs with events redrawn; (b) 8 designs
+with the real event sizes and a precisely scored target (results/sim\_cv\_repair\_coverage.csv, sim\_cv\_sizes\_coverage.csv).}
+\label{fig:coverage}
+\end{figure}
+
+Figure~\ref{fig:coverage} summarizes two of our simulation grids. Intervals that treat rows as independent covered
+46\% to 66\% of the time. Our first proposal, a cluster-nested version of Bates, Hastie and Tibshirani's nested
+cross-validation \cite[Section 4]{Bates:2024}, covered only 72\% to 86\% once the events were redrawn. Event-aware intervals
+reached their target: the cluster-robust interval with $t$ quantiles (CR2 with $t_{G-1}$, or $t_{G^*-1}$ with the effective
+number of events $G^*$) covered 86\% to 91\%, the wild
+cluster bootstrap-$t$ 85\% to 91\% with the real, unequal event sizes, and the Nadeau--Bengio correction on event folds
+90\% to 98\%, slightly conservative. On random-row folds the same correction covered only 52\% to 76\%, as
+Proposition~\ref{prop:nb} predicts.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/paper_nb_theory.png}
+\caption{Proposition~\ref{prop:first}(ii) predicts how conservative the Nadeau--Bengio correction is at any fold count.
+Curve: prediction from components estimated at $K=5$; points: observed at $G=80,160,320$ (left to right), 400 data sets
+each, with 95\% Monte Carlo intervals; $K=3$ and $10$ were predicted before they ran (results/sim\_cv\_kfold\_summary.csv).}
+\label{fig:nbtheory}
+\end{figure}
+
+Proposition~\ref{prop:first}(ii) was tested out of sample. We estimated $\operatorname{Var}(a)$, $\operatorname{Var}(\beta)$ and $\operatorname{Cov}(a,\beta)$ at $K=5$,
+predicted the Nadeau--Bengio ratio at $K=3$ (1.452) and $K=10$ (1.082) before running those fold counts, and
+observed 1.463 to 1.505 and 1.071 to 1.084 (Figure~\ref{fig:nbtheory}); with log-loss the ratio stayed within 0.035 of 1
+at $K=3$, 5 and 10, as part~(iii) predicts. One registered claim failed: the ratio
+$\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})/E[\hat V_{\mathrm{CR}}]$ was 0.91 to 1.17 against a band of 0.9 to 1.1, consistent with 1 when
+pooled (1.05, 90\% interval 0.98 to 1.11) but not at the registered precision.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/paper_real_intervals.png}
+\caption{On the real data, event-aware 90\% intervals for the full logistic model's error rate on \texttt{pre} are 2.4 to 2.7
+times wider than the rows-independent interval, and random-row cross-validation is centred too low
+(results/errorbars\_real.csv, errorbars\_final.csv).}
+\label{fig:realint}
+\end{figure}
+
+On the real data (Figure~\ref{fig:realint}) the three recommended intervals agree to within 0.004 and are 2.4 to 2.7 times
+as wide as the rows-independent interval; random-row cross-validation is centred 0.045 lower, because it scores
+people the model has already met.
+
+\subsection{The cross-validated AUC}
+
+The AUC is not a mean of per-dyad losses, and the usual cross-validated AUC pools the held-out scores of all $K$ fold
+models into one ranking. Pooling is known to bias the AUC downward with independent rows
+\cite{Parker:2007}, \cite[Section 2.4]{Forman:2010}, \cite[Section 3]{Airola:2011}.
+We showed that clustering magnifies this bias from order $1/n$ to order $1/G$. In a pair of dyads compared across
+folds, each side's fold model was fitted on the other side's event, which shifts the comparison against the true
+ordering. A second-order expansion (Proposition 9 of the theory note) gives
+\begin{equation}\label{eq:mix}
+E\big[\text{pooled AUC}-\text{BCWF-pooled AUC}\big]=\frac{1}{G-1}\Big(C_{\mathrm{mix}}+\frac{c_2}{K-1}\Big)+o(1/G),
+\end{equation}
+where BCWF-pooled is the AUC over match and non-match pairs from \emph{different events within the same fold}, and
+$C_{\mathrm{mix}}<0$ and $c_2$ are population constants we compute numerically. The leading term does not shrink with more
+folds.
+
+\begin{prop}[Proposition 10 of our theory note]\label{prop:half}
+If the dyads are independent and the logistic model is correctly specified, then $c_2=C_{\mathrm{mix}}/2$ exactly, so the pooling
+bias of $K$-fold cross-validation is $\frac{2K-1}{2(K-1)}\,C_{\mathrm{mix}}/(G-1)$ to leading order.
+\end{prop}
+
+\begin{proof}[Sketch]
+Write $s$ for the score, $f_1,f_0$ for its densities among matches and non-matches, and $Q(a,b)=\tilde\mu(a)^\top H^{-1}\tilde\mu(b)$
+with $\tilde\mu(s)=E[\tilde x\mid s]$ and $H$ the Fisher information. Then $c_2=-I'(0)/m$ with
+$I(t)=\int f_1(s+t)f_0(s)Q(s+t,s)\,ds$. Averaging the two ways of differentiating $I$ at $t=0$ and using the symmetry of
+$Q$ gives $I'(0)=\frac12\int(f_1'f_0-f_1f_0')Q=\frac12\int f_1f_0\,(\operatorname{logit}P(y=1\mid s))'\,Q$, and the derivative of the logit
+is 1 under a correct logistic model. The same integral without the factor $\frac12$ is $-mC_{\mathrm{mix}}$. The full proof is
+in \texttt{proposals/06}, Section 6f.
+\end{proof}
+
+With clustering the identity $c_2=C_{\mathrm{mix}}/2$ is false in general (a two-point random intercept gives a ratio of 0.454),
+but it holds to within 0.5\% for Gaussian event effects; the counterexamples are reproduced by
+\texttt{scripts/auc\_ratio\_quadrature.py}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/paper_auc_bias.png}
+\caption{Pooling held-out scores across fold models biases the AUC downward under clustering; pairs within folds fix
+it. (a) Bias against the new-cluster AUC, with the prediction of \eqref{eq:mix} dashed; (b) coverage of 90\% intervals
+with a cluster SD of 2. Synthetic clusters of 40 rows, 400 data sets per point (results/sim\_cv\_auc\_summary.csv,
+sim\_cv\_auc\_components.csv).}
+\label{fig:aucbias}
+\end{figure}
+
+In simulation (Figure~\ref{fig:aucbias}) the pooled AUC was biased downward in all 12 cells with event effects, by up
+to 0.040, about one standard error at 20 events, and \eqref{eq:mix} matched the observed mixing bias to within 1.3\% to
+5.1\%. At 10 folds the prediction held to within 1.4\%; at 2 folds with strong event effects it over-predicted by
+18.6\%, so that registered test failed (a larger rerun put the shortfall at 5.8\%, the rest coming from a third-order
+term). BCWF-pooled was unbiased to within 0.11 standard errors, and its interval covered 89.9\% on average with 40 or
+more events. On our data the two estimates agree on average over 20 event partitions (difference $-0.004$ to $+0.002$),
+and plugging our data's constants into \eqref{eq:mix} predicts a bias of $-0.0010$ for the pre-date logistic model,
+so the AUCs in Section~5 stand.
+
+\subsection{Recommendations}
+
+\begin{enumerate}
+\item Hold out whole events (Lemma~\ref{lem:what}); random-row folds answer a different question.
+\item Report the cluster-robust standard error with $t_{G-1}$ quantiles, or the wild cluster bootstrap-$t$ when event sizes
+are very unequal.
+\item The Nadeau--Bengio correction is safe on event folds and conservative by the factor in
+Proposition~\ref{prop:first}(ii) for the error rate; never use it on random-row folds.
+\item For the AUC, do not pool held-out scores across fold models when events differ in match rate; use BCWF-pooled
+with the clustered standard error.
+\item In coverage studies, redraw the events and score the target on many new events.
+\end{enumerate}
+
+Most ingredients are known: grouped cross-validation, cluster-robust variances, the Nadeau--Bengio correction and
+the pooling bias of the AUC. What we add is the analysis of these tools together under clustering: Proposition~\ref{prop:nb}
+(the random-group reading of the corrected $t$ on grouped folds), the limit in Proposition~\ref{prop:first}(ii) with its
+out-of-sample test, and the order-$1/G$ theory of the pooled AUC's bias (Proposition~9 and Proposition~\ref{prop:half}).
+The propositions have been checked by an adversarial review (\texttt{proposals/09}); our mathematical lead's review
+is pending.

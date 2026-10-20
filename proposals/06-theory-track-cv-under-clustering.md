@@ -198,7 +198,8 @@ Proof.
 3. Multiply by $\frac1J+\frac{1}{K-1}=\frac{K-1+J}{J(K-1)}$. $\square$
 
 Where this sits in the literature (literature check, 2026-10-15). The $J=K$ case is the random group method of
-survey sampling: Wolter (2007), *Introduction to Variance Estimation*, Theorem 2.4.4. There, averaged over random
+survey sampling: Wolter (2007), *Introduction to Variance Estimation*, Chapter 2 (pp. 21-106; the theorem number
+2.4.4 recorded earlier could not be verified in an open copy, 2026-10-19). There, averaged over random
 divisions of a fixed sample, the random-group variance equals the with-replacement variance, and in multistage
 samples the groups must be formed from whole clusters (his rule iii). Nadeau and Bengio derived their
 $\rho_0=n_2/n$ from the same fixed-loss approximation, but for random train/test splits. Bouckaert and Frank (2004)

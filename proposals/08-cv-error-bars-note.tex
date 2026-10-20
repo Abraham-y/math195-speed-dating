@@ -170,7 +170,7 @@ Taking expectation over the random partitions given the losses (the $R$ partitio
 With balanced clusters, $s_c^2/G$ is exactly $\VCR$ (Section~\ref{sec:setup}) and $s^2/n$ is the naive variance. So on grouped folds the test-sampling part of the Nadeau--Bengio variance is the cluster-robust variance times $1+K/(J-1)$, and on row folds it is the naive variance times the same factor.
 
 \begin{rem}[where this sits]
-The case $J=K$ is the random group method of survey sampling \cite[Theorem~2.4.4]{Wolter}: averaged over random divisions of a fixed sample, the random-group variance equals the with-replacement variance, and in multistage samples the groups must be formed from whole clusters. Nadeau and Bengio \cite{NB} derived their $\rho_0=n_2/n$ from the same fixed-loss approximation for random train/test splits; Bouckaert and Frank \cite{BF} used it in repeated $K$-fold CV without a derivation; Markatou et al.\ \cite{Markatou} found empirically that the correction on a single $K$-fold run is about twice their variance approximation. Proposition~6 is the random-group estimator rewritten in CV notation, with a small exact extension and a reading for grouped against row folds.
+The case $J=K$ is the random group method of survey sampling \cite[Chapter~2]{Wolter}: averaged over random divisions of a fixed sample, the random-group variance equals the with-replacement variance, and in multistage samples the groups must be formed from whole clusters. Nadeau and Bengio \cite{NB} derived their $\rho_0=n_2/n$ from the same fixed-loss approximation for random train/test splits; Bouckaert and Frank \cite{BF} used it in repeated $K$-fold CV without a derivation; Markatou et al.\ \cite{Markatou} found empirically that the correction on a single $K$-fold run is about twice their variance approximation. Proposition~6 is the random-group estimator rewritten in CV notation, with a small exact extension and a reading for grouped against row folds.
 \end{rem}
 
 Consequences. (a) Under the two-level model $\E[s_c^2/G]\approx\Var(\bar y)$, while $s^2/n$ falls short by the design effect: the correction handles clustering \emph{only because the folds are grouped}, which N7 tested. (b) With one CV run ($R=1$, $J=K$) the factor is $(2K-1)/(K-1)$, or $2.25$ at $K=5$. (c) With refitting, fold errors also vary because the model changes; the conjecture that the excess over $\fac\VCR$ tracks $\bar c$ was refuted by the review (Proposition~8 gives the excess).
@@ -635,7 +635,7 @@ The team's literature check (\texttt{proposals/07}) searched papers and package 
 
 \emph{Known.}
 \begin{itemize}
-\item Proposition~6 at $J=K$ is the random group method of survey sampling \cite[Theorem~2.4.4]{Wolter}, including the rule that groups be formed from whole clusters.
+\item Proposition~6 at $J=K$ is the random group method of survey sampling \cite[Chapter~2]{Wolter}, including the rule that groups be formed from whole clusters.
 \item Applied with clusters as units, the CV central limit theorem of Bayle et al.~\cite{BBJM} gives Proposition~8(i) for the average of the fold models' errors, including 0--1 loss; their Wald interval with events as units is the cluster-robust interval without $G/(G-1)$.
 \item Wager \cite{Wager} overlaps Proposition~8(i) and~(iv): CV's leading error term does not depend on the model, and the conditional risk moves at lower order.
 \item Random-row CV is optimistic under grouping \cite{Roberts,Saeb,RR,PM}, and naive CV standard errors are too small \cite{Varoquaux,BG,NB}; the seen-against-new-cluster distinction of Lemma~1 is in \cite{RR}, without intervals. We found no paper that runs the nested CV of \cite{BHT} on clustered data and reports coverage, so A2 and N2 are a small confirming demonstration.
@@ -724,7 +724,7 @@ We do not claim the cluster-nested, bias-adjusted interval that the literature c
 
 \bibitem{Wager} Wager, arXiv:1909.11696, 2020. [CV error and conditional risk.]
 
-\bibitem{Wolter} Wolter, \emph{Introduction to Variance Estimation}, 2007, Theorem~2.4.4.
+\bibitem{Wolter} K.~M. Wolter, \emph{Introduction to Variance Estimation}, 2nd ed., Springer, New York, 2007, Chapter~2, ``The Method of Random Groups'', pp.~21--106.
 \end{thebibliography}
 
 \end{document}
