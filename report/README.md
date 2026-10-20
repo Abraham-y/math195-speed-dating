@@ -11,7 +11,7 @@ teammate's section without rewording it. Each `.tex` file says in a comment wher
 | # | File | Where it goes | Whose section | What it is |
 | --- | --- | --- | --- | --- |
 | 1 | `references_midterm.bib` | Append to `references.bib` | all | The 17 entries the midterm files cite. `James:2023` and `Fisman:2006` are already in `references.bib`. |
-| 2 | `abraham_background.tex` | End of Section 2, after "Random Forests" | **yours** | Methods beyond the course textbook: grouped CV, nested CV, cluster-robust SEs, the AUC's SE, regularized QDA, the lasso for logistic regression, pre-registration. |
+| 2 | `abraham_background.tex` | End of Section 2, after "Random Forests" | **yours** | Methods beyond the course textbook: grouped CV, nested CV, cluster-robust SEs, the AUC's SE, regularized QDA, the lasso for logistic regression. |
 | 3 | `section4_with_citations.tex` | Section 4, from "Survey-Format Standardization" to the end | teammate's | Their text word for word, with citations (`% CITE`) and five one-sentence fixes (`% FIX`, with sources) for the author to accept or drop. |
 | 4 | `background_additions.tex` | Section 2, "Data Description" | drop-in | (1) A related-work paragraph: Joel et al. 2017, Eastwick & Finkel 2008, Fisman et al. 2008, each checked against its abstract. (2) A data figure (event sizes and match rates) with one sentence. |
 | 5 | `results_additions.tex` | Section 5 (Results) | drop-in | The AUC figure, three tables (models, compatibility ladder, stated vs revealed) and a new subsection, "How robust are these results?". The insertion points are marked. |

@@ -18,7 +18,7 @@ random forests, and we hold out whole events in cross-validation so that every p
 never seen. Before the date the best model reaches an AUC of 0.58, only slightly better than chance; adding the
 ratings the two participants gave each other after the date raises it to 0.85. Features designed to measure
 compatibility, such as similar interests or a small age gap, add about 0.01. Participants' choices depended far more
-on attractiveness than their stated preferences suggested. Every hypothesis was registered before it was tested.
+on attractiveness than their stated preferences suggested.
 
 % ---- Introduction (replaces the template text under \section{Introduction})
 \section{Introduction}
@@ -67,7 +67,7 @@ heavily as their stated preferences. For matchmaking systems the lesson is that 
 be liked, but much more is learned once two people have met.
 
 These conclusions come with limits. The data are one experiment, at one university, with 21 events. The best
-pre-date model clears our pre-registered threshold only narrowly, and its margin over logistic regression depends
+pre-date AUC moves by about 0.01 with arbitrary choices such as random seeds, and its margin over logistic regression depends
 on how missing data are handled (Section~5). In the second half of the project we will study how much to trust
 cross-validated results when the same people appear in many rows, rank participants by desirability with honest
 uncertainty, and measure how accurate participants' own forecasts of their partners' decisions were.

@@ -40,16 +40,15 @@ Two of our conclusions are firm and two are fragile.
 Figure~\ref{fig:auc} lies above 0.5. And the in-date ratings add far more than any pre-date model achieves: the gain
 of about 0.26 in AUC is more than ten times the standard error of any single AUC.
 
-\emph{Fragile.} First, the random forest's pre-date AUC of 0.5825 clears our pre-registered threshold of 0.58 by only
-0.0025, which is smaller than the variation caused by arbitrary choices. Refitting the forest with five different
-random seeds gave AUCs from 0.5732 to 0.5870, and dealing the events into folds with ten other seeds moved the
-logistic model's AUC with a standard deviation of 0.0127. The best pre-date AUC also fell just short of 0.58 on
-complete cases (0.5796) and when the waves with the different preference survey (6--9), or wave 12, were left out
-(0.560 to 0.579). Second, the forest's advantage over logistic regression was 0.0401 under our main specification but
-0.0215 on complete cases; we had predicted an advantage of less than 0.03, so that hypothesis fails in the main
-specification and holds on complete cases.
+\emph{Fragile.} First, the exact size of the pre-date signal depends on arbitrary choices. Refitting the random
+forest with five different random seeds gave pre-date AUCs from 0.5732 to 0.5870, and dealing the events into folds
+with ten other seeds moved the logistic model's AUC with a standard deviation of 0.0127. The best pre-date AUC was
+0.5796 on complete cases, and 0.560 to 0.579 when the waves with the different preference survey (6--9), or wave 12,
+were left out. The pre-date AUC is therefore better described as about 0.56 to 0.59 than as 0.5825 exactly. Second,
+the random forest's advantage over logistic regression, 0.0401 under our main specification (90\% interval 0.006 to
+0.074, from the event-clustered standard error of the difference), shrank to 0.0215 on complete cases.
 
 Finally, the standard errors themselves were checked by simulation before we used them. With 21 events, our
 clustered AUC standard errors were 0.84 to 0.95 of the true spread, so the intervals in Figure~\ref{fig:auc} behave
 like roughly 83\% rather than 90\% intervals.
-% Sources: results/part1_models_hypotheses.csv, part1_additions_hypotheses.csv, fold_seed_noise_summary.csv.
+% Sources: results/part1_models_hypotheses.csv, part1_additions_hypotheses.csv, fold_seed_noise_summary.csv, power_summary.csv.

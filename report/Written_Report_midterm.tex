@@ -10,8 +10,11 @@
 %     report/drafts_abstract_intro_conclusion.tex);
 %   - ADDED related-work paragraph and data figure (Section 2), Results figure, three tables and the robustness
 %     subsection (Section 5);
-%   - two clauses in "Grouped cross-validation" (Abraham's own subsection) reworded.
-% Teammates' text in Sections 2, 3, 4 and 5 is unchanged. Section 4 still has no citations: the proposed ones are in
+%   - two clauses in "Grouped cross-validation" (Abraham's own subsection) reworded;
+%   - pre-registration removed from the report: Abraham's "Pre-registration" subsection deleted, the robustness
+%     paragraph rewritten, and one sentence each in Section 4 (L1 model) and Section 5 (random forest) replaced
+%     (marked EDITED, with the original in a comment).
+% Otherwise teammates' text in Sections 2, 3, 4 and 5 is unchanged. Section 4 still has no citations: the proposed ones are in
 % report/section4_with_citations.tex for its author.
 % Needs, beside this file in Overleaf: references.bib (with report/references_midterm.bib appended),
 % paper_auc_part1.png, paper_events.png, models.tex, ladder.tex, stated_revealed.tex.
@@ -491,13 +494,6 @@ $\lambda\sum_j|\beta_j|$, can be added to the logistic regression likelihood, wh
 zero \cite[Section 4.4.4, Eq.~(4.31), p.~125]{Hastie:2009}. As in the textbook, $\lambda$ is chosen by cross-validation over a
 grid of values; we used 30 values, starting from the smallest penalty that sets every coefficient to zero
 \cite[Section 2.5, p.~7]{Friedman:2010}.
-
-\subsubsection{Pre-registration}
-Pre-registration means writing down each hypothesis and the result that would count as support before running the
-analysis, so that tests planned in advance are kept separate from patterns found by looking at the data
-\cite{Nosek:2018}. Every hypothesis in this report was committed, with its threshold, to our repository's
-\texttt{PREREG.md} before its test ran, and none was changed afterwards; hypotheses that failed are reported as
-failures.
 
 
 
@@ -998,7 +994,8 @@ where $D_{ij}$ denotes the standardized design matrix. Candidate values ranged f
 
 The value of $C$ producing the largest pooled inner-fold AUC was selected.
 
-This model was added after the original pre-registered model comparisons and was therefore reported as an additional specification rather than being included in the original definition of the best-performing model.
+% EDITED (pre-registration removed from the report; was: "This model was added after the original pre-registered model comparisons and was therefore reported as an additional specification rather than being included in the original definition of the best-performing model.")
+This model was added after the other models had been compared, so we report it as an additional specification.
 
 
 \subsection{Model Evaluation}
@@ -1093,7 +1090,7 @@ Table~\ref{tab:ladder} lists each step.
 \input{ladder}
 
 \subsection{Random forest performed better than logistic regression.}
-Model choice nevertheless mattered within the pre-date setting. The random forest's pre-date AUC of \(0.5825\) exceeded the full logistic regression AUC of \(0.5425\) by \(0.0401\). This exceeded our preregistered threshold of \(0.03\), so the hypothesis that the random forest would offer little improvement over logistic regression was not supported. The result suggests that some of the limited pre-date signal may involve relationships that are better captured by a flexible nonlinear model than by the additive logistic specification.
+Model choice nevertheless mattered within the pre-date setting. The random forest's pre-date AUC of \(0.5825\) exceeded the full logistic regression AUC of \(0.5425\) by \(0.0401\). The 90\% interval for this difference, based on its event-clustered standard error, runs from \(0.006\) to \(0.074\). The result suggests that some of the limited pre-date signal may involve relationships that are better captured by a flexible nonlinear model than by the additive logistic specification.
 
 \subsection{Attractiveness was more important in decisions than participant preferences stated.}
 We also compared participants' stated preferences before the event with the characteristics associated with their actual yes/no decisions after meeting. For both women and men, attractiveness had the largest standardized coefficient in the decision model and the largest difference between revealed and stated importance. The revealed-minus-stated gap for attractiveness was \(18.4\) percentage points among women and \(25.3\) percentage points among men. Thus, attractiveness appeared substantially more strongly associated with participants' actual decisions than their stated preference allocations would suggest.
@@ -1112,19 +1109,18 @@ Two of our conclusions are firm and two are fragile.
 Figure~\ref{fig:auc} lies above 0.5. And the in-date ratings add far more than any pre-date model achieves: the gain
 of about 0.26 in AUC is more than ten times the standard error of any single AUC.
 
-\emph{Fragile.} First, the random forest's pre-date AUC of 0.5825 clears our pre-registered threshold of 0.58 by only
-0.0025, which is smaller than the variation caused by arbitrary choices. Refitting the forest with five different
-random seeds gave AUCs from 0.5732 to 0.5870, and dealing the events into folds with ten other seeds moved the
-logistic model's AUC with a standard deviation of 0.0127. The best pre-date AUC also fell just short of 0.58 on
-complete cases (0.5796) and when the waves with the different preference survey (6--9), or wave 12, were left out
-(0.560 to 0.579). Second, the forest's advantage over logistic regression was 0.0401 under our main specification but
-0.0215 on complete cases; we had predicted an advantage of less than 0.03, so that hypothesis fails in the main
-specification and holds on complete cases.
+\emph{Fragile.} First, the exact size of the pre-date signal depends on arbitrary choices. Refitting the random
+forest with five different random seeds gave pre-date AUCs from 0.5732 to 0.5870, and dealing the events into folds
+with ten other seeds moved the logistic model's AUC with a standard deviation of 0.0127. The best pre-date AUC was
+0.5796 on complete cases, and 0.560 to 0.579 when the waves with the different preference survey (6--9), or wave 12,
+were left out. The pre-date AUC is therefore better described as about 0.56 to 0.59 than as 0.5825 exactly. Second,
+the random forest's advantage over logistic regression, 0.0401 under our main specification (90\% interval 0.006 to
+0.074, from the event-clustered standard error of the difference), shrank to 0.0215 on complete cases.
 
 Finally, the standard errors themselves were checked by simulation before we used them. With 21 events, our
 clustered AUC standard errors were 0.84 to 0.95 of the true spread, so the intervals in Figure~\ref{fig:auc} behave
 like roughly 83\% rather than 90\% intervals.
-% Sources: results/part1_models_hypotheses.csv, part1_additions_hypotheses.csv, fold_seed_noise_summary.csv.
+% Sources: results/part1_models_hypotheses.csv, part1_additions_hypotheses.csv, fold_seed_noise_summary.csv, power_summary.csv.
 
 % Conclusion: held for the final report (draft kept in report/drafts_abstract_intro_conclusion.tex)
 \section{Conclusion}

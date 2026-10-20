@@ -43,7 +43,7 @@ def models():
     best = {fs: m.xs(fs, level="feature_set").auc.idxmax() for fs in ("pre", "pre+date")}
     body = (r"""\begin{table}[h]
 \centering
-\caption{Held-out performance of the pre-registered models (event 5-fold cross-validation, 4,184 dyads, headline
+\caption{Held-out performance of the models (event 5-fold cross-validation, 4,184 dyads, headline
 specification). Standard errors in parentheses are clustered by event. Balanced accuracy uses the training-fold match
 rate as the threshold. The best model on both feature sets is the """ + NAMES[best["pre"]].replace("$^\\dagger$", "").lower() + r""".}
 \label{tab:models}
@@ -58,7 +58,7 @@ Model & AUC & Bal.\ acc. & AUC & Bal.\ acc. \\
 \end{tabular}
 
 \smallskip
-{\footnotesize $^\dagger$Added after the pre-registered comparisons. Source: results/part1\_models\_metrics.csv.}
+{\footnotesize $^\dagger$Added after the other models had been compared. Source: results/part1\_models\_metrics.csv.}
 \end{table}
 """)
     assert best["pre"] == best["pre+date"] == "rf"
