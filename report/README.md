@@ -91,6 +91,25 @@ Caveats the draft omits:
 To check: the draft cites ISL "Section 4.4.1, pp. 153-155" for ROC and AUC. The section number was not
 verified, and `abraham_background.tex` uses only the pages.
 
+## Team Google Slides deck (midterm presentation)
+
+`results/report_slides.pptx` (from `scripts/report_slides.py`) holds Abraham's four slides, built in the team deck's own
+theme. Each has speaker notes and a source line:
+1. Technical implementation: hold out whole events (with `figures/slide_cv_design.png`)
+2. How each model was fitted
+3. Beyond the textbook: what we added, and why
+4. Next steps
+
+In Google Slides: **File → Import slides**, upload the .pptx, and import all four. They replace slides 15
+("Technical Implementation") and 17 ("Next Steps").
+
+New figures for teammates' slides:
+- `figures/slide_roc.png`: our ROC curves (random forest, held-out events; AUC 0.58 before the date, 0.85 with the
+  in-date ratings), from `scripts/report_roc.py`. It reproduces the stored AUCs exactly. It can replace the stock
+  ROC image on the model-evaluation slide.
+- `figures/slide_auc_part1.png`: every model's AUC with 90% intervals, for the Results slide.
+- `figures/slide_events.png`: event sizes and match rates, for the dataset slides.
+
 ## Slides (Speed-dating deck, version 16)
 
 - **"One pipeline" (8).** `pre+date` corrected from 92 to 90 variables. Citations added.

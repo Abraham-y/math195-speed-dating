@@ -7,6 +7,7 @@ Output: results/report_figures_<name>.png (300 dpi, 6.5 inches wide), copied to 
   auc_by_model    held-out AUC of every headline model, pre and pre+date, with 90% intervals (event 5-fold)
   auc_part1       the same for the pre-registered (Part 1) models only, matching the report's Results text
   events          dyads and match rate per event (data/pairs.csv)
+  cv_design       which events each of the five headline rounds holds out (modeling.event_folds, seed 20261006)
   leakage         event against random-row CV AUC for the same models (the cost of letting people repeat)
   coverage        simulated coverage of 90% intervals for the new-event error, by method (two grids)
   nb_theory       Proposition 8's predicted Nadeau-Bengio ratio against the observed one, by fold count
@@ -19,7 +20,7 @@ With --slides: the same figures for the deck (fonts 1.5x, no titles or footnotes
 slide_<name>.png.
 Run from the repository root: python scripts/report_figures.py [--paper | --slides]
 """
-import pathlib, shutil
+import sys, pathlib, shutil
 import numpy as np, pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -126,8 +127,39 @@ def events():
     fig.tight_layout(); save(fig, "events")
 
 
+def cv_design():
+    """The headline event 5-fold design: which events are held out in each round (modeling.event_folds, seed 20261006)."""
+    sys.path.insert(0, "scripts"); import modeling as M
+    p = pd.read_csv("data/pairs.csv"); n = p.groupby("event").size()
+    folds = M.event_folds(p.event); order = sorted(folds, key=lambda e: (folds[e], e))
+    fig, ax = plt.subplots(figsize=(6.5, 2.5) if not SLIDE or PAPER else (8.0, 2.6))
+    for k in range(5):
+        y = 4 - k
+        for j, e in enumerate(order):
+            out = folds[e] == k
+            ax.add_patch(plt.Rectangle((j + 0.06, y + 0.12), 0.88, 0.76, color=ORANGE if out else BLUE, alpha=1 if out else 0.35, linewidth=0))
+        held = [e for e in order if folds[e] == k]
+        ax.text(len(order) + 0.3, y + 0.5, f"{n[held].sum():,} dyads", va="center", fontsize=F(7), color=INK2)
+    for j, e in enumerate(order):
+        ax.text(j + 0.5, 5.15, str(e), ha="center", va="bottom", fontsize=F(6) if not SLIDE or PAPER else 8.5, color=INK2)
+    edges = [j for j in range(1, len(order)) if folds[order[j]] != folds[order[j - 1]]]
+    for j in edges:
+        ax.plot([j, j], [0.05, 5.0], color="white", linewidth=2.5)
+    ax.text(-0.3, 5.15, "Event:", ha="right", va="bottom", fontsize=F(6) if not SLIDE or PAPER else 8.5, color=INK2)
+    ax.set_yticks([4.5 - k for k in range(5)]); ax.set_yticklabels([f"Round {k + 1}" for k in range(5)])
+    ax.set_xlim(0, len(order)); ax.set_ylim(0, 5.7); ax.set_xticks([])
+    for s in ("top", "right", "bottom", "left"):
+        ax.spines[s].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    handles = [plt.Rectangle((0, 0), 1, 1, color=BLUE, alpha=0.35), plt.Rectangle((0, 0), 1, 1, color=ORANGE)]
+    ax.legend(handles, ["training events (tuning uses inner folds of these)", "held-out events (scored)"],
+              loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize=F(7), handlelength=1.2)
+    if not SLIDE: ax.set_title("Each round holds out whole events; every event is held out once", pad=F(16))
+    fig.tight_layout(); save(fig, "cv_design")
+
+
 def leakage():
-    ev, rr = headline_match("event").set_index(["feature_set", "model"]).auc, headline_match("random-row").set_index(["feature_set", "model"]).auc
+    ev, rr =headline_match("event").set_index(["feature_set", "model"]).auc, headline_match("random-row").set_index(["feature_set", "model"]).auc
     keep = ["logistic", "lda", "qda", "lasso", "rf", "boosting"]
     fig, axes = plt.subplots(1, 2, figsize=(6.5, 2.9), sharey=True)
     for ax, fs in zip(axes, ("pre", "pre+date")):
@@ -270,4 +302,4 @@ def real_intervals():
 
 
 if __name__ == "__main__":
-    auc_by_model(); auc_part1(); events(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
+    auc_by_model(); auc_part1(); events(); cv_design(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
