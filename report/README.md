@@ -5,21 +5,34 @@ script that made it.
 
 ## For the midterm (now)
 
-| File | Where it goes in Overleaf | What it is |
-| --- | --- | --- |
-| `abraham_background.tex` | End of Section 2 (Background), after "Random Forests" | **Methods beyond the course textbook**, written at ISL level: grouped CV, nested CV, cluster-robust standard errors, the AUC's standard error, regularized QDA, the lasso for logistic regression, pre-registration. Each entry says what the method is and why we used it (2-3 sentences), with a precise citation. |
-| `section4_with_citations.tex` | Replaces the draft's Section 4 from "Survey-Format Standardization" to the end | **The teammate's text, word for word**, with only citations added (marked `% CITE`) and five one-sentence corrections where the draft does not match the code (marked `% FIX`, with the source). The FIX lines are suggestions for the author. The subsections before it need no changes. |
-| `references_midterm.bib` | Append to `references.bib` | **Only the 14 entries the midterm files cite.** (`references_abraham.bib` has all 47, for after the midterm.) Entries, with DOIs checked against Crossref. `James:2023` and `Fisman:2006` are omitted because `references.bib` already has them. Pointers and confidence levels are in `citations.md`. |
-| `figures/paper_auc_by_model.png` | Optional, for Section 5 (Results) | Every model's held-out AUC on `pre` and `pre+date` with 90% intervals; suggested caption below. |
+Everything is written at ISL level. Files marked **yours** are new material. Files marked **drop-in** add to a
+teammate's section without rewording it. Each `.tex` file says in a comment where it goes.
 
-The two `.tex` files compile in the template's preamble: 6 pages, every citation resolved, no warnings. They use
-two labels the draft already has: `sec:lda_theory` and `sec:random_forest_theory`.
+| # | File | Where it goes | Whose section | What it is |
+| --- | --- | --- | --- | --- |
+| 1 | `references_midterm.bib` | Append to `references.bib` | all | The 17 entries the midterm files cite. `James:2023` and `Fisman:2006` are already in `references.bib`. |
+| 2 | `abraham_background.tex` | End of Section 2, after "Random Forests" | **yours** | Methods beyond the course textbook: grouped CV, nested CV, cluster-robust SEs, the AUC's SE, regularized QDA, the lasso for logistic regression, pre-registration. |
+| 3 | `section4_with_citations.tex` | Section 4, from "Survey-Format Standardization" to the end | teammate's | Their text word for word, with citations (`% CITE`) and five one-sentence fixes (`% FIX`, with sources) for the author to accept or drop. |
+| 4 | `background_additions.tex` | Section 2, "Data Description" | drop-in | (1) A related-work paragraph: Joel et al. 2017, Eastwick & Finkel 2008, Fisman et al. 2008, each checked against its abstract. (2) A data figure (event sizes and match rates) with one sentence. |
+| 5 | `results_additions.tex` | Section 5 (Results) | drop-in | The AUC figure, three tables (models, compatibility ladder, stated vs revealed) and a new subsection, "How robust are these results?". The insertion points are marked. |
+| 6 | `drafts_abstract_intro_conclusion.tex` | Title, Abstract, Introduction, Conclusion | **drafts** | Replaces the template placeholders: an abstract, an introduction with a notation paragraph and a roadmap, and a conclusion. Error bars appear only as upcoming work. |
 
-Suggested caption for the Section 5 figure:
+Upload to Overleaf:
+- `figures/paper_auc_part1.png` and `figures/paper_events.png` into `figures/`;
+- `tables/models.tex`, `tables/ladder.tex` and `tables/stated_revealed.tex` into `tables/`.
 
-> Before the date every model is near chance; the four-minute date adds most of the signal. Held-out AUC (event
-> 5-fold cross-validation, headline specification, 4,184 dyads) with AUC $\pm t_{20}$ times the clustered SE
-> (results/part2\_models\_metrics.csv).
+All six files compile together with the template's own figure and table macros: 10 pages, every citation and
+reference resolved, no warnings.
+
+### Template leftovers to delete before submitting (the draft still has these)
+
+- [ ] The instruction block at the top, the resource lists, and the red "Delete everything above…" note
+- [ ] The opening paragraph of Background ("The background and literature review section discusses…")
+- [ ] The two template paragraphs at the start of Data Cleaning ("This section should provide…", "Make sure to include…")
+- [ ] The example figure (`Bessel_functions.png`) and example table at the end of Results, with the paragraph about `\ref`
+- [ ] The Acknowledgments placeholder text (write one or two real sentences)
+- [ ] The red paragraph about citing references
+- [ ] The appendix examples: "Data Tables… Below are the data collected for…" and the `add_numbers` code listing
 
 ## For after the midterm: `after-midterm/`
 

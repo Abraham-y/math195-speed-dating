@@ -5,6 +5,8 @@ Input : results/part2_models_metrics.csv, results/sim_cv_repair_coverage.csv, re
         results/errorbars_real.csv, results/errorbars_final.csv
 Output: results/report_figures_<name>.png (300 dpi, 6.5 inches wide), copied to report/figures/<name>.png for Overleaf:
   auc_by_model    held-out AUC of every headline model, pre and pre+date, with 90% intervals (event 5-fold)
+  auc_part1       the same for the pre-registered (Part 1) models only, matching the report's Results text
+  events          dyads and match rate per event (data/pairs.csv)
   leakage         event against random-row CV AUC for the same models (the cost of letting people repeat)
   coverage        simulated coverage of 90% intervals for the new-event error, by method (two grids)
   nb_theory       Proposition 8's predicted Nadeau-Bengio ratio against the observed one, by fold count
@@ -84,6 +86,44 @@ def auc_by_model():
     if not SLIDE: fig.text(0, -0.02, "4,184 dyads, 21 events. Intervals: AUC plus or minus t(20) times the event-clustered (Obuchowski) SE. "
              "Source: results/part2_models_metrics.csv.", fontsize=F(7), color=INK2)
     save(fig, "auc_by_model")
+
+
+def auc_part1():
+    """The pre-registered (Part 1) models only, from the Part 1 table, so the figure matches the report's Results text."""
+    m = pd.read_csv(RES / "part1_models_metrics.csv")
+    d = m[(m.headline == True) & (m.fold_scheme == "event") & (m.feature_set.isin(["pre", "pre+date"])) & (m.model != "stepwise_both")
+          & (m.spec == "missing=median_flags; fit=B; out_of_range=rule; format=standardized")]
+    order = d[d.feature_set == "pre"].sort_values("auc").model.tolist(); y = {k: i for i, k in enumerate(order)}
+    names = dict(NAMES, stepwise_forward="Stepwise (forward, both)")
+    fig, ax = plt.subplots(figsize=(6.5, 3.4))
+    for fs, col, off, mk in (("pre", BLUE, 0.15, "o"), ("pre+date", ORANGE, -0.15, "s")):
+        x = d[d.feature_set == fs]
+        ax.errorbar(x.auc, np.array([y[k] for k in x.model]) + off, xerr=T20 * x.auc_se, fmt=mk, color=col, ms=4.5, elinewidth=1.4,
+                    capsize=0, label=fs)
+    ax.axvline(0.5, color=REF, linewidth=1, linestyle="--"); ax.text(0.502, len(order) - 0.45, "chance", color=INK2, fontsize=F(8), va="top")
+    for fs, off in (("pre", 0.15), ("pre+date", -0.15)):
+        r = d[d.feature_set == fs].sort_values("auc").iloc[-1]
+        ax.annotate(f"{r.auc:.3f}", (r.auc + T20 * r.auc_se + 0.005, y[r.model] + off), color=INK, fontsize=F(8), va="center")
+    ax.set_yticks(range(len(order))); ax.set_yticklabels([names.get(k, k) for k in order]); ax.set_xlim(0.45, 0.9)
+    ax.set_xlabel("Held-out AUC (event 5-fold CV), with 90% interval"); style(ax); ax.legend(loc="lower right", title="Feature set", title_fontsize=F(8))
+    ax.set_title("" if SLIDE else "Before the date every model is near chance; the four-minute date adds most of the signal")
+    if not SLIDE: fig.text(0, -0.03, "Pre-registered models; 4,184 dyads, 21 events. Intervals: AUC plus or minus t(20) times the event-clustered SE. "
+             "Source: results/part1_models_metrics.csv.", fontsize=F(7), color=INK2)
+    save(fig, "auc_part1")
+
+
+def events():
+    """Event sizes and match rates: why the folds hold out whole events."""
+    p = pd.read_csv("data/pairs.csv"); g = p.groupby("event").agg(n=("match", "size"), rate=("match", "mean")).sort_index()
+    fig, axes = plt.subplots(1, 2, figsize=(6.5, 2.7), sharex=True)
+    ax = axes[0]; ax.bar(g.index, g.n, color=BLUE, width=0.7); style(ax, "y")
+    ax.set_title("(a) Dyads per event", fontsize=F(8.5)); ax.set_xlabel("Event (wave)"); ax.set_xticks([1, 5, 10, 15, 21])
+    ax = axes[1]; ax.bar(g.index, 100 * g.rate, color=BLUE, width=0.7); ax.axhline(100 * p.match.mean(), color=REF, linestyle="--", linewidth=1)
+    ax.set_title(f"(b) Match rate per event (%); dashed: all, {100 * p.match.mean():.1f}%", fontsize=F(8.5)); ax.set_xlabel("Event (wave)"); style(ax, "y")
+    if not SLIDE: fig.suptitle("Events differ in size and in how often people match", x=0.01, ha="left", fontsize=F(10), fontweight="bold", color=INK, y=1.04)
+    if not SLIDE: fig.text(0.01, -0.06, f"{len(p):,} dyads in {len(g)} events; match rates range from {100 * g.rate.min():.0f}% to {100 * g.rate.max():.0f}%. "
+             "Source: data/pairs.csv.", fontsize=F(7), color=INK2)
+    fig.tight_layout(); save(fig, "events")
 
 
 def leakage():
@@ -230,4 +270,4 @@ def real_intervals():
 
 
 if __name__ == "__main__":
-    auc_by_model(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
+    auc_by_model(); auc_part1(); events(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()

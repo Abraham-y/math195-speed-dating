@@ -1,0 +1,73 @@
+% ============================================================================================================
+% DRAFTS for the parts of the report that still hold template placeholder text: title, abstract, introduction
+% (with a notation paragraph and a roadmap), and conclusion. Written at ISL level for the team to edit; every
+% number is from results/ (Part 1 and the data summaries). The error-bar work is mentioned only as upcoming.
+% Section numbers assume the draft's order: 2 Background, 3 Data Cleaning, 4 Technical Implementation, 5 Results.
+% ============================================================================================================
+
+% ---- Title (replaces "Your Title Should Go Here")
+% \title{Can We Predict a Match Before Two Strangers Meet? Evidence from a Speed-Dating Experiment}
+% \author{Sophia Qin, Jenna Yang, and Abraham Yeung}
+
+% ---- Abstract (replaces the template text inside \begin{abstract} ... \end{abstract})
+Dating apps and matchmakers try to predict which pairs of people will like each other before they meet. Using the
+Columbia speed-dating experiment (21 events, 551 participants and 4,184 woman--man pairs), we ask how well a
+\emph{mutual} match can be predicted from information available before the date, and how much the four-minute date
+adds. We compare logistic regression, stepwise selection, the lasso, linear and quadratic discriminant analysis and
+random forests, and we hold out whole events in cross-validation so that every prediction is for people the model has
+never seen. Before the date the best model reaches an AUC of 0.58, only slightly better than chance; adding the
+ratings the two participants gave each other after the date raises it to 0.85. Features designed to measure
+compatibility, such as similar interests or a small age gap, add about 0.01. Participants' choices depended far more
+on attractiveness than their stated preferences suggested. Every hypothesis was registered before it was tested.
+
+% ---- Introduction (replaces the template text under \section{Introduction})
+\section{Introduction}
+
+Online dating platforms match millions of people using profiles: age, interests, what each person says they want.
+Behind every recommendation is a prediction that two strangers will like each other. How good can such predictions
+be? Speed dating offers an unusually clean test. In the Columbia experiment \cite[Section II]{Fisman:2006}, every
+participant filled in a detailed questionnaire, then met each partner of the opposite sex for four minutes and
+privately decided whether to see that person again. A \emph{match} occurs when both say yes, so for every pair we
+know what was known beforehand, what each person thought after meeting, and whether the interest was mutual.
+
+Our main question is how well a mutual match can be predicted from information available before the date, and which
+pair characteristics matter. A second question is how much the four-minute meeting adds. To answer them we built two
+sets of predictors, one known before the date and one that adds the participants' ratings of each other after it,
+and fitted the classification methods of the course textbook to each. The data need one departure from textbook
+practice: the same person appears in up to 22 pairs, so we hold out whole events, not individual rows, when we
+measure accuracy.
+
+We find that pre-date information carries a real but small signal. The best model reaches an AUC of 0.58, where 0.5 is
+a coin flip, and explicitly modelling compatibility barely helps. The four-minute meeting changes the picture: with
+the in-date ratings the best AUC is 0.85. Consistent with earlier work \cite{Fisman:2006,Eastwick:2008}, attractiveness
+drives decisions far more than people say it does. Together these results suggest that compatibility emerges from the
+interaction itself rather than from characteristics a profile can capture, which echoes Joel, Eastwick and Finkel's
+finding that pairwise attraction is hard to predict from pre-date reports \cite{Joel:2017}.
+
+\emph{Notation and terminology.} A \emph{dyad} is one woman--man pair who met at an event; there are $n=4{,}184$ dyads in
+$G=21$ events (also called waves). For dyad $i$, $Y_i=1$ if both people said yes (a match) and $0$ otherwise, and $X_i$
+is its vector of predictors. Variables of the woman carry the prefix \texttt{f\_} and those of the man \texttt{m\_}.
+The feature set \texttt{pre} contains only information available before the date; \texttt{pre+date} adds the ratings
+the two people gave each other after it. All accuracy measures are computed on held-out events, and AUC denotes the
+area under the ROC curve.
+
+\emph{Roadmap.} Section~2 describes the data and reviews the statistical methods we use, including a few that go
+beyond the course textbook. Section~3 explains how we cleaned the data and built one row per dyad. Section~4 describes
+the predictors, the cross-validation design and the models. Section~5 reports the results and how robust they are,
+and Section~6 concludes and outlines the second half of the project.
+
+% ---- Conclusion (replaces the template text under \section{Conclusion})
+\section{Conclusion}
+
+We asked how well a mutual match between two strangers can be predicted before they meet. Using the Columbia
+speed-dating data and holding out whole events, so that every prediction concerns people the model has never seen,
+we found that pre-date information gives an AUC of about 0.58 at best, compatibility features add about 0.01, and the
+ratings from a four-minute date raise the AUC to 0.85. People's actual choices weighted attractiveness roughly twice as
+heavily as their stated preferences. For matchmaking systems the lesson is that profiles say a little about who will
+be liked, but much more is learned once two people have met.
+
+These conclusions come with limits. The data are one experiment, at one university, with 21 events. The best
+pre-date model clears our pre-registered threshold only narrowly, and its margin over logistic regression depends
+on how missing data are handled (Section~5). In the second half of the project we will study how much to trust
+cross-validated results when the same people appear in many rows, and we will extend the analysis to
+participants' own predictions and to what a matchmaker using our models could gain.

@@ -1,0 +1,19 @@
+\begin{table}[h]
+\centering
+\caption{The full logistic model's held-out AUC as pair-level compatibility features are added (event 5-fold
+cross-validation, 4,184 dyads). Standard errors in parentheses are clustered by event.}
+\label{tab:ladder}
+\begin{tabular}{l p{0.48\textwidth} c c}
+\toprule
+Feature set & What is added & AUC (SE) & Change \\
+\midrule
+\texttt{pre\_individual} & Each person's own answers & 0.5319 (0.0201) & -- \\
+\texttt{pre} & + 6 pair features (age gap, interest correlation, same field, same goal, two preference fits) & 0.5425 (0.0205) & $+0.0105$ \\
+\texttt{pre\_extended} & + 5 more pair features (same career, dating and going-out gaps, two interest similarities) & 0.5454 (0.0211) & $+0.0030$ \\
+\texttt{pre\_interactions} & + 3 terms (squared age gap, interest correlation $\times$ shared-interest weight, both ways) & 0.5465 (0.0209) & $+0.0010$ \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize Source: results/part1\_additions\_metrics.csv.}
+\end{table}

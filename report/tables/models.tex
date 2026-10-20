@@ -1,0 +1,25 @@
+\begin{table}[h]
+\centering
+\caption{Held-out performance of the pre-registered models (event 5-fold cross-validation, 4,184 dyads, headline
+specification). Standard errors in parentheses are clustered by event. Balanced accuracy uses the training-fold match
+rate as the threshold. The best model on both feature sets is the random forest.}
+\label{tab:models}
+\begin{tabular}{l cc cc}
+\toprule
+ & \multicolumn{2}{c}{\texttt{pre}} & \multicolumn{2}{c}{\texttt{pre+date}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Model & AUC & Bal.\ acc. & AUC & Bal.\ acc. \\
+\midrule
+Logistic regression & 0.542 (0.020) & 0.533 (0.017) & 0.780 (0.014) & 0.723 (0.013) \\
+Stepwise logistic (forward, both) & 0.559 (0.023) & 0.550 (0.019) & 0.835 (0.008) & 0.759 (0.009) \\
+Stepwise logistic (backward) & 0.557 (0.022) & 0.544 (0.019) & 0.833 (0.008) & 0.763 (0.008) \\
+LDA & 0.553 (0.020) & 0.537 (0.015) & 0.790 (0.012) & 0.727 (0.011) \\
+QDA (regularized) & 0.579 (0.023) & 0.561 (0.018) & 0.836 (0.008) & 0.751 (0.010) \\
+Random forest & 0.583 (0.020) & 0.564 (0.015) & 0.846 (0.009) & 0.766 (0.010) \\
+L1 logistic regression$^\dagger$ & 0.573 (0.018) & 0.557 (0.012) & 0.838 (0.008) & 0.768 (0.007) \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize $^\dagger$Added after the pre-registered comparisons. Source: results/part1\_models\_metrics.csv.}
+\end{table}
