@@ -51,18 +51,6 @@ standard error for it \cite{DeLong:1988}, and Obuchowski extended that standard 
 event's contribution, the same idea as above \cite{Obuchowski:1997}. Every AUC standard error in this report is the
 clustered one.
 
-\subsubsection{Repeated cross-validation}
-Repeating 5-fold cross-validation with several random fold assignments and averaging gives a more stable estimate.
-Its uncertainty is harder to judge, because the fold errors are not independent: any two training sets share most
-of their data. In fact no exact formula for the variance of $k$-fold cross-validation exists
-\cite[Theorem 6, p.~1098]{Bengio:2004}. Nadeau and Bengio proposed a simple correction: with $J$ fold errors whose sample
-variance is $S^2$, use
-\[
-\Big(\frac1J+\frac{1}{k-1}\Big)S^2
-\]
-instead of the naive $S^2/J$; the extra term $1/(k-1)$ allows for the overlap between training sets
-\cite[Section 3.1, p.~248]{Nadeau:2003}. We use it with folds made of whole events.
-
 \subsubsection{Regularized quadratic discriminant analysis}
 QDA estimates a separate covariance matrix for each class \cite[Section 4.4.3, p.~156]{James:2023}. With 74 pre-date
 variables and only about 550 matches in a training fold, the matches' covariance matrix is estimated poorly, which is
@@ -87,8 +75,3 @@ analysis, so that tests planned in advance are kept separate from patterns found
 \cite{Nosek:2018}. Every hypothesis in this report was committed, with its threshold, to our repository's
 \texttt{PREREG.md} before its test ran, and none was changed afterwards; hypotheses that failed are reported as
 failures.
-
-\subsubsection{Simulation studies}
-To check whether an error bar is trustworthy, we simulate many data sets from a known truth and count how often its
-90\% interval contains the true value; a trustworthy interval does so about 90\% of the time. With 400 simulated
-data sets, such a percentage is itself uncertain by about $\pm1.5$ points \cite[Section 5.2, Table 6]{Morris:2019}.

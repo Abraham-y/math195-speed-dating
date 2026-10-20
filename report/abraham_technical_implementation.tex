@@ -16,8 +16,6 @@ with a fixed seed (20261006) and dealt into five folds of five, four, four, four
 every dyad of the held-out events was set aside and the model was estimated on the remaining events, so no
 participant in a held-out event appeared in that iteration's training data. The held-out predictions of the five
 folds were then pooled to compute each performance measure, with each dyad classified at its own fold's threshold.
-(Pooling across fold models can bias the AUC when events differ in their match rates; Section~\ref{sec:errorbars}
-shows the effect is negligible on our data.)
 
 For models with a tuning parameter we used nested cross-validation \cite{Varma:2006}. Within each outer training
 set, the training events were divided into four further event-grouped folds; each candidate value was scored by the
@@ -116,4 +114,4 @@ same event are not independent. Every standard error in this report is therefore
 cluster-robust variance for error rates, sensitivity, specificity and balanced accuracy, and Obuchowski's clustered
 variance for the AUC (Section~\ref{sec:beyond}). We checked these standard errors by simulation before using them:
 with 21 events the AUC standard errors were 0.84 to 0.95 of the true spread, so a nominal 90\% interval behaves like
-roughly an 83\% interval. Section~\ref{sec:errorbars} studies which error bars are honest for data like ours.
+roughly an 83\% interval.
