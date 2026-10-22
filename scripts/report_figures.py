@@ -1,6 +1,7 @@
 """Figures for the written report and the slides, drawn from the results tables (nothing typed by hand).
 
-Input : results/part2_models_metrics.csv, results/sim_cv_repair_coverage.csv, results/sim_cv_sizes_coverage.csv,
+Input : results/part2_models_metrics.csv, results/part1_models_stepwise_selection.csv,
+        results/part1_models_coefficients.csv, data/pairs.csv, results/sim_cv_repair_coverage.csv, results/sim_cv_sizes_coverage.csv,
         results/sim_cv_kfold_summary.csv, results/sim_cv_auc_summary.csv, results/sim_cv_auc_components.csv,
         results/errorbars_real.csv, results/errorbars_final.csv
 Output: results/report_figures_<name>.png (300 dpi, 6.5 inches wide), copied to report/figures/<name>.png for Overleaf:
@@ -8,6 +9,9 @@ Output: results/report_figures_<name>.png (300 dpi, 6.5 inches wide), copied to 
   auc_part1       the same for the pre-registered (Part 1) models only, matching the report's Results text
   events          dyads and match rate per event (data/pairs.csv)
   cv_design       which events each of the five headline rounds holds out (modeling.event_folds, seed 20261006)
+  stepwise_kept   how often stepwise selection kept each pre-date predictor, coloured by the coefficient's direction
+  qda_shrink      correlations among 8 predictors in the matched pairs, before and after QDA's shrinkage (r = 0.9)
+  eq_bic, eq_shrink  the BIC and shrinkage equations as images (equations())
   leakage         event against random-row CV AUC for the same models (the cost of letting people repeat)
   coverage        simulated coverage of 90% intervals for the new-event error, by method (two grids)
   nb_theory       Proposition 8's predicted Nadeau-Bengio ratio against the observed one, by fold count
@@ -152,10 +156,78 @@ def cv_design():
         ax.spines[s].set_visible(False)
     ax.tick_params(axis="y", length=0)
     handles = [plt.Rectangle((0, 0), 1, 1, color=BLUE, alpha=0.35), plt.Rectangle((0, 0), 1, 1, color=ORANGE)]
-    ax.legend(handles, ["training events (tuning uses inner folds of these)", "held-out events (scored)"],
+    ax.legend(handles, ["training set: the other events (tuning uses inner folds of these)", "test set: held-out events (scored)"],
               loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize=F(7), handlelength=1.2)
     if not SLIDE: ax.set_title("Each round holds out whole events; every event is held out once", pad=F(16))
     fig.tight_layout(); save(fig, "cv_design")
+
+
+HEADLINE_SPEC = "missing=median_flags; fit=B; out_of_range=rule; format=standardized"
+STEP_LABELS = {"m_self_fun": "His self-rated fun", "abs_age_diff": "Age gap", "m_date": "How often he dates",
+               "same_field": "Same field of study", "m_pref_intel": "His weight on intelligence",
+               "f_clubbing": "Her interest in clubbing", "f_art": "Her interest in art", "f_pref_fun": "Her weight on fun"}
+REVERSED = {"f_date", "m_date", "f_go_out", "m_go_out"}   # coded 1 = most often, so "more often" flips the sign
+
+
+def stepwise_kept(top=8):
+    """How often stepwise selection kept each pre-date predictor (3 directions x 5 headline folds = 15 fits), coloured by
+    the direction of its coefficient in the full logistic model (results/part1_models_coefficients.csv, all dyads)."""
+    s = pd.read_csv(RES / "part1_models_stepwise_selection.csv"); s = s[(s.spec == HEADLINE_SPEC) & (s.feature_set == "pre")]
+    tot = s.groupby("block").folds_selected.sum().sort_values(ascending=False, kind="stable").head(top)
+    assert set(tot.index) <= set(STEP_LABELS), f"label missing for {set(tot.index) - set(STEP_LABELS)}"
+    c = pd.read_csv(RES / "part1_models_coefficients.csv"); c = c[(c.spec == HEADLINE_SPEC) & (c.feature_set == "pre")].set_index("term").coef
+    up = {b: (np.sign(c[b] if b in c.index else c["bin:" + b]) * (-1 if b in REVERSED else 1)) > 0 for b in tot.index}
+    fig, ax = plt.subplots(figsize=(7.2, 4.4))
+    y = np.arange(len(tot))[::-1]
+    ax.barh(y, tot.values, color=[BLUE if up[b] else ORANGE for b in tot.index], height=0.62)
+    for yi, (b, v) in zip(y, tot.items()):
+        ax.text(v + 0.2, yi, f"{int(v)} / 15", va="center", fontsize=F(7.5), color=INK2)
+    ax.set_yticks(y); ax.set_yticklabels([STEP_LABELS[b] for b in tot.index]); ax.set_xlim(0, 16.5); ax.set_xticks([0, 5, 10, 15])
+    ax.set_xlabel("Fits that kept it, of 15 (3 directions × 5 folds)"); style(ax)
+    handles = [plt.Rectangle((0, 0), 1, 1, color=BLUE), plt.Rectangle((0, 0), 1, 1, color=ORANGE)]
+    ax.legend(handles, ["more of it → more matches", "more of it → fewer matches"], loc="upper center", bbox_to_anchor=(0.32, -0.2), ncol=2, fontsize=F(7), handlelength=1)
+    if not SLIDE: ax.set_title("Predictors stepwise selection kept most often (before the date)")
+    fig.tight_layout(); save(fig, "stepwise_kept")
+    print(pd.DataFrame({"kept_of_15": tot, "more_means_more_matches": pd.Series(up)}))
+
+
+QDA_VARS = [("f_age", "Her age"), ("m_age", "His age"), ("f_date", "Her dating"), ("f_go_out", "Her going out"),
+            ("m_date", "His dating"), ("m_go_out", "His going out"), ("f_self_attr", "Her looks (self)"), ("f_self_fun", "Her fun (self)")]
+
+
+def qda_shrink(r=0.9):
+    """What regularized QDA does to the matches' covariance: correlations among 8 standardized pre-date predictors in the
+    matched pairs, as estimated and after (1 - r) S + r I with the r chosen in every fold (0.9). Illustration on 8 of the
+    roughly 125 columns; standardized over all pairs, missing values filled with medians, as in the models."""
+    import matplotlib.colors as mcolors
+    p = pd.read_csv("data/pairs.csv"); X = p[[v for v, _ in QDA_VARS]].astype(float)
+    X = X.fillna(X.median()); Z = (X - X.mean()) / X.std(ddof=0)
+    S = np.cov(Z[p.match == 1].to_numpy().T, ddof=1); St = (1 - r) * S + r * np.eye(len(S))
+    corr = lambda M: M / np.sqrt(np.outer(np.diag(M), np.diag(M)))
+    cmap = mcolors.LinearSegmentedColormap.from_list("div", [ORANGE, "#ffffff", BLUE])
+    labels = [l for _, l in QDA_VARS]
+    fig, axes = plt.subplots(1, 2, figsize=(8.2, 4.0))
+    for ax, M, title in ((axes[0], corr(S), f"Estimated from the {int(p.match.sum())} matches"), (axes[1], corr(St), f"Used by QDA after shrinking (r = {r})")):
+        ax.imshow(M, cmap=cmap, vmin=-1, vmax=1)
+        for i in range(len(M)):
+            for j in range(len(M)):
+                if i != j: ax.text(j, i, f"{(0.0 if abs(M[i, j]) < 0.005 else M[i, j]):.2f}".replace("0.", ".").replace("-.", "−."), ha="center", va="center", fontsize=F(5.2), color=INK)
+        ax.set_xticks(range(len(M))); ax.set_yticks(range(len(M)))
+        ax.set_xticklabels(labels, rotation=50, ha="right", fontsize=F(5.6)); ax.set_yticklabels(labels if ax is axes[0] else [], fontsize=F(5.6))
+        ax.set_title(title, fontsize=F(7), loc="center", color=INK, fontweight="bold"); ax.tick_params(length=0)
+        for s in ax.spines.values(): s.set_visible(False)
+    fig.tight_layout(); save(fig, "qda_shrink")
+    print("matches' correlations, estimated:\n", pd.DataFrame(corr(S), index=labels, columns=labels).round(2).to_string())
+
+
+def equations():
+    """The two equations for the implementation slides, as transparent images (mathtext)."""
+    for name, tex in (("eq_bic", r"$\mathrm{BIC} \;=\; -2\,\log L \;+\; k\,\log n$"), ("eq_shrink", r"$\tilde{\Sigma}_k \;=\; (1-r)\,\hat{\Sigma}_k \;+\; r\,I$")):
+        fig = plt.figure(figsize=(4, 0.6)); fig.text(0, 0.5, tex, fontsize=26, color="#1B2440", va="center")
+        name = f"paper_{name}" if PAPER else (f"slide_{name}" if SLIDE else name)
+        fig.savefig(RES / f"report_figures_{name}.png", dpi=200, bbox_inches="tight", transparent=True, pad_inches=0.02)
+        OUT.mkdir(exist_ok=True); shutil.copy(RES / f"report_figures_{name}.png", OUT / f"{name}.png"); plt.close(fig)
+        print(f"wrote results/report_figures_{name}.png (copy: report/figures/{name}.png)")
 
 
 def leakage():
@@ -302,4 +374,4 @@ def real_intervals():
 
 
 if __name__ == "__main__":
-    auc_by_model(); auc_part1(); events(); cv_design(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
+    auc_by_model(); auc_part1(); events(); cv_design(); stepwise_kept(); qda_shrink(); equations(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
