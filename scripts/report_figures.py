@@ -220,6 +220,54 @@ def qda_shrink(r=0.9):
     print("matches' correlations, estimated:\n", pd.DataFrame(corr(S), index=labels, columns=labels).round(2).to_string())
 
 
+WOMEN, MEN = "#E0607E", "#2a78d6"     # the deck's pink for women; the validated blue for men
+
+
+def eda_who():
+    """Exploratory: yes rates by gender (data/pairs.csv) and stated preferences by gender (the 100-point waves,
+    results/part1_models_stated_vs_revealed.csv)."""
+    p = pd.read_csv("data/pairs.csv")
+    sr = pd.read_csv(RES / "part1_models_stated_vs_revealed.csv").set_index(["rater_gender", "attribute"]).stated_share
+    traits = [("attr", "Attractive"), ("sinc", "Sincere"), ("intel", "Intelligent"), ("fun", "Fun"), ("amb", "Ambitious"), ("shar", "Shared interests")]
+    fig, (a, b) = plt.subplots(1, 2, figsize=(11.5, 4.3), gridspec_kw={"width_ratios": [1, 1.9]})
+    rates = [100 * p.f_dec.mean(), 100 * p.m_dec.mean()]
+    a.bar([0, 1], rates, color=[WOMEN, MEN], width=0.6)
+    for x, v in zip([0, 1], rates):
+        a.text(x, v + 1.2, f"{v:.0f}%", ha="center", fontsize=F(9), color=INK, fontweight="bold")
+    a.set_xticks([0, 1]); a.set_xticklabels(["Women", "Men"]); a.set_ylim(0, 60); a.set_ylabel("Said yes to a partner (%)")
+    a.set_title("Women said yes less often", fontsize=F(8.5)); style(a, "y")
+    y = np.arange(len(traits))[::-1]
+    for off, g, col, lab in ((0.2, "women", WOMEN, "Women"), (-0.2, "men", MEN, "Men")):
+        vals = [sr[(g, t)] for t, _ in traits]
+        b.barh(y + off, vals, height=0.38, color=col, label=lab)
+        for yi, v in zip(y, vals):
+            b.text(v + 0.4, yi + off, f"{v:.0f}", va="center", fontsize=F(6.5), color=INK2)
+    b.set_yticks(y); b.set_yticklabels([l for _, l in traits]); b.set_xlim(0, 34); b.set_xlabel("Average share of 100 points given before the event")
+    b.set_title("What they say they want in a partner", fontsize=F(8.5)); style(b); b.legend(loc="lower right", fontsize=F(7))
+    fig.tight_layout(); save(fig, "eda_who")
+
+
+def eda_pairs():
+    """Exploratory: match rate by age gap, same field of study, and how often he dates (data/pairs.csv)."""
+    p = pd.read_csv("data/pairs.csv"); overall = 100 * p.match.mean()
+    panels = [("Age gap (years)", pd.cut(p.abs_age_diff, [-0.1, 1, 3, 5, 9, 100], labels=["0–1", "2–3", "4–5", "6–9", "10+"])),
+              ("Same field of study", p.same_field.map({0.0: "No", 1.0: "Yes"})),
+              ("How often he goes on dates", pd.cut(p.m_date, [0, 2, 4, 5, 7], labels=["2+ a week", "weekly to\ntwice a month", "once a\nmonth", "rarely"]))]
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4.3), sharey=True, gridspec_kw={"width_ratios": [5, 2.4, 4]})
+    for ax, (title, g) in zip(axes, panels):
+        t = p.groupby(g, observed=True).match.agg(["mean", "size"])
+        x = np.arange(len(t)); v = 100 * t["mean"].to_numpy()
+        ax.bar(x, v, color=BLUE, width=0.62)
+        for xi, vi, n in zip(x, v, t["size"]):
+            ax.text(xi, vi - 0.6, f"{vi:.0f}%", ha="center", va="top", fontsize=F(8), color="white", fontweight="bold")
+        ax.axhline(overall, color=REF, linestyle="--", linewidth=1.2)
+        ax.set_xticks(x); ax.set_xticklabels([f"{lab}\n(n = {n:,})" for lab, n in zip(t.index, t["size"])], fontsize=F(6.2))
+        ax.set_title(title, fontsize=F(8.5)); style(ax, "y")
+    axes[0].set_ylabel("Pairs that matched (%)"); axes[0].set_ylim(0, 31)
+    axes[-1].text(len(panels[2][1].cat.categories) - 0.55, overall + 0.6, f"all pairs: {overall:.1f}%", ha="right", fontsize=F(6.5), color=INK2)
+    fig.tight_layout(); save(fig, "eda_pairs")
+
+
 def equations():
     """The two equations for the implementation slides, as transparent images (mathtext)."""
     for name, tex in (("eq_bic", r"$\mathrm{BIC} \;=\; -2\,\log L \;+\; k\,\log n$"), ("eq_shrink", r"$\tilde{\Sigma}_k \;=\; (1-r)\,\hat{\Sigma}_k \;+\; r\,I$")):
@@ -374,4 +422,4 @@ def real_intervals():
 
 
 if __name__ == "__main__":
-    auc_by_model(); auc_part1(); events(); cv_design(); stepwise_kept(); qda_shrink(); equations(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
+    auc_by_model(); auc_part1(); events(); cv_design(); stepwise_kept(); qda_shrink(); equations(); eda_who(); eda_pairs(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
