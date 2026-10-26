@@ -268,9 +268,64 @@ def eda_pairs():
     fig.tight_layout(); save(fig, "eda_pairs")
 
 
+SPLINE_LABELS = {"m_age": "His age", "f_age": "Her age", "abs_age_diff": "Age gap", "int_corr": "Interest similarity",
+                 "fit_to_f_prefs": "His fit to her preferences", "fit_to_m_prefs": "Her fit to his preferences"}
+
+
+def spline_bic():
+    """Why no spline was chosen: in each headline training fold (pre), how much a natural spline (3 df) for each candidate
+    improves the full logistic model's fit (drop in -2 log L), against its BIC price (2 extra coefficients x log n).
+    Recomputes part1_models.choose_splines' comparison; a spline is chosen only when the improvement beats the price."""
+    import json, warnings; warnings.filterwarnings("ignore")
+    sys.path.insert(0, "scripts"); import modeling as M, part1_models as P
+    pairs = pd.read_csv("data/pairs.csv"); sets = json.loads(pathlib.Path("data/feature_sets.json").read_text())
+    X, y, ev, ids = M.build_frame(pairs, sets, M.HEADLINE, "pre")
+    folds = M.event_folds(ev); f = np.array([folds[e] for e in ev]); rows = []
+    for k in range(5):
+        tr = f != k; Xtr, ytr, idtr = X[tr].reset_index(drop=True), y[tr], ids[tr].reset_index(drop=True)
+        D = P.make_prep(sets, Xtr).fit(Xtr, idtr).transform(Xtr).to_numpy(); _, ll = M.fit_logit(D, ytr)
+        for c in sets["spline_candidates"]:
+            p = P.make_prep(sets, Xtr, splines=(c,)).fit(Xtr, idtr); assert c in p.knots
+            Dc = p.transform(Xtr).to_numpy(); _, llc = M.fit_logit(Dc, ytr)
+            rows.append(dict(fold=k, cand=c, gain=2 * (llc - ll), price=(Dc.shape[1] - D.shape[1]) * np.log(len(ytr))))
+    r = pd.DataFrame(rows); assert (r.gain < r.price).all()       # matches the empty `splines` column of part1_models_folds.csv
+    order = r.groupby("cand").gain.max().sort_values().index
+    fig, ax = plt.subplots(figsize=(7.2, 3.9))
+    for i, c in enumerate(order):
+        g = r[r.cand == c].gain
+        ax.plot([g.min(), g.max()], [i, i], color=GRID, linewidth=F(3), solid_capstyle="round", zorder=1)
+        ax.scatter(g, [i] * len(g), s=F(42), color=BLUE, edgecolor="white", linewidth=1.2, zorder=2)
+    price = r.price.mean()
+    ax.axvline(price, color=ORANGE, linewidth=2); ax.axvspan(price, 20, color=ORANGE, alpha=0.08, linewidth=0)
+    ax.text(price + 0.3, len(order) - 0.45, f"price of a curve:\n2 coefficients × log n ≈ {price:.0f}", fontsize=F(7), color=INK, va="top")
+    ax.set_yticks(range(len(order))); ax.set_yticklabels([SPLINE_LABELS[c] for c in order]); ax.set_xlim(0, 20); ax.set_ylim(-0.6, len(order) - 0.4)
+    ax.set_xlabel("How much a curve improved the fit, per training fold (drop in −2 log L)"); style(ax); ax.tick_params(axis="y", length=0)
+    if not SLIDE: ax.set_title("A curve never improved the fit by more than BIC charges for it")
+    fig.tight_layout(); save(fig, "spline_bic")
+    print(r.groupby("cand")[["gain", "price"]].agg(["min", "max"]).round(1))
+
+
+def toy_cluster():
+    """Toy example for the clustered standard error: two events of three pairs, errors leaning the same way within each."""
+    a, b = [0.2, 0.3, 0.1], [-0.2, -0.3, -0.1]
+    fig, ax = plt.subplots(figsize=(6.4, 3.3))
+    ax.bar([0, 1, 2], a, color="#E0607E", width=0.62); ax.bar([4, 5, 6], b, color="#A9C1E8", width=0.62)
+    ax.axhline(0, color=INK2, linewidth=1.2); ax.axvline(3, color=GRID, linewidth=1.5, linestyle="--")
+    for x, v in zip([0, 1, 2, 4, 5, 6], a + b):
+        ax.text(x, v + (0.015 if v > 0 else -0.015), f"{v:+.1f}".replace("-", "−"), ha="center", va="bottom" if v > 0 else "top", fontsize=F(7.5), color=INK)
+    ax.text(1, 0.40, "Event A: all too high", ha="center", fontsize=F(8), fontweight="bold", color=INK)
+    ax.text(5, 0.40, "Event B: all too low", ha="center", fontsize=F(8), fontweight="bold", color=INK)
+    ax.set_ylim(-0.5, 0.47); ax.set_xlim(-0.6, 6.6); ax.set_xticks([]); ax.set_yticks([])
+    for side in ("top", "right", "left", "bottom"): ax.spines[side].set_visible(False)
+    ax.text(-0.5, -0.62, "Usual: 0.2² + 0.3² + 0.1² + 0.2² + 0.3² + 0.1² = 0.28", fontsize=F(7.5), color=INK2, transform=ax.transData, clip_on=False)
+    ax.text(-0.5, -0.74, "Clustered: (0.2 + 0.3 + 0.1)² + (−0.2 − 0.3 − 0.1)² = 0.72", fontsize=F(7.5), color=INK, fontweight="bold", transform=ax.transData, clip_on=False)
+    fig.tight_layout(); save(fig, "toy_cluster")
+
+
 def equations():
     """The two equations for the implementation slides, as transparent images (mathtext)."""
-    for name, tex in (("eq_bic", r"$\mathrm{BIC} \;=\; -2\,\log L \;+\; k\,\log n$"), ("eq_shrink", r"$\tilde{\Sigma}_k \;=\; (1-r)\,\hat{\Sigma}_k \;+\; r\,I$")):
+    for name, tex in (("eq_bic", r"$\mathrm{BIC} \;=\; -2\,\log L \;+\; k\,\log n$"), ("eq_shrink", r"$\tilde{\Sigma}_k \;=\; (1-r)\,\hat{\Sigma}_k \;+\; r\,I$"),
+                      ("eq_se", r"$\mathrm{SE}^{2} \;=\; \dfrac{G}{G-1}\cdot\dfrac{1}{n^{2}}\,\sum_{g=1}^{G}\left(\sum_{i\,\in\,g}(\ell_i-\bar{\ell})\right)^{2}$")):
         fig = plt.figure(figsize=(4, 0.6)); fig.text(0, 0.5, tex, fontsize=26, color="#1B2440", va="center")
         name = f"paper_{name}" if PAPER else (f"slide_{name}" if SLIDE else name)
         fig.savefig(RES / f"report_figures_{name}.png", dpi=200, bbox_inches="tight", transparent=True, pad_inches=0.02)
@@ -422,4 +477,4 @@ def real_intervals():
 
 
 if __name__ == "__main__":
-    auc_by_model(); auc_part1(); events(); cv_design(); stepwise_kept(); qda_shrink(); equations(); eda_who(); eda_pairs(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
+    auc_by_model(); auc_part1(); events(); cv_design(); stepwise_kept(); spline_bic(); qda_shrink(); equations(); toy_cluster(); eda_who(); eda_pairs(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
