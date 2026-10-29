@@ -3,7 +3,8 @@
 % the teammate wrote it, with only two kinds of change:
 %   1. citations added (marked % CITE);
 %   2. five one-sentence corrections where the draft does not match what the code did (marked % FIX, with the
-%      source). Each is a suggestion for the author to accept, reword or drop.
+%      source). Each is a suggestion for the author to accept, reword or drop;
+%   3. one added paragraph explaining splines (marked % ADDED).
 % Nothing else is reworded. The subsections before "Survey-Format Standardization" need no changes.
 % Citation keys: report/references_midterm.bib (James:2023 is already in references.bib).
 % ============================================================================================================
@@ -117,6 +118,10 @@ where $\ell$ is the fitted log-likelihood, $k$ is the number of estimated model 
 
 % FIX 3 (results/part1_models_folds.csv: the `splines` column is empty in every headline fold):
 For each candidate variable, the spline specification was retained if it produced a lower training-fold BIC than the corresponding linear specification. No spline was selected in any fold, so the reported full logistic model is linear.
+
+% ADDED (what a spline is and what BIC decided; knots from scripts/modeling.py, improvements from report_figures.spline_bic,
+%        choices from the `splines` column of results/part1_models_folds.csv)
+A natural cubic spline lets a predictor's effect on the log-odds bend instead of following a straight line: it is made of cubic polynomials joined smoothly at points called knots, and it is constrained to be linear beyond the outermost knots, where data are scarce \cite[Section 7.4.3, p.~297]{James:2023}. We placed four knots at the minimum, the one-third and two-thirds quantiles and the maximum of the predictor in the training fold, which gives three degrees of freedom: the spline replaces one coefficient with three, so $k$ grows by two and the penalty by $2\log(n)\approx 16$ for the 3{,}047 to 3{,}750 training pairs. A spline was therefore kept only if it lowered $-2\ell$ by more than about 16. In the five pre-date training folds the largest improvement was 9.9 (the man's age), and 21 of the 30 comparisons improved $-2\ell$ by less than 5.
 
 \subsubsection{Stepwise Logistic Regression}
 

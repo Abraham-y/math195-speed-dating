@@ -105,12 +105,14 @@ def auc_part1():
         x = d[d.feature_set == fs]
         ax.errorbar(x.auc, np.array([y[k] for k in x.model]) + off, xerr=T20 * x.auc_se, fmt=mk, color=col, ms=4.5, elinewidth=1.4,
                     capsize=0, label=fs)
-    ax.axvline(0.5, color=REF, linewidth=1, linestyle="--"); ax.text(0.502, len(order) - 0.45, "chance", color=INK2, fontsize=F(8), va="top")
+    ax.axvline(0.5, color=REF, linewidth=1, linestyle="--"); ax.text(0.503, -0.62, "chance", color=INK2, fontsize=F(8), va="bottom")
+    ax.set_ylim(-0.7, len(order) - 0.45)                                   # room for the "chance" label under the bottom row
     for fs, off in (("pre", 0.15), ("pre+date", -0.15)):
         r = d[d.feature_set == fs].sort_values("auc").iloc[-1]
         ax.annotate(f"{r.auc:.3f}", (r.auc + T20 * r.auc_se + 0.005, y[r.model] + off), color=INK, fontsize=F(8), va="center")
     ax.set_yticks(range(len(order))); ax.set_yticklabels([names.get(k, k) for k in order]); ax.set_xlim(0.45, 0.9)
-    ax.set_xlabel("Held-out AUC (event 5-fold CV), with 90% interval"); style(ax); ax.legend(loc="lower right", title="Feature set", title_fontsize=F(8))
+    ax.set_xlabel("Held-out AUC (event 5-fold CV), with 90% interval"); style(ax)
+    ax.legend(loc="center", bbox_to_anchor=(0.53, 0.5), title="Feature set", title_fontsize=F(8))   # in the empty band between the two columns
     ax.set_title("" if SLIDE else "Before the date every model is near chance; the four-minute date adds most of the signal")
     if not SLIDE: fig.text(0, -0.03, "Pre-registered models; 4,184 dyads, 21 events. Intervals: AUC plus or minus t(20) times the event-clustered SE. "
              "Source: results/part1_models_metrics.csv.", fontsize=F(7), color=INK2)

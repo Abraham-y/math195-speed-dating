@@ -11,6 +11,7 @@
 %   - ADDED related-work paragraph and data figure (Section 2), Results figure, three tables and the robustness
 %     subsection (Section 5);
 %   - two clauses in "Grouped cross-validation" (Abraham's own subsection) reworded;
+%   - ADDED a paragraph on what a spline is and what BIC decided (Section 4, Spline-Augmented Logistic Regression);
 %   - pre-registration removed from the report: Abraham's "Pre-registration" subsection deleted, the robustness
 %     paragraph rewritten, and one sentence each in Section 4 (L1 model) and Section 5 (random forest) replaced
 %     (marked EDITED, with the original in a comment).
@@ -931,6 +932,10 @@ k\log(n),
 where $\ell$ is the fitted log-likelihood, $k$ is the number of estimated model parameters, and $n$ is the number of observations in the training fold.
 
 For each candidate variable, the spline specification was retained if it produced a lower training-fold BIC than the corresponding linear specification.
+
+% ADDED (what a spline is and what BIC decided; knots from scripts/modeling.py, improvements from report_figures.spline_bic,
+%        choices from the `splines` column of results/part1_models_folds.csv)
+A natural cubic spline lets a predictor's effect on the log-odds bend instead of following a straight line: it is made of cubic polynomials joined smoothly at points called knots, and it is constrained to be linear beyond the outermost knots, where data are scarce \cite[Section 7.4.3, p.~297]{James:2023}. We placed four knots at the minimum, the one-third and two-thirds quantiles and the maximum of the predictor in the training fold, which gives three degrees of freedom: the spline replaces one coefficient with three, so $k$ grows by two and the penalty by $2\log(n)\approx 16$ for the 3{,}047 to 3{,}750 training pairs. A spline was therefore kept only if it lowered $-2\ell$ by more than about 16. No spline was selected in any fold, so the reported full logistic model is linear. In the five pre-date training folds the largest improvement was 9.9 (the man's age), and 21 of the 30 comparisons improved $-2\ell$ by less than 5.
 
 \subsubsection{Stepwise Logistic Regression}
 
