@@ -1,15 +1,18 @@
-"""ROC curves of the best Part 1 model (random forest), before the date and with the in-date ratings, for the slides.
+"""ROC curves of one Part 1 model, before the date and with the in-date ratings, for the slides: the random forest (best
+Part 1 model; the report) or, with --model qda, regularized QDA (best pre-date model without the forest; the talk, which
+does not cover the forest).
 
-Reruns the headline event 5-fold cross-validation of part1_models.py for the random forest only (same folds, seeds,
-tuning and preparation), checks that the held-out AUCs equal the stored ones in results/part1_models_metrics.csv,
-then draws the two ROC curves.
+Reruns the headline event 5-fold cross-validation of part1_models.py for that model only (same folds, seeds, tuning and
+preparation), checks that the held-out AUCs equal the stored ones in results/part1_models_metrics.csv, then draws the
+two ROC curves.
 Input : data/pairs.csv, data/feature_sets.json, results/part1_models_metrics.csv
-Output: results/report_roc_predictions.csv  held-out predicted match probability per dyad, both feature sets
-        results/report_roc_points.csv       the ROC curve points
-        results/report_roc_<mode>.png        mode = figure (titled), paper (untitled), slide (untitled, fonts 1.5x);
-                                             copied to report/figures/roc.png, paper_roc.png, slide_roc.png
+Output: results/report_roc<tag>_predictions.csv  held-out predicted match probability per dyad, both feature sets
+        results/report_roc<tag>_points.csv       the ROC curve points
+        results/report_roc<tag>_<mode>.png        mode = figure (titled), paper (untitled), slide (untitled, fonts 1.5x);
+                                                  copied to report/figures/roc<tag>.png, paper_roc<tag>.png, slide_roc<tag>.png
+        <tag> is empty for the random forest and _qda for QDA.
 Seeds: event folds 20261006, inner folds 20261006 + 1 + fold, forest 20261106 + fold (all from part1_models.py).
-Run from the repository root: python scripts/report_roc.py [--jobs 5] [--plot-only]
+Run from the repository root: python scripts/report_roc.py [--model rf|qda] [--jobs 5] [--plot-only]
 """
 import sys, json, pathlib, shutil, argparse
 import numpy as np, pandas as pd
@@ -24,23 +27,24 @@ from part1_models import cross_validate
 RES, OUT = pathlib.Path("results"), pathlib.Path("report/figures")
 BLUE, ORANGE, INK, INK2, GRID, REF = "#2a78d6", "#eb6834", "#0b0b0b", "#52514e", "#e4e3df", "#8a8984"
 LABELS = {"pre": "Before the date (pre)", "pre+date": "With the in-date ratings (pre+date)"}
+MODELS = {"rf": dict(run="rf", name="Random forest", tag=""), "qda": dict(run="lda_qda", name="Regularized QDA", tag="_qda")}
 
 
-def predictions(jobs):
+def predictions(model, jobs):
     pairs = pd.read_csv("data/pairs.csv"); sets = json.loads(pathlib.Path("data/feature_sets.json").read_text())
     stored = pd.read_csv(RES / "part1_models_metrics.csv")
-    stored = stored[(stored.headline == True) & (stored.fold_scheme == "event") & (stored.model == "rf")].set_index("feature_set").auc
+    stored = stored[(stored.headline == True) & (stored.fold_scheme == "event") & (stored.model == model)].set_index("feature_set").auc
     out = []
     for fs in ("pre", "pre+date"):
-        rows, _, _, (prob, y, ev, _) = cross_validate(pairs, sets, M.HEADLINE, fs, ("rf",), jobs)
-        auc = roc_auc_score(y, prob["rf"])
+        rows, _, _, (prob, y, ev, _) = cross_validate(pairs, sets, M.HEADLINE, fs, (MODELS[model]["run"],), jobs)
+        auc = roc_auc_score(y, prob[model])
         assert abs(auc - stored[fs]) < 1e-9, f"{fs}: rerun AUC {auc} differs from stored {stored[fs]}"
-        print(f"{fs}: random forest held-out AUC {auc:.6f} (stored {stored[fs]:.6f})")
-        out.append(pd.DataFrame(dict(feature_set=fs, event=ev, match=np.asarray(y), prob=prob["rf"])))
+        print(f"{fs}: {MODELS[model]['name']} held-out AUC {auc:.6f} (stored {stored[fs]:.6f})")
+        out.append(pd.DataFrame(dict(feature_set=fs, event=ev, match=np.asarray(y), prob=prob[model])))
     return pd.concat(out, ignore_index=True)
 
 
-def plot(pred, mode):
+def plot(pred, mode, model):
     sc = 1.5 if mode == "slide" else 1.0
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9 * sc, "axes.edgecolor": REF, "axes.labelcolor": INK2,
                          "xtick.color": INK2, "ytick.color": INK2, "legend.frameon": False})
@@ -58,28 +62,30 @@ def plot(pred, mode):
     ax.grid(color=GRID, linewidth=0.8); ax.set_axisbelow(True)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), fontsize=7.5 * sc, handlelength=1.5)
     if mode == "figure":
-        ax.set_title("Random forest, held-out events (event 5-fold CV, 4,184 dyads)", loc="left", fontsize=9, color=INK)
-    name = {"figure": "roc", "paper": "paper_roc", "slide": "slide_roc"}[mode]
-    path = RES / f"report_roc_{mode}.png"
+        ax.set_title(f"{MODELS[model]['name']}, held-out events (event 5-fold CV, 4,184 dyads)", loc="left", fontsize=9, color=INK)
+    tag = MODELS[model]["tag"]; name = {"figure": "roc", "paper": "paper_roc", "slide": "slide_roc"}[mode] + tag
+    path = RES / f"report_roc{tag}_{mode}.png"
     fig.savefig(path, dpi=200 if mode == "slide" else 300, bbox_inches="tight", facecolor="white"); plt.close(fig)
     OUT.mkdir(exist_ok=True); shutil.copy(path, OUT / f"{name}.png"); print(f"wrote {path} (copy: {OUT / (name + '.png')})")
 
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--jobs", type=int, default=5)
-    ap.add_argument("--plot-only", action="store_true", help="redraw from results/report_roc_predictions.csv")
+    ap.add_argument("--model", choices=sorted(MODELS), default="rf")
+    ap.add_argument("--plot-only", action="store_true", help="redraw from results/report_roc<tag>_predictions.csv")
     args = ap.parse_args()
+    tag = MODELS[args.model]["tag"]
     if args.plot_only:
-        pred = pd.read_csv(RES / "report_roc_predictions.csv")
+        pred = pd.read_csv(RES / f"report_roc{tag}_predictions.csv")
     else:
-        pred = predictions(args.jobs); pred.to_csv(RES / "report_roc_predictions.csv", index=False)
+        pred = predictions(args.model, args.jobs); pred.to_csv(RES / f"report_roc{tag}_predictions.csv", index=False)
     pts = []
     for fs in ("pre", "pre+date"):
         d = pred[pred.feature_set == fs]; fpr, tpr, thr = roc_curve(d.match, d.prob)
         pts.append(pd.DataFrame(dict(feature_set=fs, false_positive_rate=fpr, true_positive_rate=tpr, threshold=thr)))
-    pd.concat(pts).to_csv(RES / "report_roc_points.csv", index=False)
+    pd.concat(pts).to_csv(RES / f"report_roc{tag}_points.csv", index=False)
     for mode in ("figure", "paper", "slide"):
-        plot(pred, mode)
+        plot(pred, mode, args.model)
 
 
 if __name__ == "__main__":

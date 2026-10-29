@@ -7,6 +7,7 @@ Input : results/part2_models_metrics.csv, results/part1_models_stepwise_selectio
 Output: results/report_figures_<name>.png (300 dpi, 6.5 inches wide), copied to report/figures/<name>.png for Overleaf:
   auc_by_model    held-out AUC of every headline model, pre and pre+date, with 90% intervals (event 5-fold)
   auc_part1       the same for the pre-registered (Part 1) models only, matching the report's Results text
+  auc_part1_talk  auc_part1 without the random forest, which the midterm talk does not cover ("Lasso", as the slides say)
   events          dyads and match rate per event (data/pairs.csv)
   cv_design       which events each of the five headline rounds holds out (modeling.event_folds, seed 20261006)
   stepwise_kept   how often stepwise selection kept each pre-date predictor, coloured by the coefficient's direction
@@ -93,13 +94,14 @@ def auc_by_model():
     save(fig, "auc_by_model")
 
 
-def auc_part1():
-    """The pre-registered (Part 1) models only, from the Part 1 table, so the figure matches the report's Results text."""
+def auc_part1(drop=(), name="auc_part1", labels={}):
+    """The pre-registered (Part 1) models only, from the Part 1 table, so the figure matches the report's Results text.
+    `drop`: models left out (the talk leaves out the random forest); `labels`: row names that differ from NAMES."""
     m = pd.read_csv(RES / "part1_models_metrics.csv")
-    d = m[(m.headline == True) & (m.fold_scheme == "event") & (m.feature_set.isin(["pre", "pre+date"])) & (m.model != "stepwise_both")
+    d = m[(m.headline == True) & (m.fold_scheme == "event") & (m.feature_set.isin(["pre", "pre+date"])) & (m.model != "stepwise_both") & ~m.model.isin(drop)
           & (m.spec == "missing=median_flags; fit=B; out_of_range=rule; format=standardized")]
     order = d[d.feature_set == "pre"].sort_values("auc").model.tolist(); y = {k: i for i, k in enumerate(order)}
-    names = dict(NAMES, stepwise_forward="Stepwise (forward, both)")
+    names = dict(NAMES, stepwise_forward="Stepwise (forward, both)", **labels)
     fig, ax = plt.subplots(figsize=(6.5, 3.4))
     for fs, col, off, mk in (("pre", BLUE, 0.15, "o"), ("pre+date", ORANGE, -0.15, "s")):
         x = d[d.feature_set == fs]
@@ -116,7 +118,7 @@ def auc_part1():
     ax.set_title("" if SLIDE else "Before the date every model is near chance; the four-minute date adds most of the signal")
     if not SLIDE: fig.text(0, -0.03, "Pre-registered models; 4,184 dyads, 21 events. Intervals: AUC plus or minus t(20) times the event-clustered SE. "
              "Source: results/part1_models_metrics.csv.", fontsize=F(7), color=INK2)
-    save(fig, "auc_part1")
+    save(fig, name)
 
 
 def events():
@@ -479,4 +481,4 @@ def real_intervals():
 
 
 if __name__ == "__main__":
-    auc_by_model(); auc_part1(); events(); cv_design(); stepwise_kept(); spline_bic(); qda_shrink(); equations(); toy_cluster(); eda_who(); eda_pairs(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
+    auc_by_model(); auc_part1(); auc_part1(drop=("rf",), name="auc_part1_talk", labels={"lasso": "Lasso"}); events(); cv_design(); stepwise_kept(); spline_bic(); qda_shrink(); equations(); toy_cluster(); eda_who(); eda_pairs(); leakage(); coverage(); nb_theory(); auc_bias(); real_intervals()
