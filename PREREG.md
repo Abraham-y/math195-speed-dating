@@ -547,6 +547,68 @@ Settings (`scripts/sim_cv_auc.py`):
 - Nadeau-Bengio: G in {80, 160}, 400 data sets each, R = 12 partitions (J = 60), seeds 20265306 + 10 x design +
   G index.
 
+## Part 10 (committed 2026-11-03, after Part 9 ran and the midterm, and before any of this ran)
+
+Part 9 is recorded unchanged: N16, N17, N19, N20 and N21 supported; N18 not supported.
+
+This part asks where the missing accuracy is. Before the date the best Part 1 model reaches a held-out AUC of 0.583
+on new events (the forest; 0.579 for regularized QDA), and with the in-date ratings 0.846. Three analyses
+(`scripts/limits.py`) split the difference into what more data of the same kind would add, what knowing each
+person's appeal and yes-rate would add, and what the date itself reveals about the pair.
+
+What was known before this entry: Part 5's W1 (within-event yes AUC 0.810 from rater and ratee terms, against 0.590
+for pre-date information on new events), C3 (a taste-by-trait term adds +0.0003), the social relations shares of the
+yes decisions (actor 0.19, partner 0.16, residual 0.65), the power analysis, and Joel, Eastwick and Finkel (2017):
+in two other speed-dating studies, random forests on more than 100 pre-date measures explained 4% to 18% of actor
+variance and 7% to 27% of partner variance, and none of the relationship-specific variance. None of the Part 10
+analyses was run on the real outcomes before this entry: the code was checked on simulated data
+(`tests/test_limits.py`) and timed on a permuted outcome.
+
+- L1. Learning curve. For the pre-date lasso, the AUC of the full-size run (Part 1's 0.573) minus the mean pooled
+  AUC over 20 draws with 8 training events per fold is below 0.03.
+- P1. Person ceiling. The within-event match AUC from each person's yes-rate and appeal, estimated from their
+  other dates at the event and never from the pair, exceeds the best pre-date AUC on new events (0.5825) by at
+  least 0.10.
+- P2. What the date adds about the pair. Adding the decision-maker's eight in-date ratings to the person terms
+  raises that match AUC by at least 0.02, with the 90% interval of the paired difference (Obuchowski) above 0.
+- Q1. Questionnaire and appeal. The reliability-corrected held-out R2 of each person's appeal, predicted from their
+  own pre-date answers, is below 0.30 for both learners (ridge and random forest).
+- Q2. Questionnaire and yes-rate. The same for each person's yes-rate.
+
+Exploratory:
+
+- the learning curves of the full logistic regression and of both models with the date ratings; extrapolations
+  AUC = A - b n^(-c) with c = 0.5 and 1 against mean training dyads;
+- the ratings-only model under the same within-event dyad folds, and the comparison of the person ceiling with the
+  date-ratings AUC on new events (different evaluation schemes, so descriptive only);
+- uncorrected R2, R2 by gender, the comparison with Joel et al.'s ranges;
+- a figure placing chance, the pre-date AUC, the extrapolated limit, the person ceiling, the person ceiling with the
+  ratings, and the date-ratings AUC on one scale.
+
+Settings (`scripts/limits.py`):
+
+- Learning curve: Part 1's headline specification and event folds (seed 20261006) and inner seeds; in each fold,
+  m in {4, 6, 8, 10, 12, 14} of the 16 or 17 training events, 20 draws each, seeds [20266006, fold, m, draw]; the
+  lasso and the full logistic regression of part1_models.run_fold, refitted on the drawn events; draw r of every
+  fold together make one run, scored by its pooled AUC on all 4,184 dyads. The full-size runs must reproduce Part 1
+  to 1e-9. LDA and QDA are left out because QDA cannot be fitted on the small draws; the forest and stepwise
+  selection are left out for time.
+- Person ceiling: dyads dealt at random into 5 folds within each event (seed 20266106); for each fold, W1's model
+  (logit P(yes) = mu + a_rater + b_ratee, ridge 1, 200 IRLS iterations) fitted to all decisions of the other
+  dyads; the match score is the product of the two held-out yes probabilities. The variant with ratings adds the
+  decision-maker's attr, sinc, intel, fun, amb, shar, like and prob of the partner, standardized by the training
+  medians and SDs, missing set to the median with a flag. AUC SEs by Obuchowski with events as clusters; paired
+  differences by the same form on the placement-value differences.
+- Questionnaire: W1 fitted to all 8,368 decisions; a person's yes-rate is their rater term and their appeal their
+  ratee term. Predictors: data/participants.csv's age, date, go_out, exphappy, the 17 interests, the five
+  self-ratings, the six stated preference shares (median-imputed with flags), field, career and goal (one-hot, codes
+  held by fewer than 10 training people merged), and gender; no race variables. Learners: ridge (16 penalties from
+  0.1 to 10,000) and a random forest (500 trees, a third of the predictors per split, leaf size 1, 5, 20 or 50,
+  random_state 20266306 + fold), tuned by event-grouped 4-fold CV inside Part 1's event folds. Held-out R2 with the
+  cluster-robust SE by event. Reliability: 20 random halvings of each event's dyads (seeds [20266206, split]), W1
+  fitted to each half, the Spearman-Brown value of the half-to-half correlation, averaged. Corrected R2 = R2 /
+  reliability.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -841,3 +903,5 @@ Settings (`scripts/sim_cv_auc.py`):
 - 2026-10-15 (rounding note; no hypothesis changed) Part 9's N17 and N18 predictions were rounded half up from the
   components file, which holds -0.8465 (sa 2, su 0, K = 5) and -0.7945 (sa 2, K = 10). The entry prints -0.847 and
   -0.795; the hypotheses file prints -0.846 and -0.794. Neither verdict depends on the third decimal.
+- 2026-11-03 (new hypotheses L1, P1, P2, Q1, Q2) Part 10: where the missing accuracy is (learning curve, person
+  ceiling, questionnaire), committed after Part 9 ran and before any Part 10 analysis ran on the real outcomes.
