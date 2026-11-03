@@ -980,3 +980,9 @@ Settings (`scripts/sim_cv_unequal.py`):
   stopped in the questionnaire step on an indexing bug (the person ids lost their column name after reset_index);
   the fix changes no computation, and only that step was rerun. R2 by gender, listed as exploratory, was not
   computed.
+- 2026-11-03 (results recorded; no hypothesis changed) Part 11 ran (scripts/sim_cv_unequal.py). All four were
+  supported, three of them near their band edges:
+  - N22: K = 10, 1.007 against P2 0.998 (P1 1.107); K = 5, 1.230 against 1.217, below the midpoint 1.2385.
+  - N23: 1.266 against P1 1.260; 1.078 against P1 1.107, inside a band of 0.03.
+  - N24: plug-in misses -0.009 and +0.068 (band 0.08); paired gaps 0.192 and 0.203.
+  - N25: residual-total ratios 1.007 and 0.994; own-row 1.092 against 1.065 and 0.993 against 0.984.

@@ -928,6 +928,23 @@ Gaps, stated plainly:
 5. The registered test is Part 11 (N22 to N25, `scripts/sim_cv_unequal.py`). The $K=3$ results, the paired own minus
    residual-total differences in the synthetic designs, the variance ratios and the second-order surrogate are exploratory there.
 
+Part 11 result (2026-11-03, fresh seeds, `results/sim_cv_unequal_hypotheses.csv`). All four registered tests passed, but three
+came close to the edges of their bands:
+
+- N22, which separates P2 from P1. With the 21 real sizes, at K = 10 the observed ratio was 1.007 (SE 0.007), against P2 at
+  0.998 and P1 at 1.107. At K = 5 it was 1.230 (SE 0.006), against P2 at 1.217, and below the P1/P2 midpoint of 1.2385.
+  The K = 5 excess over P2 (+0.013) is about the omitted partition term, measured at +0.009.
+- N23. At G = 84: 1.266 against P1's 1.260 at K = 5, and 1.078 against P1's 1.107 at K = 10. The K = 10 value is 0.029 from
+  P1, inside a band of 0.03. P2 for this design is 1.092.
+- N24. In A2, observed minus the plug-in P2 was -0.009 and +0.068, inside a band of 0.08. The paired own-row minus
+  residual-total gap was 0.192 and 0.203, against a minimum of 0.10.
+- N25. Under log-loss, the residual-total ratios were 1.007 and 0.994. The own-row ratios were 1.092 against P2's 1.065 at
+  K = 5 (0.027, inside 0.03) and 0.993 against 0.984 at K = 10.
+
+What this supports: with unequal clusters and own-row fold means, the Nadeau-Bengio ratio at G = 21 is set mainly by the
+actual sizes and partitions (P2), not by the first-order limit. That limit is approached at G = 84, though at K = 10 only
+loosely. P2's own misses (+0.013 at K = 5 for 0-1 loss, +0.027 under log-loss) are of the size of the omitted terms in Gap 2.
+
 ## 7. First simulation (done; to be extended)
 
 Design. $G=40$ clusters of $m=20$ rows, $p=10$ covariates, logistic regression fitted by IRLS with a tiny ridge, 0-1 loss, $K=5$. Data: $x_i=u_{g(i)}+v_i$ with $u_g,v_i\sim N(0,I)$ (half the covariate variance is between clusters), $y_i\sim\mathrm{Bernoulli}(\sigma(x_i^\top\beta+a_{g(i)}))$ with $a_g\sim N(0,1)$ and $\beta=(1,1,0.5,0.5,0,\dots,0)$. The truth $\mathrm{Err}^{\mathrm{new}}(D)$ for the full-data model is computed on 300 fresh clusters. 300 replicates; nested procedures average over $R=20$ fold assignments. The Bates, Hastie and Tibshirani bias adjustment is omitted. Script: `sim_cv_cluster.py`.
