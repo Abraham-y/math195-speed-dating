@@ -293,7 +293,9 @@ flip probability of order $|\hat\theta-\theta^*|$. In both cases it is $o_p(G^{-
   $\mathrm{Err}_{\mathrm{new}}$ then varies at second order, and the correlation goes to 0 at rate $G^{-1/2}$. In the review's
   Monte Carlo, $\sqrt G\cdot\operatorname{Corr}$ stayed near -1, so the correlation was -0.23 at G = 20, -0.11 at 80 and -0.05 at 640.
   With unbalanced events and a misspecified marginal model (for example an omitted random intercept), $d\ne0$ even
-  for log-loss.
+  for log-loss. (Note, 2026-11-03: this concerns a cluster-weighted target. For the row-weighted target that the scripts
+  score, $d=0$ for log-loss with unequal events even under misspecification, because training and target then weight
+  rows the same way; Proposition 11 (e), Section 6g.)
 
 Derivation.
 
@@ -605,6 +607,326 @@ and refuted the clustered conjecture. Jenna's review is still to come.
     observed means over 20 partitions are -0.0005 (SE 0.0019) and +0.0009 (SE 0.0012). Our events differ too little in
     residual match rate, once the predictors are in, for mixing to matter. The plug-in also gives any project a
     way to check whether its pooled CV AUC needs the BCWF fix.
+
+## 6g. Unequal cluster sizes (derived 2026-11-03; tested in Part 11)
+
+Proposition 8 assumes balanced clusters and $K\mid G$. The real data have 21 events of 25 to 484 dyads. The scripts use
+the pooled (row-weighted) CV estimate and the unbalanced cluster-robust variance (convention 6). This section extends
+Proposition 8 to unequal sizes and states what the exploratory pilot found. It was reviewed adversarially on 2026-11-03,
+and the corrections are folded in.
+
+Status at a glance:
+
+- **Proved, to first order.** (a), (b), (d) and (e) below. (c) in expectation only. The expansion of the training-set
+  weights $\omega_h$.
+- **Exact for fixed losses.** Proposition 6 with residual totals divided by $n/K$, when $K\mid G$.
+- **Exact for the linear representation (f).** Closed forms 1 and 2.
+- **First-order heuristic only.** The linear representation (f), used as a finite-$G$ predictor ("P2"). It omits terms of
+  the same order as some it keeps.
+- **Pilot result.** P2 matched the mean own-row Nadeau-Bengio ratio for 0-1 loss at $K=5$ and $10$. It failed at $K=3$, for
+  several paired and ratio-of-means comparisons, and for the absolute variance levels under log-loss; these misses are
+  listed below.
+
+Setup:
+
+- Cluster $h$ has $m_h$ rows. The pairs $(m_h,\text{rows of }h)$ are i.i.d. across clusters, with $\bar m=E[m]$, $E[m^4]<\infty$, and
+  $\tilde m=E[m^2]/E[m]$, the size-biased mean size ($\tilde m=302.5$ for the 21 real events, against $\bar m=199.2$). $n=\sum_hm_h$.
+- $L_h(\theta)=\sum_{i\in h}\ell(z_i;\theta)$ is cluster $h$'s loss *total*. The pooled CV estimate (what the scripts compute) is
+  $\widehat{\mathrm{Err}}_{\mathrm{CV}}=\frac1n\sum_j\sum_{h\in F_j}L_h(\hat\theta_{T_j})$.
+- Target: $A(\theta)=E[L_h(\theta)]/\bar m$, the expected loss of a row drawn at random from the rows of new clusters, and
+  $\mathrm{Err}_{\mathrm{new}}=A(\hat\theta_{\mathrm{all}})$. This is the row-weighted target. The scripts score the target as the pooled loss over
+  2,000 (or 300) new events, which converges to $E[L_h]/E[m]$, and the pooled CV estimate is a ratio estimator of the same
+  quantity. The cluster-weighted alternative $E[L_h(\theta)/m_h]$ (a new cluster, every cluster weighted equally) would be
+  estimated by the unweighted mean of the events' CV error rates. The two coincide when cluster size carries no
+  information about the rows, $E[L_h(\theta)\mid m_h]=m_hA(\theta)$; in the A2 designs they do not, because each event template
+  has its own covariates.
+- The M-estimator weights rows equally: $\hat\theta_T$ solves $\sum_{g\in T}S_g(\theta)=0$ with $S_g$ the cluster's score total, $\theta^*$ solves
+  $E[S_g(\theta^*)]=0$, $H$ is the per-row information ($E[-\partial S_g/\partial\theta]/\bar m$), and $\psi_g=H^{-1}S_g(\theta^*)$ is a *total*, so its
+  scale grows with $m_g$. Linearization: $\hat\theta_T-\theta^*=\sum_{g\in T}\psi_g/n_T+O_p(1/G)$, with $n_T=\sum_{g\in T}m_g$. The 0-1 threshold
+  $\hat t_T=\sum_{g\in T}Y_g/n_T$ is part of $\theta$, with influence total $Y_g-m_gt^*$.
+- $\mu=A(\theta^*)$, $a_h=L_h(\theta^*)-m_h\mu$, $d=\nabla A(\theta^*)$, $\beta_g=d^\top\psi_g$; all have mean 0, and $\operatorname{Var}(a)$, $\operatorname{Var}(\beta)$, $\operatorname{Cov}(a,\beta)$
+  are variances of totals. For fold $j$: $n_j$ rows, $N_j=n-n_j$, $A_F=\sum_{h\in F}a_h$, $B_F=\sum_{h\in F}\beta_h$, $B=\sum_h\beta_h$.
+- Two-level model with sizes that carry no information about the rows: if a row's loss at $\theta^*$ has variance $\sigma_a^2$ and
+  two rows of a cluster have covariance $c_a$ (likewise $\sigma_\beta^2,c_\beta$ for $b_i=d^\top H^{-1}s_i$ and $\sigma_{a\beta},c_{a\beta}$), then
+  $\operatorname{Var}(a_h\mid m_h)=m_h\sigma_a^2+m_h(m_h-1)c_a$, so $\operatorname{Var}(a)=\bar m\,V_a$ with $V_a=\sigma_a^2+(\tilde m-1)c_a$, and the same for $V_\beta$, $V_{a\beta}$.
+
+Assumptions:
+
+- (U1) The pairs $(m_h,\text{rows})$ are i.i.d., $E[m^4]<\infty$, and $E\|\nabla L_h(\theta^*)\|^2<\infty$.
+- (U2) The partition deals the clusters at random into $K$ folds of $\lfloor G/K\rfloor$ or $\lceil G/K\rceil$ clusters, independently of the data,
+  so the fold row counts $n_j$ are random. $K$ is fixed as $G\to\infty$.
+- Assumptions (2) to (4) of Section 6e, with the linearization above.
+
+**Proposition 11 (unequal cluster sizes, pooled grouped $K$-fold CV, row-weighted target).**
+
+(a) To first order,
+
+$$\widehat{\mathrm{Err}}_{\mathrm{CV}}=\mu+\frac1n\sum_h\big(a_h+\omega_h\beta_h\big)+r_1,\qquad \mathrm{Err}_{\mathrm{new}}=\mu+\frac Bn+r_2,\qquad \omega_h=\sum_{j\ne j(h)}\frac{n_j}{N_j}.$$
+
+$\omega_h$ is cluster $h$'s total weight over the training sets it belongs to. With $n_j/n=1/K+\varepsilon_j$, $\varepsilon_j=O_p(G^{-1/2})$, it is
+$\omega_h=1-\frac{K^2}{(K-1)^2}\varepsilon_{j(h)}+O_p(1/G)$, and $\omega_h\equiv1$ when the folds have equal row counts. Hence
+
+$$\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}}=\frac1n\sum_ha_h+\frac1n\sum_h(\omega_h-1)\beta_h+r_1-r_2=\frac1n\sum_ha_h+o_p(G^{-1/2}).$$
+
+The middle term is $O_p(1/G)$. With the real sizes, though, $\max_h|\omega_h-1|$ has median 0.17 over partitions at $K=5$, and the
+largest error of the first-order expansion of $\omega_h$ has median 0.04 (review).
+
+(b) $G\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})\to\operatorname{Var}(a)/\bar m^2=E[(L_h(\theta^*)-m_h\mu)^2]/\bar m^2$ (with uniform integrability). This is the
+linearized variance of a ratio estimator, and the unbalanced cluster-robust variance satisfies $G\hat V_{\mathrm{CR}}\to_p$ the same
+limit. In the two-level model the limit is $V_a/\bar m$, so $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})\approx\sigma_a^2\{1+(\tilde m-1)\rho_a\}/n$: Kish's design
+effect for unequal clusters, with $m$ replaced by $\tilde m$.
+
+(c) The Nadeau-Bengio limit holds in expectation, as in Proposition 8 (ii), with totals. This is true whether each fold's
+mean is taken over its own rows (as the scripts do) or each fold's residual total is divided by $n/K$:
+
+$$G\,E[\hat\sigma^2_{\mathrm{NB}}]\to\frac{J+K-1}{J-1}\cdot\frac{\operatorname{Var}\big(a-\beta/(K-1)\big)}{\bar m^2},\qquad G\,E[\hat V_{\mathrm{CR}}]\to\frac{\operatorname{Var}(a)}{\bar m^2},\qquad
+\frac{E[\hat\sigma^2_{\mathrm{NB}}]}{\frac{J+K-1}{J-1}E[\hat V_{\mathrm{CR}}]}\to\frac{\operatorname{Var}(a-\beta/(K-1))}{\operatorname{Var}(a)}=1-\frac{2V_{a\beta}}{(K-1)V_a}+\frac{V_\beta}{(K-1)^2V_a}.$$
+
+It is *not* a convergence in probability of the per-data-set ratio at fixed $J$. $\hat\sigma^2_{\mathrm{NB}}$ is a multiple of a sample
+variance of $J$ fold values, which does not concentrate as $G$ grows; the per-data-set ratio had SD 0.255 at $G=84$, $J=60$ in
+the pilot. Size enters the limit only through the components, and in the two-level model only through $\tilde m$.
+
+(d) Proposition 8 (iii) holds with totals: $\operatorname{Corr}(\widehat{\mathrm{Err}}_{\mathrm{CV}},\mathrm{Err}_{\mathrm{new}})\to(V_{a\beta}+V_\beta)/\sqrt{(V_a+2V_{a\beta}+V_\beta)V_\beta}$.
+
+(e) Proposition 8 (iv) holds *without* balance when the target is row-weighted. If the evaluation loss is the training
+criterion, both weight rows equally, so $\theta^*$ minimizes $A$ and $d=0$, even if the model is misspecified (for example an
+omitted random intercept). The remark in Section 6e that $d\ne0$ for log-loss with unbalanced events applies to a
+cluster-weighted target.
+
+(f) **The linear representation (a first-order heuristic at finite $G$; not a second-order expansion).** Condition on the sizes
+and the partitions, and keep only the linear terms of (a):
+
+- cluster $h$'s CV loss total is $L_h=m_h\mu+a_h+m_hB_{T(h)}/N_{(h)}$;
+- fold $j$'s own-row mean is $e_j=\mu+A_{F_j}/n_j+B_{T_j}/N_j$.
+
+Then $\widehat{\mathrm{Err}}_{\mathrm{CV}}$, $\mathrm{Err}_{\mathrm{new}}$, $\hat V_{\mathrm{CR}}$ and $\hat\sigma^2_{\mathrm{NB}}$ are exact quadratic forms in the independent totals $(a_h,\beta_h)$.
+Their expectations can be computed for any sizes (`scripts/prop11_linear.py`); "P2" below is this computation. It keeps
+some order-$1/G$ terms:
+
+- the fold-size weights $\omega_h$;
+- the cluster-robust variance's leverage term;
+- the covariance of $a_h$ with its own fold's training shift;
+- the effect of dividing by each fold's own row count.
+
+It **omits** others of the same or larger order:
+
+1. **The pooled estimate's variation across partitions.** In (f) the pooled CV varies across partitions only through
+   $\frac1n\sum(\omega_h-1)\beta_h$. In fact the remainder $r_1$ differs from partition to partition, through flip noise for 0-1
+   loss and curvature for smooth losses. At $G=21$ the pooled CV's SD across partitions is 14% to 25% of the cluster-robust SE
+   (review). With own-row fold means this adds about $\operatorname{Var}_P(\widehat{\mathrm{Err}}_{\mathrm{CV}})/((K-1)\hat V_{\mathrm{CR}})$ to the ratio: +0.006 to +0.008 at $K=5$, about
+   +0.03 at $K=3$, and nothing with residual totals.
+2. The test cluster's own gradient deviation $g_h=\nabla L_h(\theta^*)-m_hd$, times its fold's training deviation.
+3. Curvature terms in the fold values and in $\mathrm{Err}_{\mathrm{new}}$.
+
+P2 as a *mean of per-data-set ratios* also depends on the Gaussian law assumed for the totals. Mean of ratios and ratio of
+means differ by up to 0.07 (S21f, $K=10$: 0.998 against 0.927).
+
+Two closed forms, exact for the linear representation:
+
+1. Balanced, $K\mid G$, with $\hat V_{\mathrm{CR}}$ from a $K_{\mathrm{cv}}$-fold run and the Nadeau-Bengio partitions into $K$ folds, and $c=a-\beta/(K-1)$:
+   $$\frac{E[\hat V_{\mathrm{CR}}]}{\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})}=1+\frac{\operatorname{Var}(\beta)/(K_{\mathrm{cv}}-1)-2\operatorname{Cov}(a,\beta)}{(G-1)\operatorname{Var}(a)},\qquad
+   \frac{E[\hat\sigma^2_{\mathrm{NB}}]}{\frac{J+K-1}{J-1}E[\hat V_{\mathrm{CR}}]}=\frac{\operatorname{Var}(c)}{\operatorname{Var}(a)+\frac{\operatorname{Var}(\beta)/(K_{\mathrm{cv}}-1)-2\operatorname{Cov}(a,\beta)}{G-1}}.$$
+   With $\operatorname{Cov}(a,\beta)<0$, as in our designs, the cluster-robust variance overstates its target by a term of order $1/G$, and
+   the ratio approaches its limit from below.
+2. Unequal sizes and $\beta\equiv0$ (log-loss). Write $v_h=\operatorname{Var}(a_h\mid m_h)$, and $\lambda_h=E_P[\mathbf 1\{h\in F\}/n_F]$, $\kappa_h=E_P[\mathbf 1\{h\in F\}/n_F^2]$ for a
+   random fold $F$:
+   $$\frac{E[\hat V_{\mathrm{CR}}]}{\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})}=\frac{G}{G-1}\Big(1-\frac{2\sum_hm_hv_h}{n\sum_hv_h}+\frac{\sum_hm_h^2}{n^2}\Big),\qquad
+   \frac{E[\hat\sigma^2_{\mathrm{NB,own}}]}{\frac{J+K-1}{J-1}\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})}=\frac{n^2\sum_hv_h(\kappa_h-\lambda_h^2)}{(K-1)\sum_hv_h}+O(J^{-1}G^{-1}).$$
+   - The first factor is the leverage bias of the CR1 variance. With $v_h\propto m_h^2$ and the real sizes it is $1.05\,(1-0.172+0.072)=0.945$.
+   - The second factor is 1.009, 0.982 and 0.869 at $K=3$, 5 and 10 for the real sizes. So the own-row Nadeau-Bengio
+     numerator is close to right at $K=5$, and the ratio is above 1 there mostly because $\hat V_{\mathrm{CR}}$ is 5% low.
+   - A second-order Taylor expansion in the fold-size deviation, $\sum_hv_h\{1-2\delta_h+3\delta_h^2+\frac{3K-2}{K-1}\tau_h^2\}/\sum_hv_h$, is valid only for
+     small imbalance: 0.9997 against an exact 0.9996 for sizes 184 to 214. At the real sizes it is useless: 1.07 against
+     0.98 at $K=5$, and 1.31 against 0.86 at $K=10$.
+
+Derivation.
+
+1. Test-sampling remainder. Condition on $T_j$; the test clusters are independent of $\hat\theta_{T_j}$ by (U2). The terms
+   $L_h(\hat\theta_T)-L_h(\theta^*)-m_h[A(\hat\theta_T)-A(\theta^*)]$, $h\in F_j$, are i.i.d. with mean 0. Their sum over $q\approx G/K$ clusters, divided by
+   $n$, is $O_p(1/G)$ for smooth losses and $O_p(G^{-3/4})$ for 0-1 loss, as in step 1 of Section 6e, now using $E[m^2]<\infty$.
+2. Training-set term. $A(\hat\theta_{T_j})-A(\theta^*)=d^\top\sum_{g\in T_j}\psi_g/N_j+O_p(1/G)=B_{T_j}/N_j+O_p(1/G)$.
+3. **What replaces "each cluster is in $K-1$ training sets of equal size".** Fold $j$ contributes
+   $\frac1n[\sum_{h\in F_j}(a_h+m_h\mu)+n_jB_{T_j}/N_j]$, so $\widehat{\mathrm{Err}}_{\mathrm{CV}}=\mu+\frac1n[A+\sum_jn_jB_{T_j}/N_j]$, and
+   $\sum_j\frac{n_j}{N_j}B_{T_j}=\sum_h\beta_h\sum_{j\ne j(h)}\frac{n_j}{N_j}=\sum_h\omega_h\beta_h$.
+   - In the balanced case $n_j/N_j=1/(K-1)$ for every $j$, so $\omega_h=1$ and the sum is $B$.
+   - In general put $p_j=n_j/n=1/K+\varepsilon_j$ with $\sum_j\varepsilon_j=0$, and expand $f(p)=p/(1-p)$ around $1/K$ ($f=\frac1{K-1}$, $f'=\frac{K^2}{(K-1)^2}$).
+     Then $\sum_jf(p_j)=\frac K{K-1}+O(\varepsilon^2)$, so $\omega_h=\sum_jf(p_j)-f(p_{j(h)})=1-\frac{K^2}{(K-1)^2}\varepsilon_{j(h)}+O(\varepsilon^2)$.
+   - A fold of $q$ clusters drawn without replacement has $\operatorname{Var}(\varepsilon_j)\approx\frac{K-1}{K^2}\cdot\frac{\operatorname{CV}_m^2}{G}$, so $\varepsilon_j=O_p(G^{-1/2})$, and
+     $\frac1n\sum_h(\omega_h-1)\beta_h=\frac1n\sum_j(\omega^{(j)}-1)B_{F_j}=O_p(G^{-1/2})\cdot O_p(G^{1/2})/O(G)=O_p(1/G)$.
+4. Full model: $A(\hat\theta_{\mathrm{all}})=\mu+B/n+O_p(1/G)$. Subtracting gives (a), and (b) follows: $\sum_ha_h/n$ has variance
+   $G\operatorname{Var}(a)/n^2$, and $n/G\to\bar m$.
+5. Cluster-robust variance. Its residual for cluster $h$ is $L_h-m_h\widehat{\mathrm{Err}}_{\mathrm{CV}}=a_h+m_h\{B_{T(h)}/N_{(h)}-(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mu)\}$, and the
+   brace is $O_p(G^{-1/2})$ uniformly in $h$. So $\frac{G^2}{G-1}\sum_hR_h^2/n^2=\frac{G^2}{G-1}\sum_ha_h^2/n^2+O_p(G^{-1/2})\to\operatorname{Var}(a)/\bar m^2$, using $E[m^4]<\infty$
+   for the cross terms.
+6. Nadeau-Bengio (c), in expectation.
+   - Fold $j$'s own-row mean is $e_j-\mu=A_{F_j}/n_j+(B-B_{F_j})/N_j$, plus the partition-dependent part of $r_1$. With $n_j=\frac nK(1+K\varepsilon_j)$,
+     $A_{F_j}/n_j=\frac KnA_{F_j}(1+O_p(G^{-1/2}))$, and since $A_{F_j}=O_p(G^{1/2})$ the correction is $O_p(1/G)$, against $O_p(G^{-1/2})$ for the
+     leading term. Likewise $(B-B_{F_j})/N_j=\frac{K}{(K-1)n}(B-B_{F_j})+O_p(1/G)$.
+   - So $e_j-\mu=\frac Kn\sum_{h\in F_j}c_h+\frac{KB}{(K-1)n}+o_p(G^{-1/2})$, with $c_h=a_h-\beta_h/(K-1)$. The second term is common to all folds of all partitions.
+   - The step of Proposition 6 that fails is "every partition's fold means average to $\bar y$": with own-row means they
+     do not. Write $v=\operatorname{Var}(e_j)$ and $u=K\operatorname{Var}(\frac1K\sum_ke_k)$ within a partition. Then $E[S^2]=(Jv-u)/(J-1)$, and Proposition 6 is the
+     case $u=0$.
+   - The partition mean of the fold means differs from the pooled estimate by $-\sum_j\varepsilon_j(e_j-\mu)=O_p(1/G)$. The pooled estimate
+     varies across partitions through $\frac1n\sum_h(\omega_h-1)\beta_h=O_p(1/G)$ and through the partition-dependent part of $r_1$, which is
+     $O_p(G^{-3/4})$ for 0-1 loss (flip noise) and $O_p(1/G)$ for smooth losses. So $u=O(G^{-3/2})$ for 0-1 loss (the first version
+     wrote $O(G^{-2})$; review) and $u=O(G^{-2})$ for smooth losses. Both are $o(v)$, with $v=O(G^{-1})$.
+   - Proposition 6 applied to the totals $c_h$, sampled without replacement as in its step 2, gives the expectation in (c).
+     With residual totals divided by $n/K$, $u=0$ exactly, because each partition's residual totals sum to 0.
+   - At fixed $J$, $S^2$ is a sample variance of $J$ values and does not concentrate, so only the expectation converges.
+7. (d) follows from $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}})\approx\operatorname{Var}(a+\beta)/(G\bar m^2)$, $\operatorname{Var}(\mathrm{Err}_{\mathrm{new}})\approx\operatorname{Var}(\beta)/(G\bar m^2)$ and
+   $\operatorname{Cov}\approx[\operatorname{Cov}(a,\beta)+\operatorname{Var}(\beta)]/(G\bar m^2)$. (e) holds because the row-weighted expected training criterion is $\bar mA$.
+8. (f), closed form 1. With $n=Gm$, $\omega\equiv1$ and, for the $K_{\mathrm{cv}}$-fold run, $R_h=a_h-\bar a-\frac{K_{\mathrm{cv}}}{(K_{\mathrm{cv}}-1)G}(B_{F(h)}-B/K_{\mathrm{cv}})$.
+   - Using $E[(a_h-\bar a)(B_{F(h)}-B/K)]=(1-\frac1K)\operatorname{Cov}(a,\beta)$ and $E(B_F-B/K)^2=\frac{G(K-1)}{K^2}\operatorname{Var}(\beta)$:
+     $E[R_h^2]=\operatorname{Var}(a)(1-\frac1G)-\frac2G\operatorname{Cov}(a,\beta)+\frac{\operatorname{Var}(\beta)}{(K_{\mathrm{cv}}-1)G}$. Multiply by $G^2/((G-1)n^2)$.
+   - The Nadeau-Bengio numerator for $K$-fold partitions is $\frac{J+K-1}{J-1}G\operatorname{Var}(c)/n^2$ exactly (Proposition 6 on the totals $c_h$).
+
+   Closed form 2:
+   - With $\beta=0$ and independent $a_h$, $E_P[e_j]=\sum_ha_h\lambda_h$ and $E[\operatorname{Var}_P(e_j\mid\text{data})]=\sum_hv_h(\kappa_h-\lambda_h^2)$.
+   - For $E[\hat V_{\mathrm{CR}}]$, expand $\sum_h(a_h-m_h\sum_ga_g/n)^2$. $\square$
+
+Checks of the algebra (known answers; `tests/test_sim_cv_unequal.py`, and independently the reviewer's scratch check `rv_closed_forms.py`):
+
+- The linear representation's pooled CV and fold values match a separate implementation to $10^{-14}$.
+- Proposition 6 is reproduced for fixed totals (balanced, 1.000 $\pm$ 0.001) and with real sizes and residual totals at $G=20$
+  (1.001 $\pm$ 0.001).
+- Closed form 1 matches the Monte Carlo of the representation, including $K_{\mathrm{cv}}=5$ with $K=10$: 1.0490 against 1.0480 $\pm$ 0.0057 at
+  $G=20$, $m=199$. Using a single $K$ for both terms gives 1.0528, which is wrong.
+- Closed form 2 matches to 0.01 at $K=3,5,10$.
+- The review reproduced P1 and P2 from the population constants, with no use of any simulated data set.
+
+Relation to the literature. Several pieces are classical:
+
+- the ratio-estimator form of (b) (Cochran);
+- Kish's design effect with $\sum m^2/\sum m$ for unequal clusters;
+- the leverage bias of the CR1 variance with unequal clusters, which CR2 removes under working independence
+  (Bell and McCaffrey; MacKinnon and Webb).
+
+Plausibly new, pending a literature check:
+
+- the training-set weights $\omega_h$ and the statement that the Nadeau-Bengio limit survives unequal folds in expectation;
+- the measurement of the order-$1/G$ terms at $G=21$;
+- the per-data-set plug-in.
+
+**Exploratory pilot** (2026-11-03; scratch seeds 997000 to 997610; scratch scripts outside the repository; not registered).
+
+Predictions:
+
+- P1 is the $G\to\infty$ limit in (c), from the population constants of the synthetic design: $\sigma_a^2=0.2015$, $c_a=0.01742$,
+  $\sigma_\beta^2=0.0281$, $c_\beta=0.00950$, $\sigma_{a\beta}=-0.0017$, $c_{a\beta}=-0.00820$ for 0-1 loss, and $\sigma^2=0.2822$, $c=0.0311$ for log-loss. These
+  reproduce Part 6b's components at $m=40$ ($\operatorname{Var}(a)$ 0.0220 against 0.0227; predicted ratio 1.211 against 1.200).
+- P2 is the linear representation (f) with the same constants and the actual sizes and partitions (40,000 Gaussian draws).
+
+Synthetic design: Part 6's generator with cluster sizes from the real events. The designs are:
+
+- S21f: the 21 real sizes, 1,000 data sets;
+- S21r: 21 sizes resampled from the real ones, 800 data sets;
+- S84r: 84 sizes resampled, 500 data sets;
+- B21: 21 clusters of 199 rows, 800 data sets.
+
+$J=60$ throughout. The ratio is $\hat\sigma^2_{\mathrm{NB}}/(\frac{J+K-1}{J-1}\hat V_{\mathrm{CR}})$ per data set, with own-row fold means as in the scripts. Values are
+means over data sets with bootstrap SEs.
+
+| Design | Loss | K | P1 | P2 | Observed (SE) | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| S21f | 0-1 | 5 | 1.260 | 1.219 | 1.214 (0.009) | P2 fits, P1 does not |
+| S21f | 0-1 | 10 | 1.107 | 0.999 | 0.995 (0.009) | P2 fits, P1 does not |
+| S21f | 0-1 | 3 | 1.586 | 1.553 | 1.572 (0.014) | P2 low by 0.019 |
+| S21r | 0-1 | 5 | 1.260 | 1.218 | 1.212 (0.010) | P2 fits |
+| S21r | 0-1 | 10 | 1.107 | 1.001 | 0.995 (0.010) | P2 fits |
+| S84r | 0-1 | 5 | 1.260 | 1.249 | 1.249 (0.011) | both fit |
+| S84r | 0-1 | 10 | 1.107 | 1.092 | 1.102 (0.009) | both fit |
+| B21 | 0-1 | 5 | 1.255 | 1.207 | 1.198 (0.008) | P2 fits |
+| B21 | 0-1 | 10 | 1.105 | 1.069 | 1.057 (0.006) | P2 high by 0.012 (1.9 SE) |
+| S21f | log | 5 | 1 | 1.064 | 1.071 (0.007) | P2 fits |
+| S21f | log, residual totals | 5 | 1 | 0.997 | 1.000 (0.006) | fits |
+| S21f | log | 10 | 1 | 0.984 | 0.973 (0.009) | P2 fits (1.2 SE) |
+| S21f | log | 3 | 1 | 1.075 | 1.144 (0.008) | **miss**, 8 SE |
+| B21 | log | 3 | 1 | 1.000 | 1.056 (0.009) | **miss**, 6 SE |
+| B21 | log | 10 | 1 | 1.018 | 0.998 (0.005) | **miss**, $-3.7$ SE (residual totals $-4.0$ SE) |
+
+Every other miss of the pilot, against P2 unless stated:
+
+1. **$K=3$.** The own-row ratio is high in every log-loss design (S21f +0.069, S21r +0.070, B21 +0.056) and by about 0.02 for
+   0-1 loss.
+   - The paired own minus residual-total differences are also high: S21f 0-1 0.075 (0.004) against 0.040; S21f log 0.114
+     (0.003) against 0.074; B21 0.027 and 0.029 against 0.
+   - The review measured the pooled CV's partition-to-partition part directly (80 data sets per design): 0.030 to 0.037 at
+     $K=3$. That accounts for the paired misses and the whole 0-1 miss.
+   - Under log-loss the residual-total ratio is still 0.027 to 0.029 above P2 (3.1 to 3.9 SE), which the partition part
+     cannot explain.
+2. **Paired own minus residual total at $K=5$.** B21 0-1 $0.0157\pm0.0013$ against 0.0096; B21 log $0.0169\pm0.0011$ against 0.0119;
+   S84r 0-1 $0.0106\pm0.0032$ against 0.0046. The omitted partition part (+0.006) explains these.
+3. **Ratio of means** (the ratio of mean $\hat\sigma^2_{\mathrm{NB}}$ to mean $\hat V_{\mathrm{CR}}$), against P2's ratio of means. Outside 2 SE: S21r 0-1 $K=5$
+   ($-2.5$ SE), B21 0-1 $K=10$ ($-2.2$), and log-loss $K=10$ in B21, S21f and S21r ($-3.6$, $-2.3$, $-2.8$). Log-loss $K=3$ is high
+   by 3.7 to 5.0 SE.
+4. **Variance levels.**
+   - $G\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})$ for S21f 0-1 was $0.0325\pm0.0015$ against 0.0280, 3.0 SE out; S21r was $0.0285\pm0.0015$, which fits.
+   - Under log-loss it was 0.0641 (S21f), 0.0637 (S21r) and 0.0374 (B21), against 0.0484, 0.0489 and 0.0323. That is 30% high at
+     $G=21$ with real sizes, and 8.5% at $G=84$.
+   - The mean $\hat V_{\mathrm{CR}}$ under log-loss was also above P2 (S21f 0.0533 $\pm$ 0.0010 against 0.0460), but by less. So
+     $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})/\overline{\hat V_{\mathrm{CR}}}$ was 1.20 (S21f) and 1.23 (S21r) against P2's 1.05 and 1.07: under log-loss at $G=21$ the
+     cluster-robust variance runs about 15% below its target.
+   - For 0-1 loss the ratio was 1.10 (0.05) and 1.00 (0.06) against 0.99.
+5. **The second-order surrogate.** A Gaussian surrogate for log-loss, second order in $\hat\theta-\theta^*$, adds the test cluster's own
+   score term and curvature (scratch `second_order_ll.py`; also in `sim_cv_unequal.py --predictions`).
+   - It fits $K=3$: 1.163 against 1.144 for S21f, and 1.056 against 1.056 for B21.
+   - It overshoots at $K=5$: S21f 1.090 against $1.071\pm0.007$, 2.7 SE.
+   - It explains about half of the log-loss variance excess (S21f 0.0566 against 0.0641 observed).
+6. **The plug-in P1.** P1 computed from one data set's plug-in components overshoots (1.276 against 1.214 at S21f $K=5$). The
+   per-data-set plug-in P2 averaged within 0.01 of the observed ratio at $K=5$ and $10$ for 0-1 loss.
+
+Realistic design: the A2 truth with 21 events redrawn (as Part 7), $K=5$, $R=12$ ($J=60$), $\hat V_{\mathrm{CR}}$ from one 5-fold run, and
+$\mathrm{Err}_{\mathrm{new}}$ on 2,000 new events (300 data sets per design). Sizes carry information here, since each event template has its own
+covariates, so the per-data-set plug-in is used. P1 is the moment decomposition of `firstorder_check.py`, with the target's
+Monte Carlo variance removed.
+
+| Person SD, event SD | Observed, own rows | Plug-in P2 | P1 (moments) | Observed, residual totals | Plug-in P2, residual totals | Own minus residual totals (obs; plug-in) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.5, 0 | 1.405 (0.021) | 1.406 (0.010) | 1.250 (0.029) | 1.212 (0.016) | 1.221 (0.005) | 0.193 (0.013); 0.185 |
+| 1.0, 0.4 | 1.493 (0.025) | 1.438 (0.012) | 1.276 (0.028) | 1.277 (0.021) | 1.245 (0.008) | 0.216 (0.014); 0.194 |
+
+Reading:
+
+1. **First order.** Proposition 8 carries over with totals: the cluster-robust variance is the right variance for the pooled
+   estimate against the row-weighted new-cluster error, and the Nadeau-Bengio ratio has the same limit *in expectation*. At
+   $G=84$ both P1 and P2 fit the 0-1 ratios.
+2. **At $G=21$ the order-$1/G$ terms are large.** P2 captures the mean own-row ratio for 0-1 loss at $K=5$ and $10$ (eight cells,
+   within 0.012), where P1 misses by 0.05 and 0.11. It is a heuristic with known omissions and the misses above; it is not a
+   complete second-order theory.
+3. **In the A2 design, normalization accounts for the excess over P1, not for most of the ratio.** Own-row normalization with
+   unequal fold sizes adds 0.19 to 0.22 to the ratio, about 45% of its excess over 1. That roughly equals the excess of the
+   own-row ratio over P1 (0.155 and 0.217). With residual totals the ratio is near P1.
+   - Part 5's ratios (medians of 1.29 to 1.44, $J=50$, $\hat V_{\mathrm{CR}}$ averaged over 10 nested repetitions) are not like-for-like with this
+     design, and we do not claim to explain them.
+   - The A2 normalization effect does not carry over to the real data. There, own-row minus residual-total ratios over 40
+     partitions are +0.088, +0.055, +0.039 and $-0.030$, consistent with caveat 4 of Section 6e (changes of at most 0.05).
+   - Per data set, A2's own minus residual-total difference has SD 0.23 (10th, 50th and 90th percentiles $-0.06$, 0.15 and 0.50),
+     and is at most 0.09 in 31% to 34% of data sets. So the real values lie within A2's spread but below its mean.
+4. **Real data (scratch scripts `realdata_plugin.py` and `realdata_plugin2.py`, and the review's `rv_realdata.py`).** The reported ratios (1.054 to 1.539,
+   Table "real") come from $R=10$ partitions.
+   - Partition noise: rerunning 40 partitions and splitting them into four groups of 10 gives a mean noise variance of 0.054
+     for an $R=10$ ratio. That is about the size of the variance across the four models' reported values (0.050).
+   - At $R=40$ (values 1.34, 0.93, 1.12 and 1.36) the across-model variance is 0.041. Removing the noise (0.054/4) leaves a
+     between-model variance of about 0.028 (SD 0.17). So the models do differ, but at $R=10$ the noise is as large as the
+     differences.
+   - The plug-in is fragile on the real models, which have dozens of features against 21 events. In-sample residual totals
+     carry only 28% to 53% of the cross-validated residual sum of squares, and the jackknife $\hat\beta$ does not sum to 0.
+   - With cross-validated residual totals and a centred $\hat\beta$ the plug-in predicts 1.16, 1.15, 1.27 and 1.30. Those miss the $R=40$
+     values by $-1.1$, $+4.8$, $+2.6$ and $-0.4$ partition SDs (each SD estimated roughly from four groups of 10). We claim no
+     quantitative real-data check.
+
+Gaps, stated plainly:
+
+1. (a), (b), (d) and (e) are first-order and proved under (U1), (U2) and the 6e assumptions, and (c) in expectation. The
+   reduction to $\tilde m$ needs sizes that carry no information about the rows.
+2. (f) is a heuristic. It omits the pooled estimate's partition-to-partition variation (which accounts for the $K=3$ and paired
+   misses), the test cluster's gradient deviation, curvature and flip noise. Its mean-of-ratio predictions depend on a
+   Gaussian law for the totals.
+3. Under log-loss at $G=21$ the cluster-robust variance runs about 15% below its target with the real sizes. About half the
+   variance excess is unexplained even at second order.
+4. The real-data prediction is not reliable with high-dimensional models at $G=21$.
+5. The registered test is Part 11 (N22 to N25, `scripts/sim_cv_unequal.py`). The $K=3$ results, the paired own minus
+   residual-total differences in the synthetic designs, the variance ratios and the second-order surrogate are exploratory there.
 
 ## 7. First simulation (done; to be extended)
 

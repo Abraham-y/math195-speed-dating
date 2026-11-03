@@ -609,6 +609,70 @@ Settings (`scripts/limits.py`):
   fitted to each half, the Spearman-Brown value of the half-to-half correlation, averaged. Corrected R2 = R2 /
   reliability.
 
+## Part 11 (committed 2026-11-03, while Part 10 runs, and before any of this ran)
+
+Part 10's results will be recorded in the change log when it finishes; it does not bear on this part.
+
+This part is about unequal cluster sizes. Propositions 6 and 8 assume balanced clusters; the real events hold 25 to
+484 dyads, and the scripts use the pooled, row-weighted CV estimate and the unbalanced cluster-robust variance.
+Proposition 11 (proposals/06, section 6g) carries Proposition 8 over to unequal sizes with cluster totals in place of
+cluster means. Its Nadeau-Bengio statement (c), in expectation, gives the first-order limit P1 = Var(a -
+beta/(K-1)) / Var(a) with totals. A first-order heuristic at the actual sizes and partitions, P2, adds the effect of
+dividing each fold by its own row count when fold sizes differ. P2 omits the pooled estimate's variation across
+partitions, which section 6g sizes at about +0.006 to +0.008 at K = 5.
+
+Before this entry, and labelled exploratory:
+
+- a pilot with scratch seeds 997000 to 997610;
+- an adversarial review with its own checks (scratch seeds 998100 to 998300). It found:
+  - three errors, all corrected in section 6g: the omitted partition term; (c) stated in probability rather than
+    in expectation; an expansion that fails at the real sizes;
+  - an overclaim about Part 5;
+  - unreported misses;
+- the population constants and predictions (`scripts/sim_cv_unequal.py --predictions`, seeds 20267006 and 20267016;
+  no cross-validation data set drawn).
+
+The review also showed:
+
+- K = 3 is not predicted well;
+- the paired own-row minus residual-total difference is not predicted in the synthetic designs;
+- log-loss Var(CV - Err_new) / V_CR is 1.20 to 1.23 at G = 21 against a prediction of 1.05 to 1.07.
+
+These are exploratory below. Every test uses fresh seeds.
+
+- N22. P2 against P1. 21 real event sizes (S21f), 0-1 loss, 2,000 data sets: the mean own-row Nadeau-Bengio ratio is
+  within 0.04 of P2 (0.998) at K = 10, where P1 is 1.107; and at K = 5 it is within 0.03 of P2 (1.217) and below the
+  P1/P2 midpoint (1.2385).
+- N23. The first-order limit is approached at G = 84 (84 sizes resampled from the real ones, S84r; not a test of P2
+  against P1): the mean own-row ratio is within 0.03 of P1 at K = 5 (1.260) and K = 10 (1.107).
+- N24. Calibration of the real-data plug-in. A2's truth with 21 redrawn events, K = 5, in both designs (person SD 0.5
+  with event SD 0; person SD 1.0 with event SD 0.4): the mean of the observed own-row ratio minus its per-data-set
+  plug-in P2 is within 0.08 of 0, and the mean paired own-row minus residual-total ratio is at least 0.10.
+- N25. Log-loss, S21f: the residual-total ratio is within 0.03 of 1 at K = 5 and 10, and the own-row ratio within
+  0.03 of P2 at K = 5 (1.065) and K = 10 (0.984).
+
+Exploratory: K = 3 (P2 1.555 for 0-1 and 1.075 for log-loss); the split of own minus residual-total into the partition
+and normalization parts; ratios of means; Var(CV - Err_new) / V_CR; the second-order log-loss surrogate (1.163, 1.088,
+0.983 at K = 3, 5, 10).
+
+Settings (`scripts/sim_cv_unequal.py`):
+
+- Synthetic designs as in Part 6, with cluster sizes:
+  - S21f: the 21 real sizes, 2,000 data sets;
+  - S84r: 84 drawn with replacement from them, 1,000 data sets.
+  - Logistic regression; 0-1 loss at the training match rate, and log-loss.
+- A2 designs: 21 events redrawn from the real templates, 500 data sets each; Err_new on 2,000 new events.
+- Nadeau-Bengio: J = 60 fold values (R = 12 at K = 5, R = 6 at K = 10, R = 20 at K = 3), and V_CR from one event 5-fold
+  run. The ratio is sigma2_NB / ((J + K - 1) / (J - 1) x V_CR), averaged over data sets. Own-row: each fold's mean loss;
+  residual-total: each fold's residual total divided by n / K.
+- Seeds:
+  - population constants 20267006;
+  - P2 surrogate 20267016;
+  - Err_new population 20267026;
+  - synthetic design d, chunk c: 20267106 + 100 d + c;
+  - A2 design d, chunk c: 20267306 + 100 d + c (intercept calibration + 99).
+- Command: `python scripts/sim_cv_unequal.py 4`.
+
 ## Decisions to record before analysis
 
 - Wave 12 (participants limited to saying yes to half their dates): kept in the main analysis with a
@@ -905,3 +969,6 @@ Settings (`scripts/limits.py`):
   -0.795; the hypotheses file prints -0.846 and -0.794. Neither verdict depends on the third decimal.
 - 2026-11-03 (new hypotheses L1, P1, P2, Q1, Q2) Part 10: where the missing accuracy is (learning curve, person
   ceiling, questionnaire), committed after Part 9 ran and before any Part 10 analysis ran on the real outcomes.
+- 2026-11-03 (new hypotheses N22 to N25) Part 11: unequal cluster sizes (Proposition 11, proposals/06 section 6g),
+  committed after a labelled exploratory pilot and an adversarial review whose corrections are in section 6g, and
+  before any confirmatory run.
