@@ -865,7 +865,7 @@ Every other miss of the pilot, against P2 unless stated:
      $G=21$ with real sizes, and 8.5% at $G=84$.
    - The mean $\hat V_{\mathrm{CR}}$ under log-loss was also above P2 (S21f 0.0533 $\pm$ 0.0010 against 0.0460), but by less. So
      $\operatorname{Var}(\widehat{\mathrm{Err}}_{\mathrm{CV}}-\mathrm{Err}_{\mathrm{new}})/\overline{\hat V_{\mathrm{CR}}}$ was 1.20 (S21f) and 1.23 (S21r) against P2's 1.05 and 1.07: under log-loss at $G=21$ the
-     cluster-robust variance runs about 15% below its target.
+     cluster-robust variance runs about 17% below its target (Var(CV - Err_new) / V_CR about 1.20).
    - For 0-1 loss the ratio was 1.10 (0.05) and 1.00 (0.06) against 0.99.
 5. **The second-order surrogate.** A Gaussian surrogate for log-loss, second order in $\hat\theta-\theta^*$, adds the test cluster's own
    score term and curvature (scratch `second_order_ll.py`; also in `sim_cv_unequal.py --predictions`).
@@ -922,7 +922,7 @@ Gaps, stated plainly:
 2. (f) is a heuristic. It omits the pooled estimate's partition-to-partition variation (which accounts for the $K=3$ and paired
    misses), the test cluster's gradient deviation, curvature and flip noise. Its mean-of-ratio predictions depend on a
    Gaussian law for the totals.
-3. Under log-loss at $G=21$ the cluster-robust variance runs about 15% below its target with the real sizes. About half the
+3. Under log-loss at $G=21$ the cluster-robust variance runs about 17% below its target (Var(CV - Err_new) / V_CR about 1.20) with the real sizes. About half the
    variance excess is unexplained even at second order.
 4. The real-data prediction is not reliable with high-dimensional models at $G=21$.
 5. The registered test is Part 11 (N22 to N25, `scripts/sim_cv_unequal.py`). The $K=3$ results, the paired own minus

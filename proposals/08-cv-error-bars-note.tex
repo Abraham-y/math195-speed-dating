@@ -2,7 +2,7 @@
 % DRAFT for the team's review. Not committed.
 % Every simulation and real-data number below was filled in by a table script (kept outside the repository) from results/*.csv
 % (sim_cv_matched, sim_cv_designs, sim_cv_repair, sim_cv_confirm, sim_cv_firstorder(_b), firstorder_check(_pooled),
-% sim_cv_sizes, sim_cv_kfold, errorbars_final, and their *_hypotheses.csv files); the data description uses
+% sim_cv_sizes, sim_cv_kfold, sim_cv_unequal, errorbars_final, and their *_hypotheses.csv files); the data description uses
 % data/pairs.csv. Numbers quoted from the text of proposals/06 or PREREG.md are attributed where they appear.
 \documentclass[11pt]{amsart}
 \usepackage[hmargin=0.9in,vmargin=0.8in]{geometry}
@@ -34,9 +34,11 @@
 \newtheorem*{prop6}{Proposition 6}
 \newtheorem*{prop7}{Proposition 7}
 \newtheorem*{prop8}{Proposition 8}
+\newtheorem*{prop11}{Proposition 11}
 \newtheorem*{cor1}{Corollary}
 \theoremstyle{definition}
 \newtheorem*{assump}{Assumptions for Proposition 8}
+\newtheorem*{assump11}{Assumptions for Proposition 11}
 \newtheorem*{defn}{Definition}
 \theoremstyle{remark}
 \newtheorem*{rem}{Remark}
@@ -60,13 +62,13 @@
 \author{Jenna Yang}
 \author{Abraham Yeung}
 
-\thanks{Math 195 capstone, Stanford University. \textbf{Draft for the team's review}, 15 October 2026; the theory has not yet been checked by the team's mathematical lead. Numbering of results follows the theory note \texttt{proposals/06}.}
-\date{15 October 2026 (draft)}
+\thanks{Math 195 capstone, Stanford University. \textbf{Draft for the team's review}, 15 October 2026, updated 3 November 2026 (Part~11); the theory has not yet been checked by the team's mathematical lead. Numbering of results follows the theory note \texttt{proposals/06}.}
+\date{15 October 2026 (draft); updated 3 November 2026}
 
 \begin{document}
 
 \begin{abstract}
-In the Columbia speed-dating data (21 events, 4,184 woman--man pairs) every row shares people and an evening with other rows, so cross-validation (CV) error bars that treat rows as independent are too narrow, and random-row folds estimate the wrong quantity. We collect what the team has established about CV error bars when rows are clustered. Holding out whole clusters makes CV estimate the error on new clusters (Lemma~1). On grouped folds, the Nadeau--Bengio variance equals the random-group, or cluster-robust, variance times $(J+K-1)/(J-1)$ (Proposition~6). A coverage study that keeps the clusters fixed overstates the coverage of the cluster-robust interval (Proposition~7). A first-order expansion (Proposition~8) shows that the cluster-robust variance is first-order right for the full model's new-cluster error, and that the Nadeau--Bengio variance differs from it by the factor $\Var(a-\beta/(K-1))/\Var(a)$, near 1.14 to 1.22 for the 0--1 error rate and near 1 for the AUC in our designs. Of 23 pre-registered simulation hypotheses, 17 were supported and 6 were not; we report all of them. Cluster-robust intervals with $t$ quantiles, and the wild cluster bootstrap-$t$, covered the new-cluster error 0.853 to 0.915 of the time at nominal $0.90$ in every design with a precisely scored target. The Nadeau--Bengio limit was predicted out of sample at $K=3$ and $10$ to within 0.053. The nested CV of Bates, Hastie and Tibshirani, as published with random-row folds, covered 0.460 to 0.735. For the AUC, pooling held-out scores across fold models biases the CV estimate downward by order $1/G$ when clusters differ in outcome rate (Proposition~9). A second-order expansion predicted that bias to within 5.1\% at $K=5$; at $K=2$ under strong clustering the registered test missed by 18.6\%, mostly sampling error according to a later review. An estimate that uses only pairs from different clusters within a fold removed the bias, and its interval covered 0.848 to 0.938 for $G\ge40$. Most ingredients are known, and we say which parts may be new.
+In the Columbia speed-dating data (21 events, 4,184 woman--man pairs) every row shares people and an evening with other rows, so cross-validation (CV) error bars that treat rows as independent are too narrow, and random-row folds estimate the wrong quantity. We collect what the team has established about CV error bars when rows are clustered. Holding out whole clusters makes CV estimate the error on new clusters (Lemma~1). On grouped folds, the Nadeau--Bengio variance equals the random-group, or cluster-robust, variance times $(J+K-1)/(J-1)$ (Proposition~6). A coverage study that keeps the clusters fixed overstates the coverage of the cluster-robust interval (Proposition~7). A first-order expansion (Proposition~8) shows that the cluster-robust variance is first-order right for the full model's new-cluster error, and that the Nadeau--Bengio variance differs from it by the factor $\Var(a-\beta/(K-1))/\Var(a)$, near 1.14 to 1.22 for the 0--1 error rate and near 1 for the AUC in our designs. Of 27 pre-registered simulation hypotheses, 21 were supported and 6 were not; we report all of them. Cluster-robust intervals with $t$ quantiles, and the wild cluster bootstrap-$t$, covered the new-cluster error 0.853 to 0.915 of the time at nominal $0.90$ in every design with a precisely scored target. The Nadeau--Bengio limit was predicted out of sample at $K=3$ and $10$ to within 0.053. The nested CV of Bates, Hastie and Tibshirani, as published with random-row folds, covered 0.460 to 0.735. For the AUC, pooling held-out scores across fold models biases the CV estimate downward by order $1/G$ when clusters differ in outcome rate (Proposition~9). A second-order expansion predicted that bias to within 5.1\% at $K=5$; at $K=2$ under strong clustering the registered test missed by 18.6\%, mostly sampling error according to a later review. An estimate that uses only pairs from different clusters within a fold removed the bias, and its interval covered 0.848 to 0.938 for $G\ge40$. With unequal cluster sizes the first-order results carry over with cluster totals and a row-weighted target (Proposition~11), but with the 21 real event sizes the Nadeau--Bengio ratio followed a finite-$G$ heuristic at the actual sizes and partitions rather than the first-order limit; the four registered tests passed, three of them near their band edges. Most ingredients are known, and we say which parts may be new.
 \end{abstract}
 
 \maketitle
@@ -77,7 +79,7 @@ The data come from the Columbia speed-dating experiment (Fisman, Iyengar, Kameni
 
 The rows are not independent: a woman at an event with ten men appears in ten dyads, and her pickiness and desirability enter all ten. Every person attends one event, so all dependence through shared people sits inside events, together with whatever is common to an evening. We treat rows from different events as independent. This has two consequences for CV. First, if rows are dealt into folds one at a time (\emph{random-row} folds), a held-out dyad's two people have other dyads in the training set, so CV measures the error for people already seen rather than for new people. Second, the usual standard error of a CV estimate, $s/\sqrt n$ with $s$ the standard deviation of the per-row losses, ignores the covariance between rows of the same event and is too small even when the folds are grouped.
 
-The question of this note is therefore: when rows are clustered, what does CV estimate, and which error bar gives an interval that covers the fitted model's error on rows from new clusters? The project's headline numbers use event-held-out 5-fold CV with a cluster-robust standard error. Sections~\ref{sec:setup} and~\ref{sec:theory} give the setup and theory, Section~\ref{sec:sim} the simulation evidence, organized around hypotheses registered in \texttt{PREREG.md} before each test ran, Section~\ref{sec:real} the real-data error bars, and Section~\ref{sec:auc} the cross-validated AUC. Sections~\ref{sec:rec} to~\ref{sec:lim} give recommendations, what is known and what may be new, and limitations.
+The question of this note is therefore: when rows are clustered, what does CV estimate, and which error bar gives an interval that covers the fitted model's error on rows from new clusters? The project's headline numbers use event-held-out 5-fold CV with a cluster-robust standard error. Sections~\ref{sec:setup} and~\ref{sec:theory} give the setup and theory, Section~\ref{sec:sim} the simulation evidence, organized around hypotheses registered in \texttt{PREREG.md} before each test ran, Section~\ref{sec:real} the real-data error bars, Section~\ref{sec:auc} the cross-validated AUC, and Section~\ref{sec:unequal} unequal cluster sizes. Sections~\ref{sec:rec} to~\ref{sec:lim} give recommendations, what is known and what may be new, and limitations.
 
 \section{Setup and the two targets}\label{sec:setup}
 
@@ -223,16 +225,16 @@ Bayle et al.~\cite{BBJM} target the average of the $K$ fold models' conditional 
 \end{rem}
 
 \begin{rem}
-With unbalanced events and a misspecified marginal model (for example an omitted random intercept), $d\neq0$ even for log-loss. Proposition~8 also explains how the cluster-robust interval can be right although $\bar c\neq0$: to first order it estimates $\Var(\CV-\Errnew)$, not $\Var(\CV)$.
+With unbalanced events and a misspecified marginal model (for example an omitted random intercept), $d\neq0$ even for log-loss when the target weights every cluster equally; for the row-weighted target that the scripts score, $d=0$ (Proposition~11(e)). Proposition~8 also explains how the cluster-robust interval can be right although $\bar c\neq0$: to first order it estimates $\Var(\CV-\Errnew)$, not $\Var(\CV)$.
 \end{rem}
 
 \section{Simulation evidence}\label{sec:sim}
 
-Every hypothesis below was committed to \texttt{PREREG.md} before its test ran, and none was edited afterwards. Table~\ref{tab:verdicts} lists all of them; Part~9 (N16 to N21) is discussed in Section~\ref{sec:auc}. Unless stated otherwise, intervals are nominal 90\%, the procedure is a logistic regression with 0--1 loss at the training match rate, and CV uses 5 folds. The realistic designs (Parts 2 to 5 and 7) use the \emph{A2 truth}: the real dyads and events, a logistic model for the match on four pre-date predictors, and woman, man and event random effects with SDs and coefficients from a crossed random-effects fit to the real matches; the target is the full-data model's error on new events.
+Every hypothesis below was committed to \texttt{PREREG.md} before its test ran, and none was edited afterwards. Table~\ref{tab:verdicts} lists all of them; Part~9 (N16 to N21) is discussed in Section~\ref{sec:auc} and Part~11 (N22 to N25) in Section~\ref{sec:unequal}. Unless stated otherwise, intervals are nominal 90\%, the procedure is a logistic regression with 0--1 loss at the training match rate, and CV uses 5 folds. The realistic designs (Parts 2 to 5 and 7) use the \emph{A2 truth}: the real dyads and events, a logistic model for the match on four pre-date predictors, and woman, man and event random effects with SDs and coefficients from a crossed random-effects fit to the real matches; the target is the full-data model's error on new events.
 
 \begin{table}[tbp]
 \centering\footnotesize
-\caption{Every pre-registered hypothesis of the error-bar track, with its outcome. Verdicts are read from the \texttt{*\_hypotheses.csv} files and were re-derived from the coverage tables by the table script.}\label{tab:verdicts}
+\caption{Every pre-registered hypothesis of the error-bar track, with its outcome. Verdicts are read from the \texttt{*\_hypotheses.csv} files and were re-derived from the coverage tables by the table script (Part~11's from \texttt{sim\_cv\_unequal\_summary.csv}). Part~11's ratios are Nadeau--Bengio ratios $\VNB/(\fac\VCR)$.}\label{tab:verdicts}
 \begin{tabular}{@{}l l p{8.1cm} p{4.0cm} l@{}}
 \toprule
 Hyp. & Part & Registered claim (abbreviated) & Result & Verdict\\
@@ -260,6 +262,10 @@ N18 & 9 & Mixing bias at $K=2,10$ within 15\% of $C_{\rm mix}+c_2/(K-1)$ & 3 of 
 N19 & 9 & BCWF-pooled $|$bias$|\le0.25$ SE for $G\ge40$; pooled $>0.25$ SE when $s_a=2$ & max.\ 0.11; 0.48--0.87 & supported \\
 N20 & 9 & BCWF-pooled mean coverage 0.87--0.93; pooled $<0.85$ when $s_a=2$ & 0.899; 0.841 & supported \\
 N21 & 9 & NB ratio for fold AUCs within 0.07 of prediction (about 1) & 0.978--0.999 & supported \\
+N22 & 11 & 21 real sizes, 0--1: own-row ratio within 0.04 of P2 ($K=10$); within 0.03 of P2 and below the P1/P2 midpoint ($K=5$) & 1.007; 1.230 & supported \\
+N23 & 11 & 84 resampled sizes, 0--1: own-row ratio within 0.03 of P1, $K=5,10$ & 1.266; 1.078 & supported \\
+N24 & 11 & A2, 21 redrawn events: own-row ratio within 0.08 of its plug-in; own $-$ residual-total $\ge0.10$ & $-$0.009, $+$0.068; 0.192, 0.203 & supported \\
+N25 & 11 & 21 real sizes, log: residual-total within 0.03 of 1, own-row within 0.03 of P2, $K=5,10$ & 1.007, 0.994; 1.092, 0.993 & supported \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -464,7 +470,7 @@ Set & Model & Error & CR, $z$ & CR, $t_{20}$ & Wild & NB & NB ratio & AUC & 90\%
 \end{tabular}
 \end{table}
 
-For the pre-date logistic model the error rate is 0.418 with a cluster-robust $t_{20}$ half-width of 0.0300, and the AUC is 0.542 (0.507 to 0.578), against 0.780 on \texttt{pre+date}. In all four models the wild bootstrap-$t$ interval is the widest of the three cluster-robust ones, and the Nadeau--Bengio ratio is 1.054 to 1.539. By Proposition~8(ii) the ratio estimates $\Var(a-\beta/4)/\Var(a)$, so values above $1$ mean the Nadeau--Bengio interval is conservative by about that factor. Each is one draw from $R=10$ partitions on unbalanced events, so we do not interpret their differences. The AUC intervals in Table~\ref{tab:real} use the pooled estimate. Part~9 (Section~\ref{sec:auc}) shows that this estimate runs low by order $1/G$ when clusters differ in outcome rate. On the real data, averaged over 20 random event partitions, the pooled AUC minus BCWF-pooled (the estimate Part~9 found close to unbiased) is $-$0.004 to $+$0.002 (Table~\ref{tab:aucreal}), so the headline AUCs are not materially biased on average.
+For the pre-date logistic model the error rate is 0.418 with a cluster-robust $t_{20}$ half-width of 0.0300, and the AUC is 0.542 (0.507 to 0.578), against 0.780 on \texttt{pre+date}. In all four models the wild bootstrap-$t$ interval is the widest of the three cluster-robust ones, and the Nadeau--Bengio ratio is 1.054 to 1.539. With balanced clusters Proposition~8(ii) would make the ratio an estimate of $\Var(a-\beta/4)/\Var(a)$, the factor by which the Nadeau--Bengio interval is conservative. The real events are unequal and the fold values are means over each fold's own rows, so the ratio also carries the fold-size normalization effect of Section~\ref{sec:unequal}, and the plug-in prediction of it is not reliable for these models. Each ratio is one draw from $R=10$ partitions, and the partition noise is about as large as the differences between models: the noise variance of one $R=10$ ratio is about 0.054, against a variance of 0.050 across the four models (Section~\ref{sec:unequal}). So we do not interpret their differences. The AUC intervals in Table~\ref{tab:real} use the pooled estimate. Part~9 (Section~\ref{sec:auc}) shows that this estimate runs low by order $1/G$ when clusters differ in outcome rate. On the real data, averaged over 20 random event partitions, the pooled AUC minus BCWF-pooled (the estimate Part~9 found close to unbiased) is $-$0.004 to $+$0.002 (Table~\ref{tab:aucreal}), so the headline AUCs are not materially biased on average.
 
 \section{The cross-validated AUC under clustering (Part 9)}\label{sec:auc}
 
@@ -618,12 +624,86 @@ Set & Model & Folds & Pooled & Fold-avg. & BCWF & BCWF-pooled & Gap (SD) & Withi
 \end{tabular}
 \end{table}
 
+\section{Unequal cluster sizes (Part 11)}\label{sec:unequal}
+
+Propositions~6 and~8 assume balanced clusters and $K\mid G$, but the 21 real events hold 25 to 484 dyads. The scripts use three things that balance makes trivial: the pooled estimate $\CV$, which weights every row equally and is therefore a ratio estimator; the unbalanced form of $\VCR$; and Nadeau--Bengio fold values that are each fold's mean loss over its own rows (\emph{own-row} fold means). With unequal clusters the folds of a grouped partition hold different numbers of rows, so the training sets differ in size, and a partition's fold means no longer average to the pooled estimate. Section~6g of the theory note extends Proposition~8 to this case with cluster totals in place of cluster means; this section states the result and its registered test.
+
+\subsection{Theory}
+Cluster $h$ has $m_h$ rows, $n=\sum_hm_h$, $\bar m=\E[m]$, and $\tilde m=\E[m^2]/\E[m]$ is the size-biased mean size ($\bar m=199.2$ and $\tilde m=302.5$ for the real events). Let $L_h(\theta)=\sum_{i\in h}\ell(z_i;\theta)$ be cluster $h$'s loss total. The target is row-weighted: $A(\theta)=\E[L_h(\theta)]/\bar m$, the expected loss of a row drawn at random from the rows of new clusters, and $\Errnew=A(\hat\theta_{\mathrm{all}})$. This is what the simulations score when they pool the loss over new events. The cluster-weighted target $\E[L_h(\theta)/m_h]$, estimated by the unweighted mean of the events' CV error rates, coincides with it only when size carries no information about the rows; in the A2 designs it does, because each event template has its own covariates. The M-estimator weights rows equally: $\hat\theta_T$ solves $\sum_{g\in T}S_g(\theta)=0$ with $S_g$ the cluster's score total, $H$ is the per-row information, and $\psi_g=H^{-1}S_g(\theta^*)$ is a total. With $\mu=A(\theta^*)$, $a_h=L_h(\theta^*)-m_h\mu$, $d=\nabla A(\theta^*)$ and $\beta_h=d^\top\psi_h$, every variance below is a variance of totals. Fold $j$ has $n_j$ rows, and $N_j=n-n_j$.
+
+\begin{assump11}
+(U1) The pairs $(m_h,\text{rows of }h)$ are i.i.d., with $\E[m^4]<\infty$ and $\E\|\nabla L_h(\theta^*)\|^2<\infty$. (U2) The partition deals the clusters at random into $K$ folds of $\lfloor G/K\rfloor$ or $\lceil G/K\rceil$ clusters, independently of the data, so the $n_j$ are random; $K$ is fixed as $G\to\infty$. Assumptions (2) to (4) for Proposition~8 hold with the linearization $\hat\theta_T-\theta^*=\sum_{g\in T}\psi_g/n_T+O_p(1/G)$, $n_T=\sum_{g\in T}m_g$; for 0--1 loss the threshold's influence total is $Y_g-m_gt^*$.
+\end{assump11}
+
+\begin{prop11}[pooled grouped $K$-fold CV, row-weighted target]
+\begin{enumerate}[label=(\alph*)]
+\item To first order, with $\omega_h=\sum_{j\neq j(h)}n_j/N_j$, cluster $h$'s total weight over the training sets that contain it,
+\[
+\CV=\mu+\frac1n\sum_h(a_h+\omega_h\beta_h)+r_1,\qquad \Errnew=\mu+\frac1n\sum_h\beta_h+r_2 .
+\]
+With $n_j/n=1/K+\varepsilon_j$, $\omega_h=1-\frac{K^2}{(K-1)^2}\varepsilon_{j(h)}+O_p(1/G)$, and $\omega_h\equiv1$ when the folds have equal row counts. The term $\frac1n\sum_h(\omega_h-1)\beta_h$ is $O_p(1/G)$, so $\CV-\Errnew=\frac1n\sum_ha_h+o_p(G^{-1/2})$.
+\item $G\Var(\CV-\Errnew)\to\Var(a)/\bar m^2$ (with uniform integrability), the linearized variance of a ratio estimator, and $G\VCR\to_p\Var(a)/\bar m^2$. If sizes carry no information about the rows, and the losses at $\theta^*$ have per-row variance $\sigma_a^2$ and within-cluster correlation $\rho_a$, then $\Var(\CV-\Errnew)\approx\sigma_a^2\{1+(\tilde m-1)\rho_a\}/n$: Kish's design effect with $m$ replaced by $\tilde m$.
+\item \emph{In expectation}, $G\,\E[\VNB]\to\fac\Var(a-\beta/(K-1))/\bar m^2$, so
+\[
+\frac{\E[\VNB]}{\fac\,\E[\VCR]}\to\frac{\Var(a-\beta/(K-1))}{\Var(a)},
+\]
+whether the fold values are own-row means or residual totals divided by $n/K$. The per-data-set ratio does not converge in probability at fixed $J$.
+\item Proposition~8(iii) holds with totals.
+\item Proposition~8(iv) holds without balance for the row-weighted target: if the evaluation loss is the training criterion, training and target weight rows the same way, so $\theta^*$ minimizes $A$ and $d=0$, even when the model is misspecified (for example by an omitted random intercept).
+\end{enumerate}
+\end{prop11}
+
+\begin{proof}[Derivation sketch]
+The steps are those of Proposition~8 with totals; the theory note gives them in full. Step~(3) changes: fold $j$ contributes $\frac1n[\sum_{h\in F_j}(a_h+m_h\mu)+n_jB_{T_j}/N_j]$, with $B_T=\sum_{g\in T}\beta_g$, and $\sum_j(n_j/N_j)B_{T_j}=\sum_h\omega_h\beta_h$. Expanding $p/(1-p)$ about $p=1/K$ gives $\omega_h$, and $\varepsilon_j=O_p(G^{-1/2})$ makes the weight term $O_p(1/G)$. For (c), the step of Proposition~6 that fails is that a partition's fold values average to $\CV$: with own-row means $\E[S^2]=(Jv-u)/(J-1)$, where $v$ is the variance of one fold value and $u$ is $K$ times the variance of a partition's mean fold value. The pooled estimate varies across partitions only at order $G^{-3/4}$ for 0--1 loss and $1/G$ for smooth losses, so $u=o(v)$; with residual totals $u=0$ exactly. Proposition~6 applied to the totals $a_h-\beta_h/(K-1)$ then gives (c).
+\end{proof}
+
+Parts (a), (b), (d) and (e) are first-order results under (U1), (U2) and the assumptions for Proposition~8, and (c) holds in expectation only; the reduction to $\tilde m$ in (b) needs sizes that carry no information about the rows. The order-$1/G$ terms are not small at $G=21$: with the real sizes, $\max_h|\omega_h-1|$ has median 0.17 over partitions at $K=5$ (theory note).
+
+\subsubsection*{Two predictions} \emph{P1} is the limit in (c), computed from the population constants of the synthetic design below: for 0--1 loss 1.260 at $K=5$, 1.107 at $K=10$ and 1.586 at $K=3$, and for log-loss $1$ by (e). \emph{P2} is a first-order heuristic at finite $G$. Condition on the sizes and the partitions and keep only the linear terms of (a): cluster $h$'s CV loss total is $m_h\mu+a_h+m_hB_{T(h)}/N_{(h)}$, and fold $j$'s own-row mean is $\mu+A_{F_j}/n_j+B_{T_j}/N_j$, with $A_F=\sum_{h\in F}a_h$. Then $\CV$, $\Errnew$, $\VCR$ and $\VNB$ are quadratic forms in the independent totals $(a_h,\beta_h)$, and P2 is the mean of the per-data-set ratio over 40,000 Gaussian draws of the totals at the actual sizes and partitions (\texttt{scripts/prop11\_linear.py}). P2 keeps some order-$1/G$ terms: the weights $\omega_h$, the leverage term of $\VCR$, the covariance of $a_h$ with its own fold's training shift, and the division by each fold's own row count. It omits others of the same or larger order: the pooled estimate's variation across partitions, through flip noise for 0--1 loss and curvature for smooth losses, which adds about $\Var_P(\CV)/((K-1)\VCR)$ to the own-row ratio (by the theory note's estimate $+0.006$ to $+0.008$ at $K=5$, about $+0.03$ at $K=3$, and nothing with residual totals); the test cluster's own gradient deviation times its fold's training deviation; and curvature in the fold values and in $\Errnew$. As a mean of ratios it also depends on the Gaussian law assumed for the totals. So P2 is a heuristic, not a second-order expansion. For log-loss ($\beta\equiv0$) it has a closed form: with the real sizes and $\Var(a_h\mid m_h)\propto m_h^2$, the leverage bias of the CR1 form puts $\E[\VCR]$ at 0.945 times $\Var(\CV-\Errnew)$, and own-row normalization puts the Nadeau--Bengio numerator at 1.009, 0.982 and 0.869 times its target at $K=3$, 5 and 10. The algebra was checked against known answers (\texttt{tests/test\_sim\_cv\_unequal.py}): the linear representation matches a separate implementation to $10^{-14}$ and reproduces Proposition~6 for fixed totals.
+
+\subsection{Simulation evidence (N22 to N25)}
+Part~11 used Part~6's generator, with a logistic regression on $x$, and cluster sizes from the real events: \emph{S21f}, the 21 real sizes as they are (2,000 data sets), and \emph{S84r}, 84 sizes drawn with replacement from them (1,000 data sets). Here $\Errnew$ is the full model's exact row-weighted population loss (400,000 rows from the row marginal, with $P(y=1\mid x)$ by quadrature), so it carries no Monte Carlo noise. Two A2 designs (person SD 0.5 with event SD 0; person SD 1.0 with event SD 0.4) redrew 21 events from the real templates (500 data sets each), with $\Errnew$ on 2,000 new events. In every data set one grouped 5-fold run gave $\CV$ and $\VCR$, and $J=60$ fold values ($R=20$, 12 and 6 partitions at $K=3$, 5 and 10) gave $\VNB$ in three versions: own-row means, as in the scripts; residual totals about the partition's pooled estimate, divided by $n/K$; and that residual value plus the partition's pooled estimate. The own-row minus residual-total difference then splits into a \emph{normalization part} (own-row minus the third version) and a \emph{partition part} (the third version minus residual totals), the latter being the pooled estimate's variation across partitions that P2 omits. P1 and P2 were computed before any CV run. In the A2 designs sizes carry information, so N24 compares the observed ratio with a per-data-set plug-in P2 (in-sample residual totals, jackknife $\hat\beta$), and P1 is estimated from the moments of $\CV$ and $\Errnew$ across data sets, as in Table~\ref{tab:nbpred}. \texttt{PREREG.md} records a labelled exploratory pilot (scratch seeds 997000 to 997610) and an adversarial review with its own checks (scratch seeds 998100 to 998300), both before registration; every test used fresh seeds.
+
+All four hypotheses were supported (Table~\ref{tab:unequal}), but three of the four came close to their band edges: N23 at $K=10$ was 0.029 from P1 against a band of 0.03; N24 in the second A2 design missed its plug-in by $+0.068$ against a band of 0.08, 3.8 SE from zero; and N25's own-row ratio at $K=5$ was 0.027 above P2 against 0.03. N22, the test that separates P2 from P1, was 1.007 (SE 0.007) at $K=10$, against 0.998 for P2 and 1.107 for P1. At $K=5$ it was 1.230 (SE 0.006) against P2's 1.217, and 0.008 (1.3 SE) below the P1/P2 midpoint of 1.2385; its excess over P2, $+0.013$, is about the omitted partition part, measured at $+0.009$. At $G=84$ (N23) the ratio was 1.266 (SE 0.008) against P1's 1.260 at $K=5$, but 1.078 (SE 0.006) at $K=10$, below both P1 (1.107) and P2 (1.092). In the A2 designs (N24) the own-row ratios were 1.406 and 1.477, and exceeded the residual-total ratios by 0.192 and 0.203 (SE 0.011), against the registered minimum of 0.10. Under log-loss (N25) the residual-total ratios were 1.007 and 0.994, and the own-row ratios 1.092 and 0.993 against P2's 1.065 and 0.984. What this supports: with unequal clusters and own-row fold means, the Nadeau--Bengio ratio at $G=21$ is set mainly by the actual sizes and partitions (P2), not by the first-order limit, which is approached at $G=84$, at $K=10$ only loosely. P2's own misses ($+0.013$ at $K=5$ under 0--1 loss, $+0.027$ under log-loss) are of the size of the terms it omits.
+
+\begin{table}[tbp]
+\centering\footnotesize
+\caption{Part 11, registered tests: mean Nadeau--Bengio ratio $\VNB/(\fac\VCR)$ over data sets, with its SE (S21f: 2,000 data sets; S84r: 1,000; A2: 500 per design; $J=60$; $\VCR$ from one grouped 5-fold run; seeds 20267106 + 100 $\times$ design index + chunk for S21f and S84r, 20267306 + 100 $\times$ design index + chunk for A2). Fold values: own-row means (own) or residual totals divided by $n/K$ (res.). P1 and P2 fixed before the run (seeds 20267006 and 20267016; 40,000 draws). Distance: observed minus the value named in the band, before rounding. A2 designs are labelled by person SD and event SD. $^a$Mean per-data-set plug-in P2 (in-sample residual totals, jackknife $\hat\beta$). $^b$P1 estimated from the moments of $\CV$ and $\Errnew$ across data sets, as in Table~\ref{tab:nbpred}.}\label{tab:unequal}
+\begin{tabular}{@{}l l l r l c c c r l l@{}}
+\toprule
+Hyp. & Design & Loss & $K$ & Folds & Observed (SE) & P2 & P1 & Distance & Band & Verdict\\
+\midrule
+N22 & S21f & 0--1 & 10 & own & 1.007 (0.007) & 0.998 & 1.107 & $+$0.009 & P2 $\pm$0.04 & supported \\
+ & S21f & 0--1 & 5 & own & 1.230 (0.006) & 1.217 & 1.260 & $+$0.013 & P2 $\pm$0.03; $<1.2385$ & \\
+\addlinespace
+N23 & S84r & 0--1 & 5 & own & 1.266 (0.008) & 1.251 & 1.260 & $+$0.006 & P1 $\pm$0.03 & supported \\
+ & S84r & 0--1 & 10 & own & 1.078 (0.006) & 1.092 & 1.107 & $-$0.029 & P1 $\pm$0.03 & \\
+\addlinespace
+N24 & A2, 0.5, 0 & 0--1 & 5 & own & 1.406 (0.016) & 1.414$^a$ & 1.270$^b$ & $-$0.009 & plug-in $\pm$0.08 & supported \\
+ & A2, 0.5, 0 & 0--1 & 5 & own $-$ res. & 0.192 (0.011) & -- & -- & -- & $\ge0.10$ & \\
+ & A2, 1.0, 0.4 & 0--1 & 5 & own & 1.477 (0.019) & 1.410$^a$ & 1.275$^b$ & $+$0.068 & plug-in $\pm$0.08 & \\
+ & A2, 1.0, 0.4 & 0--1 & 5 & own $-$ res. & 0.203 (0.011) & -- & -- & -- & $\ge0.10$ & \\
+\addlinespace
+N25 & S21f & log & 5 & res. & 1.007 (0.005) & 0.998 & 1 & $+$0.007 & 1 $\pm$0.03 & supported \\
+ & S21f & log & 5 & own & 1.092 (0.006) & 1.065 & 1 & $+$0.027 & P2 $\pm$0.03 & \\
+ & S21f & log & 10 & res. & 0.994 (0.004) & 0.997 & 1 & $-$0.006 & 1 $\pm$0.03 & \\
+ & S21f & log & 10 & own & 0.993 (0.007) & 0.984 & 1 & $+$0.009 & P2 $\pm$0.03 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Exploratory results. \emph{$K=3$}, which the pilot had flagged, is not predicted well. In S21f the own-row ratio was 1.573 (SE 0.009) under 0--1 loss, against 1.555 for P2 and 1.586 for P1, and 1.151 (SE 0.006) under log-loss, against 1.075 for P2. The partition part that P2 omits was 0.044 and 0.041 there, against 0.009 and 0.008 at $K=5$. Under log-loss even the residual-total ratio, which the partition part does not enter, was 1.030 (SE 0.005), 0.029 above P2. A second-order surrogate for log-loss, which adds the test cluster's own score term and curvature and was computed before the run, gave 1.163, 1.088 and 0.983 at $K=3$, 5 and 10, against 1.151, 1.092 and 0.993 observed. \emph{The partition and normalization split.} In S21f at $K=5$ the own-row minus residual-total difference was 0.032 (SE 0.004) under 0--1 loss, of which 0.009 was the partition part and 0.023 the normalization part, and 0.084 (SE 0.004) under log-loss (0.008 and 0.076). At $K=10$ the normalization part under 0--1 loss was $-0.047$, so own-row means lowered the ratio. In the A2 designs the normalization part was 0.178 in both and the partition part 0.014 and 0.025, so normalization accounts for nearly all of the 0.19 to 0.20 that own-row means add, and the residual-total ratios, 1.213 and 1.274, are closer to the P1 estimates of 1.270 and 1.275. At $G=84$ the whole difference was 0.008 (S84r, 0--1 loss, $K=5$). \emph{The variance ratio.} Under 0--1 loss $\Var(\CV-\Errnew)/\overline{\VCR}$ was 0.992 in S21f (P2: 0.991), and 1.028 and 0.948 in the A2 designs with the target's Monte Carlo variance removed. Under log-loss with the 21 real sizes it was 1.200 (P2: 1.047), so the mean of $\VCR$ was 0.83 of the variance it estimates, about 17\% low; at $G=84$ it was 1.035 (P2: 0.999). $G\Var(\CV-\Errnew)$ was 0.0619 there, 28\% above P2's 0.0482; the second-order surrogate gives 0.0580.
+
+\subsubsection*{Real data} The A2 normalization effect does not carry over to the real data. Over 40 random event partitions, the own-row minus residual-total ratios of the four headline models were $+0.088$, $+0.055$, $+0.039$ and $-0.030$, below A2's mean but within its per-data-set spread (SD 0.23). Splitting the 40 partitions into four groups of 10 gives a noise variance of about 0.054 for one $R=10$ ratio, about the variance across the four models' reported values in Table~\ref{tab:real} (0.050). At $R=40$ the ratios were 0.93 to 1.36; removing the noise leaves a between-model SD of about 0.17, so the models do differ, but at $R=10$ the noise is as large as the differences. The plug-in is not reliable for the real models, which have dozens of features against 21 events: in-sample residual totals carry only 28\% to 53\% of the cross-validated residual sum of squares, and with cross-validated residual totals and a centred $\hat\beta$ its predictions (1.15 to 1.30) missed the $R=40$ ratios by $-1.1$ to $+4.8$ partition SDs. We claim no quantitative real-data check. These numbers are from the theory note, Section~6g (scratch scripts; no CSV in \texttt{results/}).
+
+An adversarial review of Proposition~11 and the pilot by an automated reviewer (3 November 2026, before registration) made three corrections that are folded in above: P2 omits the pooled estimate's variation across partitions; (c) holds in expectation, not in probability; and an expansion of the normalization effect in the fold-size deviation, accurate for small imbalance, fails at the real sizes. Part~5's ratios (Table~\ref{tab:confirm}; $J=50$, $\VCR$ averaged over 10 nested repetitions) are not like-for-like with these designs, and we do not claim to explain them.
+
 \section{Recommendations}\label{sec:rec}
 
 \begin{enumerate}[label=\arabic*.]
 \item \emph{Hold out whole clusters.} This fixes what is estimated, the error on new clusters (Lemma~1); no interval repairs random-row CV when the question concerns new people.
 \item \emph{Use the cluster-robust SE with $t$ quantiles on $G-1$ (CR2 when clusters are unequal, or $t$ on $G^*-1$), or the wild cluster bootstrap-$t$.} To first order this is the right variance for $\Errnew$ (Proposition~8(i)). With a precisely scored target these intervals covered 0.853 to 0.915 in every design (Parts~6b and~7); normal quantiles covered 0.823 to 0.897 in Part~7.
-\item \emph{Treat the Nadeau--Bengio correction on grouped folds as conservative by a predictable factor}, $\fac\Var(a-\beta/(K-1))/\Var(a)$ relative to $\VCR$ (Proposition~8(ii)), predicted out of sample to within 0.053; on random-row folds it fails by the design effect (Proposition~6; N7).
+\item \emph{Treat the Nadeau--Bengio correction on grouped folds as conservative by a predictable factor}, $\fac\Var(a-\beta/(K-1))/\Var(a)$ relative to $\VCR$ (Proposition~8(ii)), predicted out of sample to within 0.053; on random-row folds it fails by the design effect (Proposition~6; N7). With unequal clusters and each fold's own mean, the factor also carries a fold-size normalization effect (Proposition~11, Section~\ref{sec:unequal}); fold residual totals divided by $n/K$ remove that part.
 \item \emph{Do not use the published nested CV with random-row folds on clustered data} (N2). The cluster-nested version is unbiased in mean (Proposition~3) but too noisy at $K=5$ (N1, N5); the floor covers (N3) but is conservative by construction.
 \item \emph{In coverage studies, redraw the clusters in every replicate and score the target precisely}, subtracting its Monte Carlo variance (Proposition~7; A2's 0.992 against 0.874 with events redrawn; Parts~6b and~7), and state whether the target is $\Errnew$ or the average error.
 \item \emph{For the AUC, do not pool held-out scores across fold models when clusters differ in outcome rate.} Use BCWF-pooled with the Obuchowski SE and $t_{G-1}$ quantiles (mean coverage 0.899 for $G\ge40$ in Part~9, but down to 0.823 at $G=20$), and choose the target to match the use (Section~\ref{sec:auc}). For the AUC the Nadeau--Bengio correction is not conservative (ratio about 1).
@@ -641,6 +721,7 @@ The team's literature check (\texttt{proposals/07}) searched papers and package 
 \item Random-row CV is optimistic under grouping \cite{Roberts,Saeb,RR,PM}, and naive CV standard errors are too small \cite{Varoquaux,BG,NB}; the seen-against-new-cluster distinction of Lemma~1 is in \cite{RR}, without intervals. We found no paper that runs the nested CV of \cite{BHT} on clustered data and reports coverage, so A2 and N2 are a small confirming demonstration.
 \item Propositions~1 to~3 are clusters-as-units extensions of Theorem~3 of \cite{BHT}, of \cite{BG} and of \cite{BBJM}, not new theory; the design effect is Kish's \cite{Kish}. Grouped CV with influence curves summed within clusters \cite{LeDell}, resampling whole subjects \cite{Cai} and internal--external CV \cite{deJong} are published. Proposition~7 is the classical design-based against model-based distinction.
 \item For the AUC, the pooling bias of pooled $K$-fold and leave-one-out estimates is known \cite{Parker,Forman,Airola2010,Airola2011}, as are the remedies: averaging over folds, and leave-pair-out CV \cite{Airola2010,Airola2011,Montoya}. The closest work on dependent data, spatial leave-pair-out CV \cite{Airola2019}, corrects both the pooling bias and a spatial bias; BCWF is its grouped analogue.
+\item For unequal clusters, the ratio-estimator form of Proposition~11(b) \cite{Cochran}, Kish's design effect with $\sum_hm_h^2/\sum_hm_h$ \cite{Kish}, and the leverage bias of the CR1 variance, which CR2 removes under working independence \cite{BM,MW}, are classical.
 \end{itemize}
 
 \emph{Plausibly new.}
@@ -649,6 +730,7 @@ The team's literature check (\texttt{proposals/07}) searched papers and package 
 \item The Nadeau--Bengio limit $\fac\Var(a-\beta/(K-1))$ of Proposition~8(ii), and its quantitative check: predicted and observed ratios agreed within the bootstrap interval at all five $G$ in Part~6b, and out of sample at $K=3$ and $10$ (N14, N15).
 \item The cautions for coverage studies of CV error bars: redraw the clusters (Proposition~7, A2 against N4), and score the target precisely (Parts~6b and~7).
 \item For the AUC, the clustered-data expansion of the pooling bias (Proposition~9(iii)): order $1/G$ rather than $1/n$, a leading term $\Cmix/G$ that does not depend on $K$ with a next term $c_2/((K-1)G)$, computable constants, and its test (N16 to N21); the same-cluster-pair bias of the fold-averaged AUC; and the closed form of Proposition~10 for independent rows ($c_2=\Cmix/2$), which under clustering is only an approximation (the review's counterexamples). The literature check found none of these, but its Part~9 search was brief, and it asks for a further search (for example on leave-site-out AUC pooling) and a full reading of \cite{Airola2019} before any novelty is claimed.
+\item For unequal clusters, the training-set weights $\omega_h$ of Proposition~11 and the statement that the Nadeau--Bengio limit survives unequal folds in expectation, the measurement of the order-$1/G$ terms at $G=21$ (N22 to N25), and the per-data-set plug-in; these await a literature check.
 \end{itemize}
 We do not claim the cluster-nested, bias-adjusted interval that the literature check first proposed as the contribution: N1 failed, and N5 showed its under-coverage once events were redrawn.
 
@@ -656,15 +738,15 @@ We do not claim the cluster-nested, bias-adjusted interval that the literature c
 
 \emph{The dyadic case.} Every person attends one event, so holding out events with event clustering covers all shared-person dependence here, and Aronow, Samii and Assenova \cite{ASA} found dyadic-robust SEs barely larger than subject-clustered ones on these data. The two-way problem matters for within-event targets and for data where people appear in several clusters. The theory note proves the bias of the two-way estimator \cite{CGM} for one direction of a balanced rater-by-ratee array; the two-direction case and the finite-sample bias of the dyadic-robust estimator \cite{FG,ASA} are open. In the exploratory dyadic design, within-rater CV was biased by $+0.024$ for the full-data error (theory note), so the intervals missed that target. We claim nothing here.
 
-\emph{Unbalanced clusters.} Propositions~1, 2, 6 and~8 assume balance; the unbalanced estimator the scripts use is not covered, and step~(3) of Proposition~8 is only approximate for events of 25 to 484 dyads. The general statement has not been written.
+\emph{Unbalanced clusters.} Propositions~1, 2, 6 and~8 assume balance. Proposition~11 covers the pooled estimate, the unbalanced cluster-robust variance and the Nadeau--Bengio ratio to first order, for i.i.d.\ cluster sizes and the row-weighted target, and the ratio's limit only in expectation; it does not cover the cluster-weighted target. What remains open: P2 is a heuristic that omits order-$1/G$ terms of the same size as some it keeps (the pooled estimate's variation across partitions, the test cluster's gradient deviation, curvature and flip noise), and it misses at $K=3$; under log-loss with the real sizes $\VCR$ ran about 17\% low at $G=21$ ($\Var(\CV-\Errnew)/\overline{\VCR}=1.20$), and the second-order surrogate explains only part of the excess; and the real-data plug-in is not reliable with high-dimensional models at $G=21$.
 
-\emph{Unexplained parts.} (a) Proposition~7 is consistent with A2's over-coverage but does not explain it quantitatively. (b) The finite-population effect at $G=10$ does not match the factor $1-10/21$. (c) The $K=2$ predictions miss by 3.4\% to 6.6\%. (d) Proposition~8(i) is not confirmed at the registered precision (N8, N8b). (e) $\bar c$ cannot be estimated from one CV run, since the cross-fold products are determined by the cluster-robust sum; a direct estimate needs variation across fold assignments. Separating $\Var(\beta)$ and $\Cov(a,\beta)$ with $K=5$ and $K=2$ was tried and was too noisy to use. (f) We have no first-order prediction for the real, unbalanced events, so the real-data ratios of Section~\ref{sec:real} are descriptive.
+\emph{Unexplained parts.} (a) Proposition~7 is consistent with A2's over-coverage but does not explain it quantitatively. (b) The finite-population effect at $G=10$ does not match the factor $1-10/21$. (c) The $K=2$ predictions miss by 3.4\% to 6.6\%. (d) Proposition~8(i) is not confirmed at the registered precision (N8, N8b). (e) $\bar c$ cannot be estimated from one CV run, since the cross-fold products are determined by the cluster-robust sum; a direct estimate needs variation across fold assignments. Separating $\Var(\beta)$ and $\Cov(a,\beta)$ with $K=5$ and $K=2$ was tried and was too noisy to use. (f) Proposition~11 gives the first-order limit for unequal events and P2 a finite-$G$ heuristic, both checked in simulation (Part~11), but the plug-in for the real models is not reliable and partition noise at $R=10$ is as large as the differences between models, so the real-data ratios of Section~\ref{sec:real} remain descriptive.
 
 \emph{The AUC.} Proposition~9(iii) is a formal expansion with no remainder bound; it failed its registered out-of-sample test at $K=2$ under strong clustering (N18), and the larger rerun that shrinks the miss to 5.8\% is exploratory (\texttt{scripts/sim\_cv\_auc\_k2check.py}, \texttt{results/sim\_cv\_auc\_k2check.csv}). The reviewer could not exclude a small residual shortfall at large $G$ for $K=2$. Proposition~10's identity $c_2=\Cmix/2$ holds for independent rows and a correct model; with clustering it is false in general, and the Lemma above is the review's (\texttt{proposals/09}). Part~9 used balanced synthetic clusters; the real events are unbalanced.
 
 \emph{Scope.} All simulations fit logistic regression; the real-data error bars cover logistic regression and LDA.
 
-\emph{Review.} The readings of Proposition~2 and Propositions~6 to~8 were reviewed adversarially once, and Propositions~9 and~10 were reviewed adversarially by an automated reviewer (\texttt{proposals/09}, 16 October 2026); the corrections of both reviews are folded in above. None of the theory has yet been checked by the team's mathematical lead, Jenna Yang; that review is still to come, and until then the theory is the team's working result.
+\emph{Review.} The readings of Proposition~2 and Propositions~6 to~8 were reviewed adversarially once, Propositions~9 and~10 were reviewed adversarially by an automated reviewer (\texttt{proposals/09}, 16 October 2026), and Proposition~11 was reviewed adversarially by an automated reviewer on 3 November 2026 (theory note, Section~6g); the corrections of all three reviews are folded in above. None of the theory, Proposition~11 included, has yet been checked by the team's mathematical lead, Jenna Yang; that review is still to come, and until then the theory is the team's working result.
 
 \begin{thebibliography}{99}
 \footnotesize
@@ -680,6 +762,8 @@ We do not claim the cluster-nested, bias-adjusted interval that the literature c
 
 \bibitem{BBJM} Bayle, Bayle, Janson and Mackey, NeurIPS, 2020. [Central limit theorem for CV.]
 
+\bibitem{BM} Bell and McCaffrey, Survey Methodology \textbf{28} (2002), no.~2. [Bias-reduced linearization (CR2).]
+
 \bibitem{BG} Bengio and Grandvalet, \emph{No unbiased estimator of the variance of K-fold cross-validation}, J.\ Mach.\ Learn.\ Res., 2004.
 
 \bibitem{BF} Bouckaert and Frank, 2004. [Corrected resampled $t$ in repeated $K$-fold CV.]
@@ -687,6 +771,8 @@ We do not claim the cluster-nested, bias-adjusted interval that the literature c
 \bibitem{Cai} Cai, Luo, Guo et al., \emph{Bootstrapping the cross-validation estimate}, arXiv:2307.00260v2.
 
 \bibitem{CGM} Cameron, Gelbach and Miller, \emph{Robust inference with multiway clustering}, J.\ Bus.\ Econom.\ Statist., 2011.
+
+\bibitem{Cochran} Cochran, \emph{Sampling Techniques}, 3rd ed., Wiley, 1977. [Ratio estimators.]
 
 \bibitem{deJong} de Jong et al., Stat.\ Med., 2021. [Internal--external CV.]
 
