@@ -972,3 +972,11 @@ Settings (`scripts/sim_cv_unequal.py`):
 - 2026-11-03 (new hypotheses N22 to N25) Part 11: unequal cluster sizes (Proposition 11, proposals/06 section 6g),
   committed after a labelled exploratory pilot and an adversarial review whose corrections are in section 6g, and
   before any confirmatory run.
+- 2026-11-03 (results recorded; no hypothesis changed) Part 10 ran (scripts/limits.py). L1 supported: the pre-date
+  lasso gained +0.022 from 8 training events to all (0.551 to 0.573; SD over draws 0.020). P1 supported: the
+  within-event person ceiling is 0.758 (SE 0.015), +0.175 over 0.5825. P2 supported: the date ratings add +0.157
+  (SE 0.011, 90% interval +0.138 to +0.175). Q1 supported: corrected R2 of appeal 0.145 (ridge) and 0.117 (forest),
+  reliability 0.777. Q2 supported: corrected R2 of the yes-rate 0.058 and 0.022, reliability 0.803. The first run
+  stopped in the questionnaire step on an indexing bug (the person ids lost their column name after reset_index);
+  the fix changes no computation, and only that step was rerun. R2 by gender, listed as exploratory, was not
+  computed.

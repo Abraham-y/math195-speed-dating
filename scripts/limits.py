@@ -35,8 +35,9 @@ Seeds : event folds 20261006 (Part 1's, modeling.FOLD_SEED) and Part 1's inner s
    reliability from split halves: each event's dyads are halved at random 20 times, W1 is fitted to each half, and
    the Spearman-Brown value 2r / (1 + r) of the half-to-half correlation is averaged. The correction assumes the
    estimation noise is unrelated to the answers.
-Run from the repository root: python scripts/limits.py [--learning] [--person] [--questionnaire] [--jobs 8]
-(no flag runs all three)
+Figures (exploratory, `--plot`, from the saved tables): results/limits_learning.png, results/limits_ladder.png.
+Run from the repository root: python scripts/limits.py [--learning] [--person] [--questionnaire] [--plot] [--jobs 8]
+(no flag runs all three analyses)
 """
 import sys, json, pathlib, time, argparse
 import numpy as np, pandas as pd
@@ -283,7 +284,7 @@ def tune(people, y, ev, k, make, grid):
 def questionnaire(clean, participants):
     c = clean[["rater", "ratee", "event", "dyad", "dec"]].reset_index(drop=True)
     a, b = person_effects(c)
-    people = participants.set_index("iid").loc[a.index].reset_index()
+    people = participants.set_index("iid").loc[a.index].rename_axis("iid").reset_index()
     ev = people.wave.to_numpy()
     assert (pd.Series(clean.drop_duplicates("rater").set_index("rater").event).loc[people.iid].to_numpy() == ev).all()
     targets = {"yes_rate": a.loc[people.iid].to_numpy(), "appeal": b.loc[people.iid].to_numpy()}
@@ -343,12 +344,79 @@ def hypotheses(lc_summary, pers, quest, best_pre=None):
     return pd.DataFrame(rows)
 
 
+# ---------------------------------------------------------------- figures (exploratory, from the saved tables)
+
+BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
+INK, INK2, GRID, REF = "#0b0b0b", "#52514e", "#e4e3df", "#8a8984"
+
+
+def plots():
+    """results/limits_learning.png: the lasso's held-out AUC against training dyads, before the date and with the
+    date ratings (mean over draws, band = SD over draws), with the extrapolated limits for c = 1 and 0.5.
+    results/limits_ladder.png: every Part 10 AUC on one scale, with 90% intervals (AUC +/- t(20) x SE)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from scipy import stats
+    t20 = stats.t.ppf(0.95, 20)
+    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9, "axes.edgecolor": REF, "axes.labelcolor": INK2,
+                         "xtick.color": INK2, "ytick.color": INK2, "legend.frameon": False})
+    s = pd.read_csv(RES / "limits_learning_summary.csv", dtype={"m": str})
+    ext = pd.read_csv(RES / "limits_learning_extrapolation.csv").set_index(["feature_set", "model", "exponent"]).auc_limit
+    fig, ax = plt.subplots(figsize=(6.5, 3.6))
+    for fs, col, lab in (("pre", BLUE, "Before the date (pre)"), ("pre+date", ORANGE, "With the date ratings (pre+date)")):
+        g = s[(s.feature_set == fs) & (s.model == "lasso")].sort_values("train_dyads")
+        sd = g.auc_sd.fillna(0)
+        ax.fill_between(g.train_dyads, g.auc_mean - sd, g.auc_mean + sd, color=col, alpha=0.15, linewidth=0)
+        ax.plot(g.train_dyads, g.auc_mean, "o-", color=col, ms=4.5, linewidth=2, label=lab)
+        lo, hi = ext[(fs, "lasso", 1.0)], ext[(fs, "lasso", 0.5)]
+        ax.plot([3700, 3700], [lo, hi], color=col, linewidth=5, solid_capstyle="butt", alpha=0.6)
+        ax.text(3780, (lo + hi) / 2, f"unlimited data:\n{lo:.2f} to {hi:.2f}", color=INK, fontsize=7.5, va="center")
+    ax.axhline(0.5, color=REF, linestyle="--", linewidth=1); ax.text(300, 0.505, "chance", color=INK2, fontsize=8)
+    ax.set_xlim(0, 4500); ax.set_ylim(0.48, 0.92)
+    ax.set_xlabel("Training pairs (4 to 17 events, held-out events fixed)"); ax.set_ylabel("Held-out AUC (lasso)")
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.grid(axis="y", color=GRID, linewidth=0.8); ax.set_axisbelow(True)
+    ax.legend(loc="center left", bbox_to_anchor=(0.0, 0.5))
+    fig.tight_layout(); fig.savefig(RES / "limits_learning.png", dpi=300, facecolor="white"); plt.close(fig)
+
+    pers = pd.read_csv(RES / "limits_person.csv").set_index("model")
+    p1 = pd.read_csv(RES / "part1_models_metrics.csv")
+    p1 = p1[(p1.headline == True) & (p1.fold_scheme == "event")].set_index(["feature_set", "model"])
+    rows = [("Their answers, new events (lasso)", p1.loc[("pre", "lasso"), "auc"], p1.loc[("pre", "lasso"), "auc_se"], BLUE),
+            ("Their answers, unlimited events (extrapolated)", (ext[("pre", "lasso", 1.0)], ext[("pre", "lasso", 0.5)]), None, BLUE),
+            ("Appeal and yes-rate from their other dates", pers.loc["person", "auc"], pers.loc["person", "auc_se"], AQUA),
+            ("This date's ratings", pers.loc["date", "auc"], pers.loc["date", "auc_se"], ORANGE),
+            ("Appeal, yes-rate and this date's ratings", pers.loc["person+date", "auc"], pers.loc["person+date", "auc_se"], ORANGE),
+            ("Answers and date ratings, new events (lasso)", p1.loc[("pre+date", "lasso"), "auc"], p1.loc[("pre+date", "lasso"), "auc_se"], ORANGE)]
+    fig, ax = plt.subplots(figsize=(6.5, 3.2))
+    for i, (lab, a, se, col) in enumerate(rows):
+        y = len(rows) - 1 - i
+        if se is None:
+            ax.plot(a, [y, y], color=col, linewidth=6, solid_capstyle="butt", alpha=0.6)
+            ax.text(a[1] + 0.012, y, f"{a[0]:.2f} to {a[1]:.2f}", va="center", fontsize=8, color=INK)
+        else:
+            ax.errorbar(a, y, xerr=t20 * se, fmt="o", color=col, ms=6, elinewidth=1.6, capsize=0)
+            ax.text(a + t20 * se + 0.012, y, f"{a:.2f}", va="center", fontsize=8, color=INK)
+    ax.axvline(0.5, color=REF, linestyle="--", linewidth=1)
+    ax.set_yticks(range(len(rows))); ax.set_yticklabels([r[0] for r in rows][::-1])
+    ax.set_xlim(0.45, 1.0); ax.set_xlabel("Match AUC, with 90% interval (0.5 is chance)")
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.grid(axis="x", color=GRID, linewidth=0.8); ax.set_axisbelow(True)
+    fig.tight_layout(); fig.savefig(RES / "limits_ladder.png", dpi=300, facecolor="white"); plt.close(fig)
+    print("wrote results/limits_learning.png and results/limits_ladder.png")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    for a in ("learning", "person", "questionnaire"):
+    for a in ("learning", "person", "questionnaire", "plot"):
         ap.add_argument(f"--{a}", action="store_true")
     ap.add_argument("--jobs", type=int, default=8)
     args = ap.parse_args()
+    if args.plot:
+        return plots()
     every = not (args.learning or args.person or args.questionnaire)
     clean = pd.read_csv("data/clean.csv", low_memory=False)
     stored = pd.read_csv(RES / "part1_models_metrics.csv")
@@ -363,6 +431,10 @@ def main():
         pers = person(clean); print(pers.to_string())
     if every or args.questionnaire:
         quest = questionnaire(clean, pd.read_csv("data/participants.csv")); print(quest.to_string())
+    if s is None and (RES / "limits_learning_summary.csv").exists():            # verdicts from saved runs of the other parts
+        s = pd.read_csv(RES / "limits_learning_summary.csv", dtype={"m": str})
+    if pers is None and (RES / "limits_person.csv").exists():
+        pers = pd.read_csv(RES / "limits_person.csv")
     h = hypotheses(s, pers, quest, best_pre)
     path = RES / "limits_hypotheses.csv"
     if path.exists():
