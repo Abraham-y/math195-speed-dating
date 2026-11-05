@@ -10,3 +10,4 @@ results/*.csv
 !results/.gitkeep
 .DS_Store
 results/earlier*/
+data/external/
