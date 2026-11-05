@@ -253,7 +253,12 @@ def summary_b(B, pilot=False):
             cover_err_wild=cov(d.error_rate, d.error_se_cluster, d.wild_q, d.err_new),
             width_ratio_err=(d.error_se_cluster / d.error_se_naive).mean(),
             mc_share_auc=d.auc_new_mc_var.mean() / (d.auc_pooled - d.auc_new).var(ddof=1),
-            mc_share_err=d.err_new_mc_var.mean() / (d.error_rate - d.err_new).var(ddof=1)))
+            mc_share_err=d.err_new_mc_var.mean() / (d.error_rate - d.err_new).var(ddof=1),
+            # Var(estimate - target), less the target's own Monte Carlo variance, over the mean squared SE (Parts 6b, 7)
+            var_ratio_auc_cluster=((d.auc_pooled - d.auc_new).var(ddof=1) - d.auc_new_mc_var.mean()) / (d.auc_se_cluster ** 2).mean(),
+            var_ratio_auc_naive=((d.auc_pooled - d.auc_new).var(ddof=1) - d.auc_new_mc_var.mean()) / (d.auc_se_naive ** 2).mean(),
+            var_ratio_err_cluster=((d.error_rate - d.err_new).var(ddof=1) - d.err_new_mc_var.mean()) / (d.error_se_cluster ** 2).mean(),
+            var_ratio_err_naive=((d.error_rate - d.err_new).var(ddof=1) - d.err_new_mc_var.mean()) / (d.error_se_naive ** 2).mean()))
     S = pd.DataFrame(rows); S.to_csv(RES / f"cross_field_stageb{'_pilot' if pilot else ''}_summary.csv", index=False)
     return S
 
