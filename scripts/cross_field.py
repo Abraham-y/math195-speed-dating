@@ -304,8 +304,8 @@ def plots():
         for r in d.itertuples():
             yy = y[r.dataset] + off
             ax.plot([r.auc_grouped, r.auc_random_row], [yy, yy], color=col, linewidth=1.5, alpha=0.6)
-            ax.plot(r.auc_grouped, yy, "o", color=col, ms=5, label=f"{model}: whole groups held out" if r.dataset == order[0] else None)
-            ax.plot(r.auc_random_row, yy, "o", mfc="white", color=col, ms=5, label=f"{model}: random rows" if r.dataset == order[0] else None)
+            ax.plot(r.auc_random_row, yy, "o", mfc="white", color=col, ms=7, label=f"{model}: random rows" if r.dataset == order[0] else None)
+            ax.plot(r.auc_grouped, yy, "o", color=col, ms=4.5, zorder=3, label=f"{model}: whole groups held out" if r.dataset == order[0] else None)
             ax.text(max(r.auc_random_row, r.auc_grouped) + 0.004, yy, f"{r.leakage_auc:+.3f}", va="center", fontsize=7.5, color=INK)
     ax.set_yticks(range(len(order))); ax.set_yticklabels([LABELS[d] for d in order]); ax.set_xlabel("Cross-validated AUC")
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=7.5)
@@ -329,8 +329,8 @@ def plots():
         ax.errorbar(d.mixing, [y[r] + off for r in d.dataset], xerr=1.645 * d.mixing_se, fmt="o", color=col, ms=5, capsize=0, label=model)
     ax.axvline(0, color=REF, linestyle="--", linewidth=1)
     ax.set_yticks(range(len(order))); ax.set_yticklabels([LABELS[x] for x in order])
-    ax.set_xlabel("Pooled AUC minus the fixed version (only pairs scored by the same fold model)\nmean over 20 random splits, with 90% interval")
-    ax.legend(loc="lower left", fontsize=8)
+    ax.set_xlabel("Pooled AUC minus the fixed version\n(fixed: only pairs scored by the same fold model)\nmean over 20 random splits, with 90% interval")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=8)
     finish(fig, ax, "pooled")
 
     pb = RES / "cross_field_stageb_summary.csv"

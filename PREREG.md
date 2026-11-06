@@ -986,3 +986,6 @@ Settings (`scripts/sim_cv_unequal.py`):
   - N23: 1.266 against P1 1.260; 1.078 against P1 1.107, inside a band of 0.03.
   - N24: plug-in misses -0.009 and +0.068 (band 0.08); paired gaps 0.192 and 0.203.
   - N25: residual-total ratios 1.007 and 0.994; own-row 1.092 against 1.065 and 0.993 against 0.984.
+- 2026-11-05 (no hypotheses; descriptive) Part 12: the clustered-CV checks on four public datasets from other fields
+  (scripts/cross_field.py). The team decided not to pre-register Part 12. The analysis code was committed before any
+  run on real outcomes (884a414), and the results are reported as measurements in proposals/12-cross-field-results.md.
