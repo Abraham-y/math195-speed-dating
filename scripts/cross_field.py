@@ -273,12 +273,103 @@ def summary_b(B, pilot=False):
     return S
 
 
+# ---------------------------------------------------------------- figures for the class (from the saved summaries)
+
+LABELS = {"mitdb": "Heartbeats (43 patients)", "oulad": "Online courses (22 course runs)", "acs": "Census income (265 areas)",
+          "extrasensory_sleeping": "Phone sensing: sleeping (53 users)", "extrasensory_workplace": "Phone sensing: at work (32 users)"}
+BLUE, ORANGE, AQUA, INK, INK2, GRID, REF = "#2a78d6", "#eb6834", "#1baf7a", "#0b0b0b", "#52514e", "#e4e3df", "#8a8984"
+
+
+def plots():
+    """results/cross_field_leakage.png, _se_ratio.png, _pooled.png (Stage A) and _coverage.png (Stage B)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9, "axes.edgecolor": REF, "axes.labelcolor": INK2,
+                         "xtick.color": INK2, "ytick.color": INK2, "legend.frameon": False})
+
+    def finish(fig, ax, name, grid="x"):
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        ax.grid(axis=grid, color=GRID, linewidth=0.8); ax.set_axisbelow(True)
+        fig.tight_layout(); fig.savefig(RES / f"cross_field_{name}.png", dpi=300, facecolor="white"); plt.close(fig)
+
+    S = pd.read_csv(RES / "cross_field_summary.csv")
+    order = [d for d in DATASETS if d in set(S.dataset)][::-1]
+    y = {d: i for i, d in enumerate(order)}
+
+    fig, ax = plt.subplots(figsize=(6.5, 0.55 * len(order) + 1.2))           # 1. hold out people, not rows
+    for model, off, col in (("boosting", 0.15, ORANGE), ("logistic", -0.15, BLUE)):
+        d = S[S.model == model]
+        for r in d.itertuples():
+            yy = y[r.dataset] + off
+            ax.plot([r.auc_grouped, r.auc_random_row], [yy, yy], color=col, linewidth=1.5, alpha=0.6)
+            ax.plot(r.auc_grouped, yy, "o", color=col, ms=5, label=f"{model}: whole groups held out" if r.dataset == order[0] else None)
+            ax.plot(r.auc_random_row, yy, "o", mfc="white", color=col, ms=5, label=f"{model}: random rows" if r.dataset == order[0] else None)
+            ax.text(max(r.auc_random_row, r.auc_grouped) + 0.004, yy, f"{r.leakage_auc:+.3f}", va="center", fontsize=7.5, color=INK)
+    ax.set_yticks(range(len(order))); ax.set_yticklabels([LABELS[d] for d in order]); ax.set_xlabel("Cross-validated AUC")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=7.5)
+    finish(fig, ax, "leakage")
+
+    fig, ax = plt.subplots(figsize=(6.5, 0.55 * len(order) + 1.0))           # 2. count groups, not rows
+    d = S[S.model == "logistic"]
+    ax.barh([y[r] for r in d.dataset], d.error_se_ratio, color=BLUE, height=0.55)
+    for r in d.itertuples():
+        ax.text(r.error_se_ratio * 1.05, y[r.dataset], f"{r.error_se_ratio:.1f}x", va="center", fontsize=8, color=INK)
+    ax.set_xscale("log"); ax.axvline(1, color=REF, linestyle="--", linewidth=1)
+    ticks = [t for t in (1, 2, 5, 10, 20, 50) if t <= d.error_se_ratio.max() * 1.3]
+    ax.set_xticks(ticks); ax.set_xticklabels([f"{t}x" for t in ticks]); ax.minorticks_off()
+    ax.set_yticks(range(len(order))); ax.set_yticklabels([LABELS[x] for x in order])
+    ax.set_xlabel("How many times wider the honest (cluster-robust) error bar is\nthan the usual one (error rate, logistic regression)")
+    finish(fig, ax, "se_ratio")
+
+    fig, ax = plt.subplots(figsize=(6.5, 0.55 * len(order) + 1.2))           # 3. pooled AUC against within-fold pairs
+    for model, off, col in (("boosting", 0.15, ORANGE), ("logistic", -0.15, BLUE)):
+        d = S[S.model == model]
+        ax.errorbar(d.mixing, [y[r] + off for r in d.dataset], xerr=1.645 * d.mixing_se, fmt="o", color=col, ms=5, capsize=0, label=model)
+    ax.axvline(0, color=REF, linestyle="--", linewidth=1)
+    ax.set_yticks(range(len(order))); ax.set_yticklabels([LABELS[x] for x in order])
+    ax.set_xlabel("Pooled AUC minus the fixed version (only pairs scored by the same fold model)\nmean over 20 random splits, with 90% interval")
+    ax.legend(loc="lower left", fontsize=8)
+    finish(fig, ax, "pooled")
+
+    pb = RES / "cross_field_stageb_summary.csv"
+    if pb.exists():
+        B = pd.read_csv(pb); B = B[B.model == "logistic"]
+        from matplotlib.patches import Patch
+        fig, axes = plt.subplots(1, 2, figsize=(6.5, 3.2), sharey=True)
+        for ax, (metric, cols) in zip(axes, (("Error rate", [("cover_err_naive", "usual"), ("cover_err_cluster_t", "cluster-robust"),
+                                                            ("cover_err_wild", "wild bootstrap")]),
+                                             ("AUC", [("cover_auc_naive", "usual"), ("cover_auc_bcwf_t", "cluster-robust")]))):
+            for j, G in enumerate(sorted(B.G)):
+                row = B[B.G == G].iloc[0]
+                xs = np.arange(len(cols)) + (j - 0.5) * 0.36
+                ax.bar(xs, [row[c] for c, _ in cols], width=0.34, color=[REF, BLUE, AQUA][:len(cols)] if j == 0 else None,
+                       edgecolor=INK2 if j else None, hatch="//" if j else None, fill=j == 0)
+                for x, (c, _) in zip(xs, cols):
+                    ax.text(x, row[c] + 0.015, f"{row[c]:.2f}", ha="center", fontsize=7, color=INK)
+            ax.axhline(0.90, color=INK2, linestyle="--", linewidth=1)
+            ax.set_xticks(range(len(cols))); ax.set_xticklabels([n for _, n in cols], fontsize=8); ax.set_title(metric, fontsize=9, color=INK)
+            ax.set_ylim(0, 1.05)
+            for side in ("top", "right"):
+                ax.spines[side].set_visible(False)
+        axes[0].set_ylabel("How often the 90% interval\ncaught the truth (dashed: 0.90)")
+        Gs = sorted(B.G)
+        fig.legend(handles=[Patch(facecolor=REF, label=f"{Gs[0]} areas studied"), Patch(fill=False, hatch="//", edgecolor=INK2, label=f"{Gs[1]} areas studied")],
+                   loc="lower center", ncol=2, fontsize=7.5, frameon=False)
+        fig.tight_layout(rect=(0, 0.07, 1, 1)); fig.savefig(RES / "cross_field_coverage.png", dpi=300, facecolor="white"); plt.close(fig)
+    print("wrote results/cross_field_{leakage,se_ratio,pooled,coverage}.png")
+
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--stage", default="both", choices=("a", "b", "both"))
     ap.add_argument("--pilot", action="store_true"); ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--datasets", nargs="+", default=DATASETS, choices=DATASETS); ap.add_argument("--force", action="store_true")
+    ap.add_argument("--plot", action="store_true")
     args = ap.parse_args()
     pd.set_option("display.width", 250)
+    if args.plot:
+        return plots()
     if args.pilot:
         print(summary_b(stage_b(args.jobs, True), True).to_string(index=False)); return
     if args.stage in ("a", "both"):
