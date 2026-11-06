@@ -87,6 +87,14 @@ def test_nb_ratio_is_one_for_fixed_losses():
     assert abs(np.mean(vals) - 1) < 0.05, np.mean(vals)
 
 
+def test_boosting_survives_a_column_missing_in_the_training_fold():
+    """ExtraSensory: some sensors are missing for every user in a training fold. Boosting drops such a column."""
+    rng = np.random.default_rng(5); D = rng.normal(size=(200, 3)).astype(np.float32); D[:100, 2] = np.nan
+    y = (rng.random(200) < 0.4).astype(float); tr = np.arange(200) < 100
+    p = C.fit_predict("boosting", D, y, tr, ~tr, 1)
+    assert p.shape == (100,) and np.isfinite(p).all()
+
+
 def test_stage_b_scores_only_new_groups():
     """Stage B on a small synthetic population: the study has G groups, and the target uses the other groups."""
     rng = np.random.default_rng(4); P, m = 60, 40

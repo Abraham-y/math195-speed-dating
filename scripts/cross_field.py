@@ -29,7 +29,7 @@ every row its own cluster for the naive AUC SE).
 Stage B (census income only, a real-data population): the 265 PUMAs are the population. Each replicate draws G PUMAs
 (G = 20 or 40) as the study, runs grouped 5-fold CV on them, and scores the full model (fitted on the whole study) on
 all other PUMAs: AUC_new and Err_new. Coverage of nominal 90% intervals and bias against those targets.
-Run from the repository root: python scripts/cross_field.py [--stage a|b|both] [--pilot] [--jobs 8]
+Run from the repository root: python scripts/cross_field.py [--stage a|b|both] [--datasets ...] [--force] [--pilot] [--jobs 8]
 """
 import os
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
@@ -93,9 +93,10 @@ def fit_predict(model, D, y, tr, te, seed):
         m = LogisticRegression(C=1.0, max_iter=2000).fit(F[tr], y[tr])
         return m.predict_proba(F[te])[:, 1]
     from sklearn.ensemble import HistGradientBoostingClassifier
-    m = HistGradientBoostingClassifier(max_iter=200, learning_rate=0.1, max_leaf_nodes=31, early_stopping=False,
-                                       random_state=seed).fit(D[tr], y[tr])
-    return m.predict_proba(D[te])[:, 1]
+    keep = ~np.isnan(D[tr]).all(axis=0)                 # a column with no observed value in the training fold carries
+    m = HistGradientBoostingClassifier(max_iter=200, learning_rate=0.1, max_leaf_nodes=31, early_stopping=False,   # nothing
+                                       random_state=seed).fit(D[tr][:, keep], y[tr])                # (and breaks binning)
+    return m.predict_proba(D[te][:, keep])[:, 1]
 
 
 def fold_task(model, D, y, fold, k, seed):
@@ -140,9 +141,15 @@ def row_partition(n, rng):
 
 # ---------------------------------------------------------------- Stage A
 
-def stage_a(jobs):
-    parts, folds_out = [], []
-    for di, name in enumerate(DATASETS):
+def stage_a(jobs, names=DATASETS, force=False):
+    """Each data set's partitions and fold values are saved as soon as it finishes
+    (results/cross_field_partitions_<name>.csv, _folds_<name>.csv); a data set already saved is skipped unless force."""
+    for name in names:
+        di = DATASETS.index(name)
+        out_p, out_f = RES / f"cross_field_partitions_{name}.csv", RES / f"cross_field_folds_{name}.csv"
+        if out_p.exists() and not force:
+            log(f"{name}: saved, skipped"); continue
+        parts, folds_out = [], []
         X, y, g = E.LOADERS[name](); D, _ = design(X); y = y.astype(float)
         plan = [("grouped", r, grouped_partition(g, np.random.default_rng([SEED_GROUPED, di, r]))) for r in range(R_GROUPED)]
         plan += [("random-row", r, row_partition(len(y), np.random.default_rng([SEED_ROW, di, r]))) for r in range(R_ROW)]
@@ -161,9 +168,12 @@ def stage_a(jobs):
             seed = f"[{SEED_GROUPED if scheme == 'grouped' else SEED_ROW}, {di}, {r}]"
             parts.append(dict(dataset=name, model=model, scheme=scheme, partition=r, rows=len(y), groups=len(np.unique(g)), seed=seed, **out))
             folds_out += [dict(dataset=name, model=model, scheme=scheme, partition=r, **v) for v in fv]
+        pd.DataFrame(parts).to_csv(out_p, index=False); pd.DataFrame(folds_out).to_csv(out_f, index=False)
         log(f"  done {name}")
-    P = pd.DataFrame(parts); P.to_csv(RES / "cross_field_partitions.csv", index=False)
-    pd.DataFrame(folds_out).to_csv(RES / "cross_field_folds.csv", index=False)
+    saved = [n for n in DATASETS if (RES / f"cross_field_partitions_{n}.csv").exists()]
+    P = pd.concat([pd.read_csv(RES / f"cross_field_partitions_{n}.csv") for n in saved], ignore_index=True)
+    F = pd.concat([pd.read_csv(RES / f"cross_field_folds_{n}.csv") for n in saved], ignore_index=True)
+    P.to_csv(RES / "cross_field_partitions.csv", index=False); F.to_csv(RES / "cross_field_folds.csv", index=False)
     return P
 
 
@@ -266,12 +276,13 @@ def summary_b(B, pilot=False):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--stage", default="both", choices=("a", "b", "both"))
     ap.add_argument("--pilot", action="store_true"); ap.add_argument("--jobs", type=int, default=8)
+    ap.add_argument("--datasets", nargs="+", default=DATASETS, choices=DATASETS); ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
     pd.set_option("display.width", 250)
     if args.pilot:
         print(summary_b(stage_b(args.jobs, True), True).to_string(index=False)); return
     if args.stage in ("a", "both"):
-        SA = summary_a(stage_a(args.jobs), pd.read_csv(RES / "cross_field_folds.csv")); print(SA.to_string(index=False))
+        SA = summary_a(stage_a(args.jobs, args.datasets, args.force), pd.read_csv(RES / "cross_field_folds.csv")); print(SA.to_string(index=False))
     if args.stage in ("b", "both"):
         SB = summary_b(stage_b(args.jobs, False)); print(SB.to_string(index=False))
 
