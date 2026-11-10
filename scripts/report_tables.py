@@ -72,12 +72,14 @@ def ladder():
              ("pre", "+ 6 pair features (age gap, interest correlation, same field, same goal, two preference fits)", None),
              ("pre_extended", "+ 5 more pair features (same career, dating and going-out gaps, two interest similarities)", None),
              ("pre_interactions", "+ 3 terms (squared age gap, interest correlation $\\times$ shared-interest weight, both ways)", None)]
+    # Change is taken between the printed (rounded) AUCs so that the column adds up as a reader checks it
     rows, prev = [], None
     for fs, label, _ in steps:
         r = a.loc[fs]
-        diff = "--" if prev is None else f"${r.auc - prev:+.4f}$"
-        rows.append(f"\\texttt{{{fs.replace('_', chr(92) + '_')}}} & {label} & {r.auc:.4f} ({r.auc_se:.4f}) & {diff} \\\\")
-        prev = r.auc
+        auc = round(r.auc, 4)
+        diff = "--" if prev is None else f"${auc - prev:+.4f}$"
+        rows.append(f"\\texttt{{{fs.replace('_', chr(92) + '_')}}} & {label} & {auc:.4f} ({r.auc_se:.4f}) & {diff} \\\\")
+        prev = auc
     body = (r"""\begin{table}[h]
 \centering
 \caption{The full logistic model's held-out AUC as pair-level compatibility features are added (event 5-fold
