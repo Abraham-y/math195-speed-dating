@@ -14,7 +14,7 @@ the observations as independent \cite[Section 5.1.3, pp.~206--208]{James:2023}. 
 to 22 dyads, and all dyads in an event share an evening. This section asks three questions: what does
 cross-validation estimate when rows come in clusters, which error bars are trustworthy, and does the usual
 cross-validated AUC need a correction? Each answer is a short mathematical result, and each prediction was tested on
-simulated data, pre-registered before the simulation ran.
+simulated data.
 
 \subsection{Setup}
 
@@ -151,8 +151,8 @@ Carlo intervals. $K=3$ and $10$ were predicted before they ran (results/sim\_cv\
 
 \emph{A prediction tested in advance} (Figure~\ref{fig:nbtheory}). We estimated the inflation factor of Result~2 from runs
 with five folds, then predicted it for three folds (1.452) and ten folds (1.082) before running them. The observed
-values were 1.463 to 1.505 and 1.071 to 1.084. One related prediction failed at its pre-registered precision: the ratio
-of the true variance to the cluster-robust variance was 0.91 to 1.17 against a target band of 0.9 to 1.1, although
+values were 1.463 to 1.505 and 1.071 to 1.084. One related prediction missed its target band: the ratio
+of the true variance to the cluster-robust variance was 0.91 to 1.17 against a band of 0.9 to 1.1, although
 its pooled value, 1.05 (90\% interval 0.98 to 1.11), is consistent with 1.
 
 \begin{figure}[h]
@@ -196,7 +196,7 @@ coverage of 90\% intervals with strong event effects. Synthetic clusters of 40 r
 In simulation (Figure~\ref{fig:aucbias}) the pooled AUC was too low in all 12 settings with event effects, by up to
 0.040, about one standard error with 20 events, and its 90\% interval covered as little as 75\%. The formula predicted
 the size of the bias to within 1.3\% to 5.1\%, and with ten folds to within 1.4\%; with two folds and strong event
-effects it was 18.6\% too large, so that pre-registered test failed (a larger rerun put the gap at 5.8\%). The
+effects it was 18.6\% too large (a larger rerun put the gap at 5.8\%). The
 within-fold version was unbiased to within 0.11 standard errors and covered 89.9\% on average with 40 or more events.
 On our own data the two versions agree on average (difference $-0.004$ to $+0.002$ over 20 random fold assignments),
 and the formula, evaluated on our data, predicts a bias of only $-0.001$, so the AUCs in Section~5 stand.
