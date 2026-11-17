@@ -56,28 +56,21 @@ def model_table():
 
 def predictor_table(top=8):
     imp = pd.read_csv(RES / "rf_importance.csv")
-    out, cells = [], []
+    out, panels = [], []
     for fs, head in (("pre+date", "With in-date ratings"), ("pre", "Before the date (sign-up answers only)")):
         d = imp[(imp.feature_set == fs) & (imp.kind != "group")].sort_values("auc_drop", ascending=False).head(top)
         out.append(d.assign(table_rank=range(1, len(d) + 1)))
-        a0 = d.forest_auc.iloc[0]
-        cells.append([f"{head}: forest AUC {a0:.3f}", "", ""])
-        cells += [[f"{i}. {r.label}", f"{r.auc_drop:.3f}", f"{r.auc_drop_se:.3f}"] for i, r in enumerate(d.itertuples(), 1)]
+        cells = [[f"{i}. {r.label}", f"{r.auc_drop:.3f}", f"{r.auc_drop_se:.3f}"] for i, r in enumerate(d.itertuples(), 1)]
+        panels.append((f"{head}: forest AUC {d.forest_auc.iloc[0]:.3f}", cells))
     pd.concat(out).to_csv(RES / "poster_tables_predictors.csv", index=False)
-    heads = [i for i, c in enumerate(cells) if c[1] == ""]
-    draw(cells, ["Predictor (ranked)", "AUC drop", "SE"], "poster_tables_predictors",
-         "What the random forest relies on most", "",    # no footnote: the slide and poster explain the AUC drop
-         section_rows=heads, widths=(0.70, 0.15, 0.15))
+    draw_side_by_side(panels, ["Predictor (ranked)", "AUC drop", "SE"], "poster_tables_predictors",
+                      "What the random forest relies on most", widths=(0.68, 0.17, 0.15))
 
 
-def draw(cells, header, name, title, note, highlight=None, section_rows=(), widths=(0.5, 0.25, 0.25), left=(0,),
-         figwidth=7.4):
-    """A table as a figure; columns in `left` are left-aligned, the rest centred."""
+def _table(ax, cells, header, widths, left=(0,), highlight=None, section_rows=()):
+    """Header, rules and cells of one table on axes with x in [0, 1] and one unit per row."""
     n = len(cells)
-    fig, ax = plt.subplots(figsize=(figwidth, 0.36 * (n + 1) + 1.2))
-    ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(-(n + 0.3 + (0.45 * (note.count(chr(10)) + 1) if note else 0)), 1.45)
     x = np.cumsum((0,) + tuple(widths))
-    ax.text(0, 1.3, title, fontsize=12, fontweight="bold", color=INK, va="bottom")
     for j, h in enumerate(header):
         ax.text(x[j] + (0.01 if j in left else widths[j] / 2), 0.42, h, fontsize=9.5, fontweight="bold", color=INK2,
                 ha="left" if j in left else "center", va="center", linespacing=1.1)
@@ -92,10 +85,36 @@ def draw(cells, header, name, title, note, highlight=None, section_rows=(), widt
         for j, c in enumerate(row):
             ax.text(x[j] + (0.01 if j in left else widths[j] / 2), yy, c, fontsize=9.5, color=INK, va="center",
                     ha="left" if j in left else "center", fontweight="bold" if i == highlight else "normal")
-        ax.plot([0, 1], [yy - 0.5, yy - 0.5], color=GRID, linewidth=0.6)
+        if i < n - 1:
+            ax.plot([0, 1], [yy - 0.5, yy - 0.5], color=GRID, linewidth=0.6)
     ax.plot([0, 1], [-n - 0.05, -n - 0.05], color=INK, linewidth=1)
+
+
+def draw(cells, header, name, title, note, highlight=None, section_rows=(), widths=(0.5, 0.25, 0.25), left=(0,),
+         figwidth=7.4):
+    """A table as a figure; columns in `left` are left-aligned, the rest centred."""
+    n = len(cells)
+    fig, ax = plt.subplots(figsize=(figwidth, 0.36 * (n + 1) + 1.2))
+    ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(-(n + 0.3 + (0.45 * (note.count(chr(10)) + 1) if note else 0)), 1.45)
+    ax.text(0, 1.3, title, fontsize=12, fontweight="bold", color=INK, va="bottom")
+    _table(ax, cells, header, widths, left, highlight, section_rows)
     if note:
         ax.text(0, -n - 0.25, note, fontsize=7.5, color=INK2, va="top")
+    fig.savefig(RES / f"{name}.png", dpi=300, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
+def draw_side_by_side(panels, header, name, title, widths):
+    """Several tables of the same columns next to each other (landscape, for a slide), each with a subtitle."""
+    n = max(len(c) for _, c in panels)
+    fig, axes = plt.subplots(1, len(panels), figsize=(6.6 * len(panels), 0.36 * (n + 2) + 1.1),
+                             gridspec_kw=dict(wspace=0.08))
+    for k, (ax, (sub, cells)) in enumerate(zip(axes, panels)):
+        ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(-(n + 0.3), 2.25)
+        if k == 0:
+            ax.text(0, 2.05, title, fontsize=12, fontweight="bold", color=INK, va="bottom")
+        ax.text(0.01, 1.2, sub, fontsize=10, fontweight="bold", color=INK, va="center")
+        _table(ax, cells, header, widths)
     fig.savefig(RES / f"{name}.png", dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
