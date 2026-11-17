@@ -4,13 +4,13 @@
 
 \begin{myblock}{Technical Implementation}
 \begin{enumerate}
-  \item \textbf{Two feature sets.} \emph{Before the date:} sign-up answers plus six pair features (age gap,
-  interest similarity, same field, same goal, preference fit each way). \emph{With in-date ratings:} adds the
+  \item \textbf{Pre-date and in-date feature sets.} \emph{Pre-date:} sign-up answers plus six pair features
+  (age gap, interest similarity, same field, same goal, preference fit each way). \emph{In-date:} adds the
   16 ratings the two gave each other.
-  \item \textbf{No peeking.} Missing-value fills, scaling and tuning are chosen inside the training events by an
-  inner cross-validation.
-  \item \textbf{Error bars by event.} Pairs at one event share people, so standard errors treat each of the
-  21 events as a cluster.
+  \item \textbf{Nested event-level cross-validation.} Missing-value fills, scaling and tuning use only the
+  training events.
+  \item \textbf{Event-clustered standard errors.} Pairs at one event share people, so each of the 21 events
+  is one cluster.
 \end{enumerate}
 \end{myblock}
 
