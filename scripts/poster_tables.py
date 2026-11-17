@@ -2,7 +2,8 @@
 
 Input : results/part1_models_metrics.csv, results/tree_figure_cv.csv (scripts/tree_figure.py),
         results/rf_importance.csv (scripts/rf_importance.py)
-Output: results/poster_tables_models.png / .csv, results/poster_tables_predictors.png / .csv
+Output: results/poster_tables_models.png / .csv, results/poster_tables_predictors.png / .csv,
+        report/poster/middle_column.tex (the poster's middle column, with both tables as native LaTeX)
 Seeds : none here (the inputs record theirs).
 
 Model table: held-out AUC (event 5-fold CV, 4,184 dyads, headline specification) with event-clustered SEs, before
@@ -42,7 +43,7 @@ def model_table():
     draw(cells, ["Model", "Before\nthe date", "With in-date\nratings"], "poster_tables_models",
          "Held-out AUC (standard error) of each model",
          "Event 5-fold cross-validation: whole events held out, 4,184 pairs. 0.5 = chance, 1 = perfect. The forest's\n"
-         "lead over the next models is within the error bars. Source: scripts/poster_tables.py.",
+         "lead over the runner-up is within the error bars (results/rf_vs_next.csv). Source: scripts/poster_tables.py.",
          highlight=len(cells) - 1, widths=(0.56, 0.22, 0.22))
     return df
 
@@ -96,10 +97,101 @@ def draw(cells, header, name, title, note, highlight=None, section_rows=(), widt
     plt.close(fig)
 
 
+SHORT = {"Logistic regression (with splines)": "Logistic (with splines)", "Stepwise logistic (forward)": "Stepwise logistic",
+         "Lasso (L1 logistic)": "Lasso", "Single decision tree (depth 3)": "Single tree (depth 3)",
+         "Random forest (500 trees)": "Random forest"}
+COLUMN = r"""%% Middle column of the poster, written by scripts/poster_tables.py (do not edit the numbers by hand).
+%% Needs tree_figure_pre_date_poster.png in the Overleaf project.
+\begin{column}{\colwidth}
+
+\begin{myblock}{Technical Implementation}
+\begin{enumerate}
+  \item \textbf{Two feature sets.} \emph{Before the date:} sign-up answers plus six pair features (age gap,
+  interest similarity, same field, same goal, preference fit each way). \emph{With in-date ratings:} adds the
+  16 ratings the two gave each other.
+  \item \textbf{No peeking.} Missing-value fills, scaling and tuning are chosen inside the training events by an
+  inner cross-validation.
+  \item \textbf{Error bars by event.} Pairs at one event share people, so standard errors treat each of the
+  21 events as a cluster.
+\end{enumerate}
+\end{myblock}
+
+\begin{myblock}{Performance by Model}
+Held-out AUC (standard error); 0.5 = chance.
+\begin{center}\small
+MODELS_TABLE
+\end{center}
+\begin{itemize}
+  \item Before the date every model is near chance (AUC PRE_LO--PRE_HI).
+  \item The four-minute date adds about GAIN to the AUC.
+  \item The forest leads, but its lead over the runner-up is within the error bars.
+\end{itemize}
+\end{myblock}
+
+\begin{myblock}{What the Best Model Uses}
+\begin{figure}
+\centering
+\includegraphics[width=0.92\linewidth]{tree_figure_pre_date_poster.png}
+\caption{One 3-level tree fitted to all pairs; leaves give the share that matched. Held out it scores AUC
+TREE_AUC; the 500-tree forest scores RF_AUC.}
+\end{figure}
+\vspace{-0.3cm}
+Predictors ranked by how far the forest's held-out AUC falls when each is shuffled:
+\begin{center}\small
+PREDICTORS_TABLE
+\end{center}
+\vspace{-0.2cm}
+Liking matters most, then fun and attractiveness. Shuffling all in-date ratings at once drops the AUC by
+GROUP_DATE; all sign-up answers, by GROUP_PRE.
+\end{myblock}
+
+\end{column}
+"""
+
+
+def poster_column(models, n_date=5, n_pre=3):
+    """Native LaTeX tables and the poster's middle column (report/poster/middle_column.tex)."""
+    best = models.auc_pre_date.idxmax()
+    rows = []
+    for i, r in models.iterrows():
+        b = (lambda t: f"\\textbf{{{t}}}") if i == best else (lambda t: t)
+        rows.append(f"{b(SHORT.get(r.model, r.model))} & {b(f'{r.auc_pre:.3f}')} ({r.se_pre:.3f}) & "
+                    f"{b(f'{r.auc_pre_date:.3f}')} ({r.se_pre_date:.3f}) \\\\")
+    mt = ("\\begin{tabular}{lcc}\n\\toprule\nModel & Before the date & With in-date ratings \\\\\n\\midrule\n"
+          + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}")
+    imp = pd.read_csv(RES / "rf_importance.csv")
+    single = imp[imp.kind != "group"]
+    g = imp[imp.kind == "group"].set_index(["feature_set", "predictor"]).auc_drop
+    lines = ["\\begin{tabular}{lc}", "\\toprule", "Predictor & AUC drop (SE) \\\\", "\\midrule"]
+    for fs, n, head in (("pre+date", n_date, "With in-date ratings"), ("pre", n_pre, "Before the date")):
+        d = single[single.feature_set == fs].sort_values("auc_drop", ascending=False).head(n)
+        if fs == "pre":
+            lines.append("\\midrule")
+        lines.append(f"\\multicolumn{{2}}{{l}}{{\\textit{{{head} (forest AUC {d.forest_auc.iloc[0]:.3f})}}}} \\\\")
+        lines += [f"{r.label} & {r.auc_drop:.3f} ({r.auc_drop_se:.3f}) \\\\" for r in d.itertuples()]
+    pt = "\n".join(lines + ["\\bottomrule", "\\end{tabular}"])
+    tree = pd.read_csv(RES / "tree_figure_cv.csv").query("depth == 3 and feature_set == 'pre+date'").auc.iloc[0]
+    rf = models.loc[best]
+    fill = dict(MODELS_TABLE=mt, PREDICTORS_TABLE=pt, PRE_LO=f"{models.auc_pre.min():.2f}", PRE_HI=f"{models.auc_pre.max():.2f}",
+                GAIN=f"{rf.auc_pre_date - rf.auc_pre:.2f}", TREE_AUC=f"{tree:.3f}", RF_AUC=f"{rf.auc_pre_date:.3f}",
+                GROUP_DATE=f"{g['pre+date', 'GROUP: all in-date ratings']:.2f}",
+                GROUP_PRE=f"{g['pre+date', 'GROUP: all sign-up answers']:.3f}")
+    text = COLUMN
+    for k, v in fill.items():
+        text = text.replace(k, v)
+    out = pathlib.Path("report/poster"); out.mkdir(parents=True, exist_ok=True)
+    (out / "middle_column.tex").write_text(text)
+    (out / "poster_tables_models.tex").write_text(mt + "\n")
+    (out / "poster_tables_predictors.tex").write_text(pt + "\n")
+
+
 def main():
-    print(model_table().to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+    models = model_table()
+    print(models.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     if (RES / "rf_importance.csv").exists():
         predictor_table()
+        poster_column(models)
+        print("wrote report/poster/middle_column.tex and the two native tables")
         print(pd.read_csv(RES / "poster_tables_predictors.csv")[["feature_set", "table_rank", "label", "auc_drop", "auc_drop_se"]]
               .to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     print("wrote results/poster_tables_models.png/.csv and results/poster_tables_predictors.png/.csv")

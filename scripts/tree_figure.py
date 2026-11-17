@@ -1,7 +1,8 @@
 """One classification tree, drawn for the poster and slides, with its held-out accuracy next to the forest's.
 
 Input : data/pairs.csv, data/feature_sets.json, results/part1_models_metrics.csv (the forest's AUC, for comparison)
-Output: results/tree_figure_pre_date.png and results/tree_figure_pre.png (the depth-3 tree fitted to all 4,184 dyads),
+Output: results/tree_figure_pre_date.png and results/tree_figure_pre.png (the depth-3 tree fitted to all 4,184 dyads;
+        *_poster.png versions without title or notes),
         results/tree_figure_cv.csv (held-out AUC of single trees of depth 1 to 8, event 5-fold CV)
 Seeds : event folds 20261006 (modeling.FOLD_SEED); tree random_state 20261117.
 
@@ -13,7 +14,7 @@ The depth was fixed at 3 for readability before looking at the results; the CV t
 each depth do on held-out events, which is the fair comparison with the forest.
 Run from the repository root: python scripts/tree_figure.py
 """
-import sys, json, pathlib
+import sys, json, pathlib, textwrap
 import numpy as np, pandas as pd
 from scipy import stats
 from sklearn.tree import DecisionTreeClassifier
@@ -71,7 +72,21 @@ def edge_words(col, t):
     7 (almost never), so a lower code means more often."""
     if col.endswith(("_date", "_go_out")):
         return f"{FREQ[int(t)]} or more often", f"{FREQ[int(t) + 1]} or less often"
-    return f"≤ {t:.3g}", f"> {t:.3g}"
+    return f"≤ {fmt(t)}", f"> {fmt(t)}"
+
+
+def fmt(t):
+    """Split points: ratings split at quarter points, shown exactly; preference weights to one decimal."""
+    return f"{t:g}" if abs(4 * t - round(4 * t)) < 1e-9 else f"{t:.1f}"
+
+
+def question(col, t):
+    """Poster node text: the split as a yes/no question (yes = the right branch)."""
+    if col.endswith(("_date", "_go_out")):
+        return f"{name(col)}: {FREQ[int(t) + 1]} or less often?"
+    if "=" in col or col.startswith(("same_", "f_pre_", "m_pre_", "f_date_m", "m_date_m")):
+        return f"{name(col)}?"
+    return f"{name(col)} > {fmt(t)}?"
 
 
 def held_out(D, y, ev, depth):
@@ -83,7 +98,8 @@ def held_out(D, y, ev, depth):
     return M.auc(p, y), np.sqrt(M.auc_clustered_var(p, y, ev))
 
 
-def draw(tree, cols, y, feature_set, cv_auc, rf_auc):
+def draw(tree, cols, y, feature_set, cv_auc, rf_auc, poster=False):
+    """poster=True: no title or notes (the poster caption carries them), wrapped labels and larger relative text."""
     T = tree.tree_
     leaves, pos = [], {}
     def walk(n, d):
@@ -93,8 +109,14 @@ def draw(tree, cols, y, feature_set, cv_auc, rf_auc):
         pos[n] = ((a + b) / 2, d); return pos[n][0]
     walk(0, 0)
     nl, depth = len(leaves), max(d for _, d in pos.values())
-    fig, ax = plt.subplots(figsize=(1.75 * nl + 0.6, 1.35 * depth + 1.6))
-    ax.set_xlim(-0.6, nl - 0.4); ax.set_ylim(-(depth + 0.4), 0.75); ax.axis("off")
+    fs_node, fs_leaf, fs_edge = (10, 10, 9.5) if poster else (8.5, 9, 8.5)
+    if poster:
+        fig, ax = plt.subplots(figsize=(1.05 * nl + 0.2, 1.1 * depth + 0.9))
+        ax.set_xlim(-0.55, nl - 0.45); ax.set_ylim(-(depth + 0.38), 0.3)
+    else:
+        fig, ax = plt.subplots(figsize=(1.75 * nl + 0.6, 1.35 * depth + 1.6))
+        ax.set_xlim(-0.6, nl - 0.4); ax.set_ylim(-(depth + 0.4), 0.75)
+    ax.axis("off")
     base = y.mean()
     for n, (x, d) in pos.items():
         rate, cnt = T.value[n][0][1], int(T.n_node_samples[n])
@@ -103,18 +125,24 @@ def draw(tree, cols, y, feature_set, cv_auc, rf_auc):
                 cx, cd = pos[child]
                 ax.plot([x, cx], [-d - 0.2, -cd + 0.2], color=REF, linewidth=1.2, zorder=1)
                 c = cols[T.feature[n]]
-                if "=" in c or c.startswith(("same_", "f_pre_", "m_pre_", "f_date_m", "m_date_m")):
+                if poster or "=" in c or c.startswith(("same_", "f_pre_", "m_pre_", "f_date_m", "m_date_m")):
                     word = "no" if child == T.children_left[n] else "yes"
-                ax.text((x + cx) / 2, (-d - 0.2 - cd + 0.2) / 2, word, ha="center", va="center", fontsize=8.5,
+                ax.text((x + cx) / 2, (-d - 0.2 - cd + 0.2) / 2, word, ha="center", va="center", fontsize=fs_edge,
                         color=INK2, bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none"), zorder=3)
             text = name(cols[T.feature[n]])
-            ax.text(x, -d, f"{text}\n{cnt:,} pairs, {rate:.0%} match", ha="center", va="center", fontsize=8.5,
+            text = textwrap.fill(question(cols[T.feature[n]], T.threshold[n]), 22 if d < depth - 1 else 18) if poster else f"{text}\n{cnt:,} pairs, {rate:.0%} match"
+            ax.text(x, -d, text, ha="center", va="center", fontsize=fs_node,
                     color=INK, zorder=2, bbox=dict(boxstyle="round,pad=0.35", fc="white", ec=REF, lw=1))
         else:
             fc = SEQ(min(rate / 0.6, 1.0))
             tc = "white" if rate > 0.3 else INK
-            ax.text(x, -d, f"{rate:.0%}\nmatch\n{cnt:,} pairs", ha="center", va="center", fontsize=9, color=tc,
-                    fontweight="bold", zorder=2, bbox=dict(boxstyle="round,pad=0.4", fc=fc, ec="none"))
+            ax.text(x, -d, f"{rate:.0%}\n{cnt:,} pairs" if poster else f"{rate:.0%}\nmatch\n{cnt:,} pairs", ha="center",
+                    va="center", fontsize=fs_leaf, color=tc,
+                    fontweight="bold", zorder=2, bbox=dict(boxstyle=f"round,pad={0.28 if poster else 0.4}", fc=fc, ec="none"))
+    fn = {"pre+date": "pre_date", "pre": "pre"}[feature_set]
+    if poster:
+        fig.savefig(RES / f"tree_figure_{fn}_poster.png", dpi=300, bbox_inches="tight", facecolor="white")
+        plt.close(fig); return
     title = {"pre+date": "One decision tree, using the in-date ratings",
              "pre": "One decision tree, using only sign-up answers"}[feature_set]
     ax.text(-0.6, 0.72, title, fontsize=12, fontweight="bold", color=INK, va="top")
@@ -125,7 +153,6 @@ def draw(tree, cols, y, feature_set, cv_auc, rf_auc):
              "pre": "Interests and self-ratings are on 1-10 scales; stated weights are points out of 100."}[feature_set]
     fig.text(0.01, 0.02, f"{units} A missing answer follows the branch learned for it in training. "
              "Source: scripts/tree_figure.py.", fontsize=7.5, color=INK2, va="top")
-    fn = {"pre+date": "pre_date", "pre": "pre"}[feature_set]
     fig.savefig(RES / f"tree_figure_{fn}.png", dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
@@ -144,6 +171,7 @@ def main():
         rf = met[(met.spec == M.HEADLINE.label) & (met.feature_set == fs) & (met.model == "rf") & (met.dyads == len(y))].auc.iloc[0]
         tree = DecisionTreeClassifier(max_depth=DEPTH, min_samples_leaf=MIN_LEAF, random_state=TREE_SEED).fit(D, y)
         draw(tree, list(D.columns), y, fs, cv, rf)
+        draw(tree, list(D.columns), y, fs, cv, rf, poster=True)
         T = tree.tree_
         print(f"{fs}: depth-{DEPTH} tree, held-out AUC {cv[0]:.4f} (SE {cv[1]:.4f}); forest {rf:.4f}")
         for n in range(T.node_count):
