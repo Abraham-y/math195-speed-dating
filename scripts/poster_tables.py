@@ -25,6 +25,13 @@ INK, INK2, GRID, HL = "#0b0b0b", "#52514e", "#e4e3df", "#e8f0fb"
 MODELS = [("logistic", "Logistic regression (with splines)"), ("stepwise_forward", "Stepwise logistic (forward)"),
           ("lda", "LDA"), ("qda", "QDA (regularized)"), ("lasso", "Lasso (L1 logistic)"),
           ("tree", "Single decision tree (depth 3)"), ("rf", "Random forest (500 trees)")]
+PRO_CON = {"logistic": ("Interpretable coefficients", "Misses interactions"),
+           "stepwise_forward": ("Drops weak predictors", "Unstable predictor choice"),
+           "lda": ("Simple and stable", "Straight boundary only"),
+           "qda": ("Curved boundary", "Many parameters"),
+           "lasso": ("Picks predictors itself", "Still a linear model"),
+           "tree": ("Easy to read", "Unstable; overfits"),
+           "rf": ("Captures interactions", "Hard to interpret")}
 
 
 def model_table():
@@ -33,16 +40,17 @@ def model_table():
     tree = pd.read_csv(RES / "tree_figure_cv.csv").query("depth == 3").assign(model="tree")
     both = pd.concat([met[["model", "feature_set", "auc", "auc_se"]], tree[["model", "feature_set", "auc", "auc_se"]]])
     t = both.pivot(index="model", columns="feature_set", values=["auc", "auc_se"])
-    rows = [dict(model=lab, auc_pre=t.loc[m, ("auc", "pre")], se_pre=t.loc[m, ("auc_se", "pre")],
-                 auc_pre_date=t.loc[m, ("auc", "pre+date")], se_pre_date=t.loc[m, ("auc_se", "pre+date")])
+    rows = [dict(model=lab, pro=PRO_CON[m][0], con=PRO_CON[m][1], auc_pre=t.loc[m, ("auc", "pre")],
+                 se_pre=t.loc[m, ("auc_se", "pre")], auc_pre_date=t.loc[m, ("auc", "pre+date")],
+                 se_pre_date=t.loc[m, ("auc_se", "pre+date")])
             for m, lab in MODELS]
     df = pd.DataFrame(rows)
     df.to_csv(RES / "poster_tables_models.csv", index=False)
-    cells = [[r.model, f"{r.auc_pre:.3f} ({r.se_pre:.3f})", f"{r.auc_pre_date:.3f} ({r.se_pre_date:.3f})"]
-             for r in df.itertuples()]
-    draw(cells, ["Model", "Before\nthe date", "With in-date\nratings"], "poster_tables_models",
-         "Held-out AUC (standard error) of each model", "",    # no footnote: the slide and poster say how it was tested
-         highlight=len(cells) - 1, widths=(0.56, 0.22, 0.22))
+    cells = [[SHORT.get(r.model, r.model), r.pro, r.con, f"{r.auc_pre:.3f} ({r.se_pre:.3f})",
+              f"{r.auc_pre_date:.3f} ({r.se_pre_date:.3f})"] for r in df.itertuples()]
+    draw(cells, ["Model", "Pro", "Con", "AUC before\nthe date", "AUC with in-date\nratings"], "poster_tables_models",
+         "Comparing the models: held-out AUC (standard error)", "",    # no footnote: the slide and poster say how it was tested
+         highlight=len(cells) - 1, widths=(0.19, 0.235, 0.215, 0.18, 0.18), left=(0, 1, 2), figwidth=11.2)
     return df
 
 
@@ -62,15 +70,17 @@ def predictor_table(top=8):
          section_rows=heads, widths=(0.70, 0.15, 0.15))
 
 
-def draw(cells, header, name, title, note, highlight=None, section_rows=(), widths=(0.5, 0.25, 0.25)):
+def draw(cells, header, name, title, note, highlight=None, section_rows=(), widths=(0.5, 0.25, 0.25), left=(0,),
+         figwidth=7.4):
+    """A table as a figure; columns in `left` are left-aligned, the rest centred."""
     n = len(cells)
-    fig, ax = plt.subplots(figsize=(7.4, 0.36 * (n + 1) + 1.2))
+    fig, ax = plt.subplots(figsize=(figwidth, 0.36 * (n + 1) + 1.2))
     ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(-(n + 0.3 + (0.45 * (note.count(chr(10)) + 1) if note else 0)), 1.45)
     x = np.cumsum((0,) + tuple(widths))
     ax.text(0, 1.3, title, fontsize=12, fontweight="bold", color=INK, va="bottom")
     for j, h in enumerate(header):
-        ax.text(x[j] + (0.01 if j == 0 else widths[j] / 2), 0.42, h, fontsize=9.5, fontweight="bold", color=INK2,
-                ha="left" if j == 0 else "center", va="center", linespacing=1.1)
+        ax.text(x[j] + (0.01 if j in left else widths[j] / 2), 0.42, h, fontsize=9.5, fontweight="bold", color=INK2,
+                ha="left" if j in left else "center", va="center", linespacing=1.1)
     ax.plot([0, 1], [-0.1, -0.1], color=INK, linewidth=1)
     for i, row in enumerate(cells):
         yy = -i - 0.55
@@ -80,8 +90,8 @@ def draw(cells, header, name, title, note, highlight=None, section_rows=(), widt
             ax.text(0.01, yy, row[0], fontsize=9.5, fontweight="bold", color=INK, va="center")
             continue
         for j, c in enumerate(row):
-            ax.text(x[j] + (0.01 if j == 0 else widths[j] / 2), yy, c, fontsize=9.5, color=INK, va="center",
-                    ha="left" if j == 0 else "center", fontweight="bold" if i == highlight else "normal")
+            ax.text(x[j] + (0.01 if j in left else widths[j] / 2), yy, c, fontsize=9.5, color=INK, va="center",
+                    ha="left" if j in left else "center", fontweight="bold" if i == highlight else "normal")
         ax.plot([0, 1], [yy - 0.5, yy - 0.5], color=GRID, linewidth=0.6)
     ax.plot([0, 1], [-n - 0.05, -n - 0.05], color=INK, linewidth=1)
     if note:
