@@ -41,9 +41,7 @@ def model_table():
     cells = [[r.model, f"{r.auc_pre:.3f} ({r.se_pre:.3f})", f"{r.auc_pre_date:.3f} ({r.se_pre_date:.3f})"]
              for r in df.itertuples()]
     draw(cells, ["Model", "Before\nthe date", "With in-date\nratings"], "poster_tables_models",
-         "Held-out AUC (standard error) of each model",
-         "Event 5-fold cross-validation: whole events held out, 4,184 pairs. 0.5 = chance, 1 = perfect. The forest's\n"
-         "lead over the runner-up is within the error bars (results/rf_vs_next.csv). Source: scripts/poster_tables.py.",
+         "Held-out AUC (standard error) of each model", "",    # no footnote: the slide and poster say how it was tested
          highlight=len(cells) - 1, widths=(0.56, 0.22, 0.22))
     return df
 
@@ -73,7 +71,7 @@ def predictor_table(top=8):
 def draw(cells, header, name, title, note, highlight=None, section_rows=(), widths=(0.5, 0.25, 0.25)):
     n = len(cells)
     fig, ax = plt.subplots(figsize=(7.4, 0.36 * (n + 1) + 1.2))
-    ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(-(n + 0.3 + 0.45 * (note.count(chr(10)) + 1)), 1.45)
+    ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(-(n + 0.3 + (0.45 * (note.count(chr(10)) + 1) if note else 0)), 1.45)
     x = np.cumsum((0,) + tuple(widths))
     ax.text(0, 1.3, title, fontsize=12, fontweight="bold", color=INK, va="bottom")
     for j, h in enumerate(header):
@@ -92,7 +90,8 @@ def draw(cells, header, name, title, note, highlight=None, section_rows=(), widt
                     ha="left" if j == 0 else "center", fontweight="bold" if i == highlight else "normal")
         ax.plot([0, 1], [yy - 0.5, yy - 0.5], color=GRID, linewidth=0.6)
     ax.plot([0, 1], [-n - 0.05, -n - 0.05], color=INK, linewidth=1)
-    ax.text(0, -n - 0.25, note, fontsize=7.5, color=INK2, va="top")
+    if note:
+        ax.text(0, -n - 0.25, note, fontsize=7.5, color=INK2, va="top")
     fig.savefig(RES / f"{name}.png", dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
