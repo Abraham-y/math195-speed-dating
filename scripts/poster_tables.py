@@ -57,15 +57,9 @@ def predictor_table(top=8):
         cells += [[f"{i}. {r.label}", f"{r.auc_drop:.3f}", f"{r.auc_drop_se:.3f}"] for i, r in enumerate(d.itertuples(), 1)]
     pd.concat(out).to_csv(RES / "poster_tables_predictors.csv", index=False)
     heads = [i for i, c in enumerate(cells) if c[1] == ""]
-    g = imp[imp.kind == "group"].set_index(["feature_set", "predictor"]).auc_drop
     draw(cells, ["Predictor (ranked)", "AUC drop", "SE"], "poster_tables_predictors",
-         "What the random forest relies on most",
-         "AUC drop: how much held-out AUC falls when that predictor is shuffled (mean of 30 shuffles; event 5-fold\n"
-         "cross-validation, 4,184 pairs; event-clustered SE). Her rating = the woman's view of the man, and vice versa.\n"
-         f"Related ratings share credit: shuffling all in-date ratings at once drops AUC by "
-         f"{g['pre+date', 'GROUP: all in-date ratings']:.2f}, all sign-up answers\n"
-         f"by {g['pre+date', 'GROUP: all sign-up answers']:.3f}. Before the date every drop is small and uncertain. "
-         "Source: scripts/poster_tables.py.", section_rows=heads, widths=(0.70, 0.15, 0.15))
+         "What the random forest relies on most", "",    # no footnote: the slide and poster explain the AUC drop
+         section_rows=heads, widths=(0.70, 0.15, 0.15))
 
 
 def draw(cells, header, name, title, note, highlight=None, section_rows=(), widths=(0.5, 0.25, 0.25)):
